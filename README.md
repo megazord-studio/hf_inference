@@ -5,4 +5,3 @@
 - tesseract-ocr
 - libtesseract-dev
 - libleptonica-dev
-
