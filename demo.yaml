@@ -1,99 +1,124 @@
 demos:
-  # ----------------- text-generation -----------------
+  # ================= text-generation =================
   - model_id: google/gemma-2-2b-it
     task: text-generation
     payload:
       prompt: "Write a funny poem about coding in Switzerland."
+
   - model_id: tiiuae/falcon-rw-1b
     task: text-generation
     payload:
       prompt: "Write a funny poem about coding in Switzerland."
 
-  # ----------------- text2text-generation -----------------
+  # ================= text2text-generation =================
   - model_id: google/flan-t5-base
     task: text2text-generation
     payload:
       prompt: "Translate to German: The hotel staff are very friendly and helpful."
+
   - model_id: facebook/bart-base
     task: text2text-generation
     payload:
       prompt: "Translate to German: The hotel staff are very friendly and helpful."
 
-  # ----------------- summarization -----------------
+  # ================= zero-shot text classification =================
+  - model_id: facebook/bart-large-mnli
+    task: zero-shot-classification
+    payload:
+      prompt: "This restaurant was surprisingly good for the price."
+      candidate_labels: ["positive", "negative", "neutral"]
+
+  # ================= summarization =================
   - model_id: facebook/bart-large-cnn
     task: summarization
     payload:
       prompt: "Switzerland trains are punctual and efficient."
+
   - model_id: sshleifer/distilbart-cnn-12-6
     task: summarization
     payload:
       prompt: "Switzerland trains are punctual and efficient."
 
-  # ----------------- translation -----------------
+  # ================= translation =================
   - model_id: Helsinki-NLP/opus-mt-en-de
     task: translation
     payload:
       prompt: "Good morning, how are you?"
+
   - model_id: facebook/m2m100_418M
     task: translation
     payload:
       prompt: "Good morning, how are you?"
+      src_lang: "en"
+      tgt_lang: "sv"
 
-  # ----------------- question-answering -----------------
+  - model_id: facebook/nllb-200-distilled-600M
+    task: translation
+    payload:
+      prompt: "Good morning, how are you?"
+      src_lang: "eng_Latn"
+      tgt_lang: "deu_Latn"
+
+  # ================= question-answering =================
   - model_id: deepset/roberta-base-squad2
     task: question-answering
     payload:
       qa_question: "Who wrote Faust?"
       qa_context: "Johann Wolfgang von Goethe was a German writer and statesman."
+
   - model_id: distilbert-base-uncased-distilled-squad
     task: question-answering
     payload:
       qa_question: "Who wrote Faust?"
       qa_context: "Johann Wolfgang von Goethe was a German writer and statesman."
 
-  # ----------------- fill-mask -----------------
+  # ================= fill-mask =================
   - model_id: roberta-base
     task: fill-mask
     payload:
-      mask_sentence: "The capital of Switzerland is [MASK]."
-      mask_sentence_alt: "The capital of Switzerland is <mask>."
+      mask_sentence: "The capital of Switzerland is <mask>."
+      mask_sentence_alt: "The capital of Switzerland is [MASK]."
+
   - model_id: bert-base-uncased
     task: fill-mask
     payload:
-      mask_sentence: "The capital of Switzerland is [MASK]."
-      mask_sentence_alt: "The capital of Switzerland is <mask>."
+      mask_sentence: "the capital of switzerland is [MASK]."
+      mask_sentence_alt: "the capital of switzerland is <mask>."
 
-  # ----------------- sentiment-analysis -----------------
+  # ================= sentiment-analysis =================
   - model_id: distilbert-base-uncased-finetuned-sst-2-english
     task: sentiment-analysis
     payload:
       prompt: "I absolutely loved this place!"
+
   - model_id: cardiffnlp/twitter-roberta-base-sentiment
     task: sentiment-analysis
     payload:
       prompt: "This is terrible news."
 
-  # ----------------- token-classification (NER) -----------------
+  # ================= token-classification (NER) =================
   - model_id: dslim/bert-base-NER
     task: token-classification
     payload:
       prompt: "Barack Obama was born in Hawaii."
+
   - model_id: dbmdz/bert-large-cased-finetuned-conll03-english
     task: token-classification
     payload:
       prompt: "Barack Obama was born in Hawaii."
 
-  # ----------------- feature-extraction -----------------
+  # ================= feature-extraction =================
   - model_id: sentence-transformers/all-MiniLM-L6-v2
     task: feature-extraction
     payload:
       prompt: "This is a short sentence."
+
   - model_id: sentence-transformers/paraphrase-MiniLM-L6-v2
     task: feature-extraction
     payload:
       prompt: "This is a short sentence."
 
-  # ----------------- table-question-answering -----------------
+  # ================= table-question-answering =================
   - model_id: google/tapas-large-finetuned-wtq
     task: table-question-answering
     payload:
@@ -102,49 +127,169 @@ demos:
         - ["pandas", "dataframes"]
       table_query: "What is in the first cell?"
 
-  # ----------------- image-text-to-text (VLM) -----------------
+  # ================= visual-question-answering (VQA) =================
+  - model_id: dandelin/vilt-b32-finetuned-vqa
+    task: visual-question-answering
+    payload:
+      image_path: "image.jpg"
+      question: "What is on the table?"
+
+  # ================= document-question-answering =================
+  - model_id: impira/layoutlm-document-qa
+    task: document-question-answering
+    payload:
+      image_path: "image.jpg"
+      question: "What is the total amount?"
+
+  # OCR-free DocVQA alternative (recommended)
+  - model_id: naver-clova-ix/donut-base-finetuned-docvqa
+    task: document-question-answering
+    payload:
+      image_path: "image.jpg"
+      question: "What is the total amount?"
+
+  # ================= image-text-to-text (VLMs) =================
+  # solid & fast
   - model_id: Qwen/Qwen2.5-VL-7B-Instruct
     task: image-text-to-text
     payload:
       image_path: "image.jpg"
       prompt: "Give a concise caption and mention one color."
 
-  # ----------------- image-to-text -----------------
+  - model_id: HuggingFaceM4/idefics2-8b
+    task: image-text-to-text
+    payload:
+      image_path: "image.jpg"
+      prompt: "Give a concise caption and mention one color."
+
+  - model_id: llava-hf/llava-1.5-7b-hf
+    task: image-text-to-text
+    payload:
+      image_path: "image.jpg"
+      prompt: "Describe this scene in one sentence."
+
+  # VLMs that currently fail with AutoModelForImageTextToText (skip)
+  - model_id: openbmb/MiniCPM-Llama3-V-2_5
+    task: image-text-to-text
+    payload:
+      image_path: "image.jpg"
+      prompt: "Give a concise caption and mention one color."
+
+  - model_id: 01-ai/Yi-VL-6B
+    task: image-text-to-text
+    payload:
+      image_path: "image.jpg"
+      prompt: "Give a concise caption and mention one color."
+
+  - model_id: OpenGVLab/InternVL2-8B
+    task: image-text-to-text
+    payload:
+      image_path: "image.jpg"
+      prompt: "Give a concise caption and mention one color."
+
+  - model_id: Salesforce/blip2-opt-2.7b
+    task: image-text-to-text
+    payload:
+      image_path: "image.jpg"
+      prompt: "Caption this photo with one color mentioned."
+
+  - model_id: microsoft/kosmos-2-patch14-224
+    task: image-text-to-text
+    payload:
+      image_path: "image.jpg"
+      prompt: "Brief caption, include one color."
+
+  - model_id: microsoft/Florence-2-base-ft
+    task: image-text-to-text
+    payload:
+      image_path: "image.jpg"
+      prompt: "Brief caption, include one color."
+
+  # ================= image-to-text =================
   - model_id: Salesforce/blip-image-captioning-base
     task: image-to-text
     payload:
       image_path: "image.jpg"
 
-  # ----------------- image-classification -----------------
+  - model_id: nlpconnect/vit-gpt2-image-captioning
+    task: image-to-text
+    payload:
+      image_path: "image.jpg"
+
+  # ================= zero-shot image classification =================
+  - model_id: openai/clip-vit-base-patch32
+    task: zero-shot-image-classification
+    payload:
+      image_path: "image.jpg"
+      candidate_labels: ["patio", "dome", "restaurant", "planetarium"]
+
+  # ================= image-classification =================
   - model_id: google/vit-base-patch16-224
     task: image-classification
     payload:
       image_path: "image.jpg"
 
-  # ----------------- object-detection -----------------
+  # Public OWLViT alternative (works)
+  - model_id: google/owlvit-base-patch32
+    task: zero-shot-object-detection
+    payload:
+      image_path: "image.jpg"
+      candidate_labels: ["chair", "table", "plant", "sea"]
+
+  # ================= object-detection =================
   - model_id: facebook/detr-resnet-50
     task: object-detection
     payload:
       image_path: "image.jpg"
 
-  # ----------------- image-segmentation -----------------
+  # ================= image-segmentation =================
   - model_id: facebook/detr-resnet-50-panoptic
     task: image-segmentation
     payload:
       image_path: "image.jpg"
 
-  # ----------------- depth-estimation -----------------
+  - model_id: facebook/mask2former-swin-base-coco-panoptic
+    task: image-segmentation
+    payload:
+      image_path: "image.jpg"
+
+  # ================= depth-estimation =================
   - model_id: Intel/dpt-hybrid-midas
     task: depth-estimation
     payload:
       image_path: "image.jpg"
 
-  # ----------------- audio -----------------
+  # ================= audio (speech & emotions) =================
   - model_id: facebook/wav2vec2-base-960h
     task: automatic-speech-recognition
     payload:
       audio_path: "audio.wav"
+
   - model_id: superb/hubert-base-superb-er
     task: audio-classification
     payload:
       audio_path: "audio.wav"
+
+  # Optional Whisper ASR (requires ffmpeg; leave skipped if not installed)
+  - model_id: openai/whisper-base
+    task: automatic-speech-recognition
+    payload:
+      audio_path: "audio.wav"
+
+  # ================= text-to-speech (TTS) =================
+  - model_id: facebook/mms-tts-eng
+    task: text-to-speech
+    payload:
+      tts_text: "Hello from Switzerland! This is a TTS demo."
+
+  # ================= text-to-audio / music generation =================
+  - model_id: facebook/musicgen-small
+    task: text-to-audio
+    payload:
+      tta_prompt: "Lo-fi chillhop beat with warm drums, mellow keys, and a smooth bassline."
+
+  # ================= text-to-image (Stable Diffusion) =================
+  - model_id: runwayml/stable-diffusion-v1-5
+    task: text-to-image
+    payload:
+      prompt: "A cozy wooden cabin in snowy mountains at sunrise, watercolor style."
