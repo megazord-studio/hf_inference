@@ -1,20 +1,29 @@
 from transformers import pipeline
-from app.helpers import device_arg, ensure_image, safe_print_output
-from app.utilities import is_gated_repo_error, is_missing_model_error, soft_hint_error, soft_skip, _final_caption_fallback
+from app.helpers import device_arg, ensure_image, get_upload_file_image, safe_json
+from app.utilities import is_gated_repo_error, is_missing_model_error, _final_caption_fallback
 
 def run_vqa(spec, dev: str):
-    img = ensure_image(spec["payload"]["image_path"])
+    """
+    Run visual question answering inference.
+    Accepts either image_path or UploadFile from spec["files"]["image"].
+    Returns the result as a dictionary instead of printing.
+    """
+    # Handle UploadFile or fallback to path
+    img = get_upload_file_image(spec.get("files", {}).get("image"))
+    if img is None:
+        img = ensure_image(spec["payload"].get("image_path", "image.jpg"))
+    
     try:
         pl = pipeline("visual-question-answering", model=spec["model_id"], device=device_arg(dev), trust_remote_code=True)
         out = pl(image=img, question=spec["payload"]["question"])
-        safe_print_output(out)
+        return safe_json(out)
     except Exception as e:
         if is_gated_repo_error(e):
-            soft_skip("gated model (no access/auth)", "Try dandelin/vilt-b32-finetuned-vqa."); return
+            return {"skipped": True, "reason": "gated model (no access/auth)", "hint": "Try dandelin/vilt-b32-finetuned-vqa."}
         if is_missing_model_error(e):
-            soft_skip("model not found on Hugging Face", "Try dandelin/vilt-b32-finetuned-vqa."); return
+            return {"skipped": True, "reason": "model not found on Hugging Face", "hint": "Try dandelin/vilt-b32-finetuned-vqa."}
         cap = _final_caption_fallback(img, dev)
         if "text" in cap:
-            safe_print_output({"text": cap["text"], "note": "fallback caption used"})
+            return {"text": cap["text"], "note": "fallback caption used"}
         else:
-            soft_hint_error("visual-question-answering failed", repr(e))
+            return {"error": "visual-question-answering failed", "reason": repr(e)}
