@@ -1,5 +1,6 @@
 import os, sys, json
-from typing import Any, Dict, List
+import io
+from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 import torch
@@ -86,3 +87,47 @@ def to_dataframe(table_like: List[List[str]]) -> pd.DataFrame:
         data = rows[1:] if len(rows) > 1 else []
         return pd.DataFrame(data, columns=header)
     return pd.DataFrame(rows)
+
+# ---------- File handling for FastAPI ----------
+
+def get_upload_file_image(upload_file) -> Optional[Image.Image]:
+    """Convert UploadFile to PIL Image."""
+    if upload_file is None:
+        return None
+    contents = upload_file.file.read()
+    upload_file.file.seek(0)  # Reset for potential re-reading
+    return Image.open(io.BytesIO(contents)).convert("RGB")
+
+def get_upload_file_bytes(upload_file) -> Optional[bytes]:
+    """Get bytes from UploadFile."""
+    if upload_file is None:
+        return None
+    contents = upload_file.file.read()
+    upload_file.file.seek(0)  # Reset for potential re-reading
+    return contents
+
+def get_upload_file_path(upload_file, temp_path: str) -> Optional[str]:
+    """Save UploadFile to temporary path and return path."""
+    if upload_file is None:
+        return None
+    os.makedirs(os.path.dirname(temp_path) or ".", exist_ok=True)
+    with open(temp_path, "wb") as f:
+        f.write(upload_file.file.read())
+    upload_file.file.seek(0)  # Reset for potential re-reading
+    return temp_path
+
+def image_to_bytes(img: Image.Image, format: str = "PNG") -> bytes:
+    """Convert PIL Image to bytes."""
+    buf = io.BytesIO()
+    img.save(buf, format=format)
+    return buf.getvalue()
+
+def audio_to_bytes(audio: np.ndarray, sr: int) -> bytes:
+    """Convert audio array to WAV bytes."""
+    arr = np.asarray(audio).squeeze()
+    # If (channels, samples) flip to (samples, channels)
+    if arr.ndim == 2 and arr.shape[0] < arr.shape[1]:
+        arr = arr.T
+    buf = io.BytesIO()
+    sf.write(buf, arr, sr, format='WAV')
+    return buf.getvalue()
