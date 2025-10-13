@@ -1,14 +1,26 @@
-"""
-Pytest fixtures for FastAPI inference tests.
-"""
-
-import pytest
 import json
 import io
-from PIL import Image
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+
+
+ASSETS_DIR = (Path(__file__).resolve().parents[1] / "assets").resolve()
+
+
+def _read_asset_bytes(filename: str) -> bytes:
+    path = (ASSETS_DIR / filename).resolve()
+    if not path.exists():
+        # Make it obvious what is missing and where we looked
+        raise FileNotFoundError(
+            f"Asset not found: {path}. "
+            f"Expected assets at: {ASSETS_DIR} "
+            f"(required files: image.jpg, audio.wav, video.mp4)."
+        )
+    return path.read_bytes()
 
 
 @pytest.fixture
@@ -19,39 +31,33 @@ def client():
 
 @pytest.fixture
 def sample_image():
-    """Create a sample test image."""
-    img = Image.new('RGB', (100, 100), color='blue')
-    buf = io.BytesIO()
-    img.save(buf, format='PNG')
+    """
+    Open the demo image from ./assets/image.jpg and return a BytesIO handle.
+    """
+    data = _read_asset_bytes("image.jpg")
+    buf = io.BytesIO(data)
     buf.seek(0)
     return buf
 
 
 @pytest.fixture
 def sample_audio():
-    """Create a sample audio file (placeholder)."""
-    # For testing purposes, use a minimal WAV file
-    # This is a valid but silent 1-second WAV file at 16kHz
-    import wave
-    import numpy as np
-    
-    buf = io.BytesIO()
-    with wave.open(buf, 'wb') as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)
-        wav.setframerate(16000)
-        # 1 second of silence
-        wav.writeframes(np.zeros(16000, dtype=np.int16).tobytes())
+    """
+    Open the demo audio from ./assets/audio.wav and return a BytesIO handle.
+    """
+    data = _read_asset_bytes("audio.wav")
+    buf = io.BytesIO(data)
     buf.seek(0)
     return buf
 
 
 @pytest.fixture
 def sample_video():
-    """Create a placeholder for video file."""
-    # For testing purposes, return a minimal placeholder
-    # Real video testing would require actual video files or generation
-    buf = io.BytesIO(b"placeholder video content")
+    """
+    Open the demo video from ./assets/video.mp4 and return a BytesIO handle.
+    """
+    data = _read_asset_bytes("video.mp4")
+    buf = io.BytesIO(data)
     buf.seek(0)
     return buf
 
