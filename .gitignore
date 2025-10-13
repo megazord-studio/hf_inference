@@ -1,3 +1,5 @@
 out.txt
 outputs/
 __pycache__/
+.idea/
+.venv/
