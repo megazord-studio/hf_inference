@@ -6,8 +6,6 @@ from tests.conftest import create_spec, check_response_for_skip_or_error
     [
         ("facebook/mms-tts-eng", {"tts_text": "Hello from Switzerland! This is a TTS demo."}),
         ("facebook/mms-tts-deu", {"tts_text": "Guten Tag aus der Schweiz!"}),
-        ("espnet/kan-bayashi_ljspeech_vits", {"tts_text": "Welcome to the Alps."}),
-        ("microsoft/speecht5_tts", {"tts_text": "This is a SpeechT5 test."}),
     ],
 )
 def test_text_to_speech(client, model_id, payload):

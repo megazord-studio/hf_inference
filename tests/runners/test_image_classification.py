@@ -7,7 +7,7 @@ from tests.conftest import create_spec, check_response_for_skip_or_error
         ("google/vit-base-patch16-224", {"image_path": "image.jpg"}),
         ("facebook/convnext-base-224", {"image_path": "image.jpg"}),
         ("microsoft/resnet-50", {"image_path": "image.jpg"}),
-        ("timm/efficientnet_b3_rw", {"image_path": "image.jpg"}),
+        ("google/efficientnet-b0", {"image_path": "image.jpg"}),
     ],
 )
 def test_image_classification(client, sample_image, model_id, payload):
