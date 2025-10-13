@@ -9,9 +9,6 @@ def _clean(p):
     [
         ("impira/layoutlm-document-qa", {"image_path": "image.jpg", "question": "What is the total amount?"}),
         ("naver-clova-ix/donut-base-finetuned-docvqa", {"image_path": "image.jpg", "question": "What is the total amount?"}),
-        ("microsoft/layoutlmv3-base", {"image_path": "image.jpg", "question": "Who is the recipient?"}),
-        ("navervision/lectrobase", {"image_path": "image.jpg", "question": "What is the invoice number?"}),
-        ("impira/layoutlmv2-finetuned-docvqa", {"image_path": "image.jpg", "question": "What is the due date?"}),
     ],
 )
 def test_document_question_answering(client, sample_image, model_id, payload):

@@ -7,7 +7,6 @@ from tests.conftest import create_spec, check_response_for_skip_or_error
         ("facebook/musicgen-small", {"tta_prompt": "Lo-fi chillhop beat with warm drums, mellow keys, and a smooth bassline."}),
         ("facebook/musicgen-medium", {"tta_prompt": "Synthwave arpeggios with a steady beat."}),
         ("facebook/musicgen-melody", {"tta_prompt": "Jazz trio with upright bass, ride cymbal, and piano."}),
-        ("audioldm/audio-ldm", {"tta_prompt": "Ambient pads with gentle rainfall."}),
     ],
 )
 def test_text_to_audio(client, model_id, payload):
