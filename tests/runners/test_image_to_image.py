@@ -13,9 +13,16 @@ def _clean(p):
 )
 def test_image_to_image(client, sample_image, model_id, payload):
     spec = create_spec(model_id=model_id, task="image-to-image", payload=_clean(payload))
-    files = {"init_image": ("test.png", sample_image, "image/png")}
+    files = {"image": ("test.png", sample_image, "image/png")}
     resp = client.post("/inference", data={"spec": spec}, files=files)
     assert resp.status_code in (200, 500)
     if resp.status_code == 200:
-        data = resp.json()
-        assert isinstance(data, (list, dict))
+        # Check if response is binary (image file) or JSON
+        content_type = resp.headers.get("content-type", "")
+        if "image" in content_type or "application/octet-stream" in content_type:
+            # Binary response - verify it's not empty
+            assert len(resp.content) > 0
+        else:
+            # JSON response
+            data = resp.json()
+            assert isinstance(data, (list, dict))

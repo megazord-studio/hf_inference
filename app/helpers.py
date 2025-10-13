@@ -61,14 +61,19 @@ def load_demo(path: str = "./demo.yaml") -> List[Dict[str, Any]]:
     return demos
 
 def ensure_image(path: str) -> Image.Image:
-    if not os.path.exists(path):
+    """
+    Get an image from path, or create a placeholder in memory if it doesn't exist.
+    Does not save anything to disk.
+    """
+    if os.path.exists(path):
+        return Image.open(path).convert("RGB")
+    else:
+        # Create placeholder image in memory (no disk write)
         img = Image.new("RGB", (768, 512), "#E8F2FF")
         d = ImageDraw.Draw(img)
         d.rectangle((20, 400, 300, 500), fill="#F4F4F4", outline="#CCCCCC")
-        d.text((30, 410), "placeholder image.jpg", fill="#333333")
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        img.save(path)
-    return Image.open(path).convert("RGB")
+        d.text((30, 410), f"placeholder {os.path.basename(path)}", fill="#333333")
+        return img
 
 def ensure_audio_path(name: str) -> str:
     return os.path.join(OUT_DIR, name)

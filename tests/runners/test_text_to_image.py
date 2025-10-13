@@ -15,5 +15,12 @@ def test_text_to_image(client, model_id, payload):
     resp = client.post("/inference", data={"spec": spec})
     assert resp.status_code in (200, 500)
     if resp.status_code == 200:
-        data = resp.json()
-        assert isinstance(data, (list, dict))
+        # Check if response is binary (image file) or JSON
+        content_type = resp.headers.get("content-type", "")
+        if "image" in content_type or "application/octet-stream" in content_type:
+            # Binary response - verify it's not empty
+            assert len(resp.content) > 0
+        else:
+            # JSON response
+            data = resp.json()
+            assert isinstance(data, (list, dict))
