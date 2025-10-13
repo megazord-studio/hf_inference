@@ -63,5 +63,5 @@ See [API.md](./API.md) for the complete list and usage examples.
 
 ```bash
 # Run tests
-uv run pytest
+uv run pytest [-ra]
 ```

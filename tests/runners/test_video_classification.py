@@ -16,4 +16,4 @@ def test_video_classification(client, sample_video, model_id, payload):
     if resp.status_code == 200:
         data = resp.json()
         assert isinstance(data, (list, dict))
-            check_response_for_skip_or_error(data, model_id)
+        check_response_for_skip_or_error(data, model_id)
