@@ -1,14 +1,25 @@
 from transformers import pipeline
-from app.helpers import device_arg, ensure_image, safe_print_output
-from app.utilities import is_gated_repo_error, is_missing_model_error, soft_skip
+from app.helpers import device_arg, ensure_image, get_upload_file_image, safe_json
+from app.utilities import is_gated_repo_error, is_missing_model_error
 
 def run_object_detection(spec, dev: str):
-    img = ensure_image(spec["payload"]["image_path"])
+    """
+    Run object detection inference.
+    Accepts either image_path or UploadFile from spec["files"]["image"].
+    Returns the result as a dictionary instead of printing.
+    """
+    # Handle UploadFile or fallback to path
+    img = get_upload_file_image(spec.get("files", {}).get("image"))
+    if img is None:
+        img = ensure_image(spec["payload"].get("image_path", "image.jpg"))
+    
     try:
         pl = pipeline("object-detection", model=spec["model_id"], device=device_arg(dev))
         out = pl(img)
-        safe_print_output(out)
+        return safe_json(out)
     except Exception as e:
-        if is_gated_repo_error(e): soft_skip("gated model (no access/auth)"); return
-        if is_missing_model_error(e): soft_skip("model not found on Hugging Face"); return
-        safe_print_output({"error": "object-detection failed", "reason": repr(e)})
+        if is_gated_repo_error(e):
+            return {"skipped": True, "reason": "gated model (no access/auth)"}
+        if is_missing_model_error(e):
+            return {"skipped": True, "reason": "model not found on Hugging Face"}
+        return {"error": "object-detection failed", "reason": repr(e)}

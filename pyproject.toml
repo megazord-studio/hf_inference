@@ -30,4 +30,13 @@ dependencies = [
   "pyctcdecode>=0.5.0",
   "fastapi>=0.119.0",
   "uvicorn>=0.37.0",
+  "python-multipart>=0.0.9",
+  "av>=16.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.23.0",
+  "httpx>=0.27.0",
 ]

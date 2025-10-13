@@ -1,18 +1,41 @@
 from transformers import pipeline
-from app.helpers import device_arg, safe_print_output
-from app.utilities import is_gated_repo_error, is_missing_model_error, is_no_weight_files_error, soft_skip
+from app.helpers import device_arg, safe_json, get_upload_file_path
+import os
+from app.utilities import is_gated_repo_error, is_missing_model_error, is_no_weight_files_error
 
 def run_zero_shot_audio_classification(spec, dev: str):
+    """
+    Run zero-shot audio classification inference.
+    Accepts either audio_path or UploadFile from spec["files"]["audio"].
+    Returns the result as a dictionary instead of printing.
+    """
+    # Handle UploadFile or fallback to path
+    audio_file = spec.get("files", {}).get("audio")
+    if audio_file is not None:
+        # Save temporarily for pipeline
+        temp_path = f"/tmp/audio_{os.getpid()}.wav"
+        audio_path = get_upload_file_path(audio_file, temp_path)
+    else:
+        audio_path = spec["payload"].get("audio_path", "audio.wav")
+    
     try:
         p = spec["payload"]
         pl = pipeline("zero-shot-audio-classification", model=spec["model_id"], device=device_arg(dev))
-        out = pl(p["audio_path"], candidate_labels=p["candidate_labels"])
+        out = pl(audio_path, candidate_labels=p["candidate_labels"])
         for o in out:
             o["score"] = float(o["score"])
-        safe_print_output(out)
+        return safe_json(out)
     except Exception as e:
-        if is_gated_repo_error(e): soft_skip("gated model (no access/auth)"); return
+        if is_gated_repo_error(e):
+            return {"skipped": True, "reason": "gated model (no access/auth)"}
         if is_missing_model_error(e) or is_no_weight_files_error(e):
-            soft_skip("model not loadable (missing/unsupported weights)"); return
-        safe_print_output({"error": "zero-shot-audio-classification failed", "reason": repr(e),
-                           "hint": "May require torchaudio/librosa & proper CUDA vision deps."})
+            return {"skipped": True, "reason": "model not loadable (missing/unsupported weights)"}
+        return {"error": "zero-shot-audio-classification failed", "reason": repr(e),
+                "hint": "May require torchaudio/librosa & proper CUDA vision deps."}
+    finally:
+        # Cleanup temp file
+        if audio_file is not None and os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+            except:
+                pass
