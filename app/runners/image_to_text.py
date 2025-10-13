@@ -15,7 +15,7 @@ def run_image_to_text(spec, dev: str):
     
     try:
         pl = pipeline("image-to-text", model=spec["model_id"], device=device_arg(dev), trust_remote_code=True)
-        out = pl(img)
+        out = pl(img, max_new_tokens=20)
         if isinstance(out, list) and out and "generated_text" in out[0]:
             return {"text": out[0]["generated_text"]}
         else:
