@@ -8,9 +8,6 @@ import yaml
 from PIL import Image, ImageDraw
 import soundfile as sf
 
-OUT_DIR = "outputs"
-os.makedirs(OUT_DIR, exist_ok=True)
-
 # ---------- device & printing ----------
 
 def device_str() -> str:
