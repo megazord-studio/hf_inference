@@ -58,7 +58,7 @@ def list_models_minimal(
     set_cached_min(task, minimal)
     return JSONResponse(minimal)
 
-# ------------------------------ HTML endpoints ------------------------------
+# ------------------------------ HTML endpoint -------------------------------
 
 @router.get("/", response_class=HTMLResponse)
 def list_models_table(
@@ -66,9 +66,7 @@ def list_models_table(
         limit: int = Query(1000, ge=1, le=1000, description="Per-page fetch size for internal pagination"),
 ):
     """
-    Cyberpunk table (gridjs + fuse.js), client-side search/filter/sort.
-    Columns: Model | Gated | Downloads | Likes | Trend
-    Mounted at "/" and "/models/table".
+    Virtualized table + Web Worker (client-side filtering/sorting on full dataset).
     """
     if not task:
         return HTMLResponse(render_models_table(None, []))
@@ -76,25 +74,5 @@ def list_models_table(
     if task not in RUNNERS:
         return HTMLResponse(f"<pre>Unsupported task: {html.escape(task)}</pre>", status_code=400)
 
-    rows = get_cached_full(task)
-    if rows is None:
-        try:
-            models = fetch_all_by_task(task, page_limit=limit, hard_page_cap=200)
-        except Exception as e:
-            return HTMLResponse(f"<pre>HF API error: {html.escape(str(e))}</pre>", status_code=502)
-
-        rows = [
-            {
-                "id": m.get("id"),
-                "likes": m.get("likes", 0),
-                "trendingScore": m.get("trendingScore", 0),
-                "downloads": m.get("downloads", 0),
-                "gated": gated_to_str(m.get("gated", "false")),
-            }
-            for m in models
-        ]
-        set_cached_full(task, rows)
-        # also prime minimal cache used by /models
-        set_cached_min(task, [{k: r[k] for k in ("id","likes","trendingScore","downloads","gated")} for r in rows])
-
-    return HTMLResponse(render_models_table(task, rows))
+    # Do not inline massive JSON; the page will fetch /models?task=...
+    return HTMLResponse(render_models_table(task, []))

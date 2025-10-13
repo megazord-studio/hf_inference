@@ -33,6 +33,8 @@ def set_cached_full(task: str, data: List[Dict[str, Any]]) -> None:
 
 # ----------------------------- helpers ---------------------------------------
 
+from urllib.parse import urlparse, parse_qs
+
 def _parse_next_cursor(resp: requests.Response) -> Optional[str]:
     link = resp.headers.get("Link") or resp.headers.get("link")
     if not link:
