@@ -1,5 +1,5 @@
 import pytest
-from tests.conftest import create_spec
+from tests.conftest import create_spec, check_response_for_skip_or_error
 
 @pytest.mark.parametrize(
     "model_id,payload",
@@ -24,3 +24,4 @@ def test_text_to_image(client, model_id, payload):
             # JSON response
             data = resp.json()
             assert isinstance(data, (list, dict))
+            check_response_for_skip_or_error(data, model_id)

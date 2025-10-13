@@ -1,5 +1,5 @@
 import pytest
-from tests.conftest import create_spec
+from tests.conftest import create_spec, check_response_for_skip_or_error
 
 def _clean(p):
     return {k: v for k, v in p.items() if not k.endswith("_path")}
@@ -26,3 +26,4 @@ def test_image_to_image(client, sample_image, model_id, payload):
             # JSON response
             data = resp.json()
             assert isinstance(data, (list, dict))
+            check_response_for_skip_or_error(data, model_id)

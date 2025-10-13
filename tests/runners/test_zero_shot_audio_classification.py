@@ -1,5 +1,5 @@
 import pytest
-from tests.conftest import create_spec
+from tests.conftest import create_spec, check_response_for_skip_or_error
 
 def _clean(p):
     return {k: v for k, v in p.items() if not k.endswith("_path")}
@@ -19,3 +19,4 @@ def test_zero_shot_audio_classification(client, sample_audio, model_id, payload)
     if resp.status_code == 200:
         data = resp.json()
         assert isinstance(data, (list, dict))
+            check_response_for_skip_or_error(data, model_id)

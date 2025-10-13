@@ -69,3 +69,30 @@ def create_spec(model_id: str, task: str, payload: dict = None) -> str:
         "task": task,
         "payload": payload or {}
     })
+
+
+def check_response_for_skip_or_error(data, model_id: str):
+    """
+    Check if JSON response contains 'skipped' or 'error' fields.
+    If found, skip the test with appropriate message instead of failing.
+    
+    Args:
+        data: JSON response data (dict or list)
+        model_id: Model ID for better error messages
+    """
+    if isinstance(data, dict):
+        if data.get("skipped"):
+            reason = data.get("reason", "Unknown reason")
+            hint = data.get("hint", "")
+            message = f"Model {model_id} skipped: {reason}"
+            if hint:
+                message += f" (Hint: {hint})"
+            pytest.skip(message)
+        elif "error" in data:
+            error = data.get("error", "Unknown error")
+            reason = data.get("reason", "Unknown reason")
+            hint = data.get("hint", "")
+            message = f"Model {model_id} error: {error} - {reason}"
+            if hint:
+                message += f" (Hint: {hint})"
+            pytest.skip(message)

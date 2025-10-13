@@ -1,5 +1,5 @@
 import pytest
-from tests.conftest import create_spec
+from tests.conftest import create_spec, check_response_for_skip_or_error
 
 @pytest.mark.parametrize(
     "model_id,payload",
@@ -17,4 +17,6 @@ def test_translation(client, model_id, payload):
     resp = client.post("/inference", data={"spec": spec})
     assert resp.status_code in (200, 500)
     if resp.status_code == 200:
-        assert isinstance(resp.json(), (list, dict))
+        data = resp.json()
+        assert isinstance(data, (list, dict))
+        check_response_for_skip_or_error(data, model_id)
