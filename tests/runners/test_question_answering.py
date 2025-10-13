@@ -7,7 +7,7 @@ from tests.conftest import create_spec, check_response_for_skip_or_error
         ("deepset/roberta-base-squad2", {"qa_question": "Who wrote Faust?", "qa_context": "Johann Wolfgang von Goethe was a German writer and statesman."}),
         ("distilbert-base-uncased-distilled-squad", {"qa_question": "Who wrote Faust?", "qa_context": "Johann Wolfgang von Goethe was a German writer and statesman."}),
         ("deepset/bert-base-cased-squad2", {"qa_question": "What is the capital of Switzerland?", "qa_context": "Bern is the de facto capital of Switzerland."}),
-        ("xlm-roberta-large-finetuned-squad2", {"qa_question": "What does SBB refer to?", "qa_context": "SBB is the national railway company of Switzerland."}),
+        ("deepset/xlm-roberta-large-squad2", {"qa_question": "What does SBB refer to?", "qa_context": "SBB is the national railway company of Switzerland."}),
         ("deepset/minilm-uncased-squad2", {"qa_question": "What language is mainly spoken in Zurich?", "qa_context": "In Zurich, Swiss German is predominantly spoken."}),
     ],
 )

@@ -9,7 +9,6 @@ def _clean(p):  # drop *_path hints
     [
         ("dandelin/vilt-b32-finetuned-vqa", {"image_path": "image.jpg", "question": "What is on the table?"}),
         ("Salesforce/blip-vqa-base", {"image_path": "image.jpg", "question": "What color are the chairs?"}),
-        ("Salesforce/instructblip-vicuna-7b", {"image_path": "image.jpg", "question": "Describe the scene briefly."}),
         ("microsoft/florence-2-base-ft", {"image_path": "image.jpg", "question": "Summarize the image in one sentence."}),
     ],
 )

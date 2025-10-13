@@ -5,7 +5,7 @@ from tests.conftest import create_spec, check_response_for_skip_or_error
     "model_id,payload",
     [
         ("superb/hubert-base-superb-er", {"audio_path": "audio.wav"}),
-        ("speechbrain/emotion-recognition-wav2vec2-IEMOCAP", {"audio_path": "audio.wav"}),
+        ("ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition", {"audio_path": "audio.wav"}),
     ],
 )
 def test_audio_classification(client, sample_audio, model_id, payload):

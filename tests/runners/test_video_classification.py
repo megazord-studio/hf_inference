@@ -5,7 +5,7 @@ from tests.conftest import create_spec, check_response_for_skip_or_error
     "model_id,payload",
     [
         ("MCG-NJU/videomae-base", {"video_path": "video.mp4"}),
-        ("MCJoker520/videomae-small-finetuned-kinetics", {"video_path": "video.mp4"}),
+        ("MCG-NJU/videomae-small-finetuned-kinetics", {"video_path": "video.mp4"}),
     ],
 )
 def test_video_classification(client, sample_video, model_id, payload):

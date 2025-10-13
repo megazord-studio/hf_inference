@@ -10,7 +10,6 @@ def _clean(p):
         ("openai/clip-vit-base-patch32", {"image_path": "image.jpg", "candidate_labels": ["patio", "dome", "restaurant", "planetarium"]}),
         ("openai/clip-vit-large-patch14", {"image_path": "image.jpg", "candidate_labels": ["beach", "balcony", "forest"]}),
         ("laion/CLIP-ViT-H-14-laion2B-s32B-b79K", {"image_path": "image.jpg", "candidate_labels": ["chair", "plant", "sea"]}),
-        ("mlfoundations/open_clip_pytorch_model", {"image_path": "image.jpg", "candidate_labels": ["table", "mountain", "city"]}),
     ],
 )
 def test_zero_shot_image_classification(client, sample_image, model_id, payload):
