@@ -7,13 +7,16 @@ FastAPI application for HuggingFace model inference.
 Endpoints:
 - GET /healthz - health check endpoint
 - POST /inference - inference endpoint accepting multipart form data
+- GET /catalog - model catalog endpoint
 """
 
+import io
+import json
 import os
 import sys
-import json
-import io
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
+
+from app.routes import hf_models
 
 # --- ensure the project root is importable when running as a file path ---
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,7 +24,8 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
-from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 import uvicorn
 
@@ -29,7 +33,9 @@ from app.helpers import device_str
 from app.runners import RUNNERS
 
 app = FastAPI(title="HF Inference API", version="0.1.0")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+app.include_router(hf_models.router)
 
 class InferenceSpec(BaseModel):
     model_id: str
