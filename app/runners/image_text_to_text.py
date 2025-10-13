@@ -38,7 +38,7 @@ def run_vlm_image_text_to_text(spec, dev: str):
         pass
     try:
         pl2 = pipeline("image-to-text", model=spec["model_id"], trust_remote_code=True, device=device_arg(dev))
-        out2 = pl2(img, max_new_tokens=20)
+        out2 = pl2(img)
         if isinstance(out2, list) and out2 and "generated_text" in out2[0]:
             return {"text": out2[0]["generated_text"]}
         if isinstance(out2, str):

@@ -68,7 +68,7 @@ def _proc_inputs(processor, text: str, img: Image.Image, model):
 def _final_caption_fallback(img: Image.Image, dev: str):
     try:
         pl = pipeline("image-to-text", model="nlpconnect/vit-gpt2-image-captioning", device=device_arg(dev))
-        out = pl(img, max_new_tokens=20)
+        out = pl(img)
         if isinstance(out, list) and out and "generated_text" in out[0]:
             return {"text": out[0]["generated_text"]}
         if isinstance(out, str):
