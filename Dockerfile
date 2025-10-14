@@ -1,7 +1,6 @@
-# build:
-#   docker buildx build --platform=linux/amd64 \
-#     -t ghcr.io/megazord-studio/hf-inference:gpu-latest .
-
+# ------------------------------------------------------------
+# Base image with CUDA 12.8 runtime
+# ------------------------------------------------------------
 FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
 
 # ---- base OS deps --------------------------------------------------------
@@ -29,7 +28,9 @@ ENV PIP_NO_CACHE_DIR=1
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
  && uv python install 3.13 \
  && uv venv --python 3.13 .venv
+
 ENV PATH="/app/.venv/bin:${PATH}"
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 
 # ---- base deps from pyproject --------------------------------------------
 COPY --chown=${UID}:${GID} pyproject.toml uv.lock ./
@@ -50,5 +51,10 @@ COPY --chown=${UID}:${GID} . .
 # ---- runtime cache root for HF -------------------------------------------
 ENV HF_HOME=/app/.cache/huggingface
 
+# ---- network + health ----------------------------------------------------
+EXPOSE 8080
+HEALTHCHECK CMD curl -fs http://localhost:8080/health || exit 1
+
 # ---- entrypoint ----------------------------------------------------------
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Using absolute path avoids PATH issues from NVIDIA’s entrypoint
+CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
