@@ -50,6 +50,7 @@ dependencies = [
   "uvicorn~=0.37",
   "python-multipart~=0.0.20",
   "av~=16.0",
+  "hf-transfer>=0.1.9",
 ]
 
 [project.urls]
