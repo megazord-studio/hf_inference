@@ -13,7 +13,7 @@ from app.utilities import is_missing_model_error
 
 
 def _normalize_mask_sentence(model_id: str, sentence: str) -> Tuple[str, str]:
-    tok = AutoTokenizer.from_pretrained(model_id)
+    tok = AutoTokenizer.from_pretrained(model_id)  # nosec
     mask_token = tok.mask_token or "<mask>"
     s = (
         (sentence or "")

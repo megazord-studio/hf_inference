@@ -22,7 +22,6 @@ def run_zero_shot_audio_classification(
     Returns the result as a dictionary instead of printing.
     """
     audio_file = spec.get("files", {}).get("audio")
-    audio_path: str | None = None
 
     if audio_file is not None:
         # Save temporarily for pipeline

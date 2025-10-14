@@ -86,12 +86,6 @@ def list_models_table(
     task: Optional[str] = Query(
         None, description="Implemented pipeline tag, e.g. 'image-text-to-text'"
     ),
-    limit: int = Query(
-        1000,
-        ge=1,
-        le=1000,
-        description="Per-page fetch size for internal pagination",
-    ),
 ) -> HTMLResponse:
     """
     Virtualized table + Web Worker (client-side filtering/sorting on full dataset).

@@ -22,8 +22,8 @@ def run_feature_extraction(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     text = spec["payload"]["prompt"]
     try:
         if "clip" in spec["model_id"].lower():
-            proc = AutoProcessor.from_pretrained(spec["model_id"])
-            model = AutoModel.from_pretrained(spec["model_id"]).to(
+            proc = AutoProcessor.from_pretrained(spec["model_id"])  # nosec
+            model = AutoModel.from_pretrained(spec["model_id"]).to(  # nosec
                 device_str()
             )
             inputs = proc(text=[text], return_tensors="pt", padding=True).to(

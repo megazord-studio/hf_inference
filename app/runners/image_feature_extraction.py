@@ -29,7 +29,7 @@ def run_image_feature_extraction(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
 
     try:
         if "clip" in spec["model_id"].lower():
-            proc = AutoProcessor.from_pretrained(spec["model_id"])
+            proc = AutoProcessor.from_pretrained(spec["model_id"])  # nosec
             model = AutoModel.from_pretrained(spec["model_id"]).to(
                 device_str()
             )

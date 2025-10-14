@@ -3,10 +3,13 @@
 Thanks for your interest in contributing!
 
 - Development environment: Python 3.12+, uv installed (pipx install uv)
-- Install deps: uv sync and uv sync --extra dev
-- Lint/format: uv run ruff format && uv run ruff check --fix
-- Type-check: uv run mypy
-- Tests: uv run pytest -ra
+- Install deps: `uv sync` and `uv sync --extra dev`
+- Lint/format: `uv run poe format`
+- Type-check: `uv run poe types`
+- Tests: `uv run poe test`
+- Security checks: `uv run poe security`
+- Complexity checks: `uv run poe complexity`
+- Dead code checks: `uv run poe deadcode`
 
 Workflow
 

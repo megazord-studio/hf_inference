@@ -63,7 +63,7 @@ def run_image_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             img = out.images[0]
 
         # Convert to bytes
-        img_bytes = image_to_bytes(img, format="PNG")
+        img_bytes = image_to_bytes(img, img_format="PNG")
         return {
             "file_data": img_bytes,
             "file_name": f"sd_img2img_{model_id.replace('/', '_')}.png",
