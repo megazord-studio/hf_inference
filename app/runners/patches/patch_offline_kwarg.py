@@ -20,7 +20,9 @@ def _patch_offload_kwarg() -> None:
             if getattr(orig, "__name__", "") == "_patched_ignore_offload":
                 return
 
-            def _patched_ignore_offload(self: Any, *args: Any, **kwargs: Any) -> Any:
+            def _patched_ignore_offload(
+                self: Any, *args: Any, **kwargs: Any
+            ) -> Any:
                 kwargs.pop("offload_state_dict", None)
                 return orig(self, *args, **kwargs)
 

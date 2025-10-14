@@ -29,12 +29,20 @@ def run_asr(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
         audio_path = spec["payload"].get("audio_path", "audio.wav")
 
     try:
+        # Guard to satisfy typing: ensure a concrete str path is provided
+        if audio_path is None:
+            return {
+                "error": "automatic-speech-recognition failed",
+                "reason": "missing audio file path",
+            }
+        path: str = audio_path
+
         pl = pipeline(
             "automatic-speech-recognition",
             model=spec["model_id"],
             device=device_arg(dev),
         )
-        out = pl(audio_path)
+        out = pl(path)
         return safe_json(out)
     except Exception as e:
         if is_gated_repo_error(e):
@@ -50,8 +58,12 @@ def run_asr(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
         }
     finally:
         # Cleanup temp file
-        if audio_file is not None and audio_path is not None and os.path.exists(audio_path):
+        if (
+            audio_file is not None
+            and audio_path is not None
+            and os.path.exists(audio_path)
+        ):
             try:
                 os.remove(audio_path)
-            except Exception as _:
+            except Exception:
                 pass

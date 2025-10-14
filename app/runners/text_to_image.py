@@ -1,21 +1,26 @@
+import importlib
 from typing import Any
 from typing import Dict
+from typing import Optional
+from typing import Type
 
 import torch
 from diffusers import StableDiffusionPipeline
 
-from app.runners.patches.patch_offline_kwarg import _patch_offload_kwarg
-
-try:
-    from diffusers import AutoPipelineForText2Image
-except Exception:
-    AutoPipelineForText2Image = None
-
 from app.helpers import device_str
 from app.helpers import image_to_bytes
+from app.runners.patches.patch_offline_kwarg import _patch_offload_kwarg
 from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
+
+# Safe runtime lookup; avoids assigning to an imported type
+AutoT2I: Optional[Type[Any]]
+try:
+    _diffusers = importlib.import_module("diffusers")
+    AutoT2I = getattr(_diffusers, "AutoPipelineForText2Image")
+except Exception:
+    AutoT2I = None
 
 
 def _choose_dtype() -> torch.dtype:
@@ -50,16 +55,19 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             trust_remote_code=False,
         )
 
-        if AutoPipelineForText2Image is not None:
+        # Help mypy: Optional[Type[Any]] for the runtime alias
+        AutoT2I_t: Optional[Type[Any]] = AutoT2I
+
+        if AutoT2I_t is not None:
             try:
-                pipe = AutoPipelineForText2Image.from_pretrained(
+                pipe = AutoT2I_t.from_pretrained(
                     model_id,
                     safety_checker=None,
                     feature_extractor=None,
                     **common_kwargs,
                 )
             except Exception:
-                pipe = AutoPipelineForText2Image.from_pretrained(
+                pipe = AutoT2I_t.from_pretrained(
                     model_id,
                     **common_kwargs,
                 )

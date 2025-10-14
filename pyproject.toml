@@ -60,6 +60,7 @@ dev = [
   "ruff",
   "mypy",
   "poethepoet",
+  "mdformat",
 ]
 
 [project.scripts]
@@ -73,6 +74,7 @@ test = { shell = "uv run pytest -ra || exit 1" }
 format = { shell = '''
 uv run ruff format || exit 1
 uv run ruff check --fix || exit 1
+uv run mdformat . || exit 1
 ''' }
 types = { shell = "uv run mypy" }
 dev = { shell = "uvicorn app.main:app --reload" }

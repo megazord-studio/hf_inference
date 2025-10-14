@@ -29,6 +29,13 @@ def run_audio_classification(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
         audio_path = spec["payload"].get("audio_path", "audio.wav")
 
     try:
+        # Guard to satisfy typing: ensure a concrete str path is provided
+        if audio_path is None:
+            return {
+                "error": "audio-classification failed",
+                "reason": "missing audio file path",
+            }
+
         pl = pipeline(
             "audio-classification",
             model=spec["model_id"],
@@ -50,8 +57,12 @@ def run_audio_classification(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
         return {"error": "audio-classification failed", "reason": repr(e)}
     finally:
         # Cleanup temp file
-        if audio_file is not None and audio_path is not None and os.path.exists(audio_path):
+        if (
+            audio_file is not None
+            and audio_path is not None
+            and os.path.exists(audio_path)
+        ):
             try:
                 os.remove(audio_path)
-            except Exception as _:
+            except Exception:
                 pass

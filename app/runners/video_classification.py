@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 
 from transformers import pipeline
+from transformers.pipelines import VideoClassificationPipeline
 
 from app.helpers import device_arg
 from app.helpers import get_upload_file_path
@@ -15,25 +16,34 @@ from app.utilities import is_missing_model_error
 def run_video_classification(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run video classification inference.
-    Accepts either video_path or UploadFile from spec["files"]["video"].
+    Accepts either video_path or UploadFile from spec['files']['video'].
     Returns the result as a dictionary instead of printing.
     """
     # Handle UploadFile or fallback to path
     video_file = spec.get("files", {}).get("video")
+    video_path: str
+
     if video_file is not None:
         # Save temporarily for pipeline
         temp_path = f"/tmp/video_{os.getpid()}.mp4"
-        video_path = get_upload_file_path(video_file, temp_path)
+        saved_path = get_upload_file_path(video_file, temp_path)
+        if not saved_path:
+            return {
+                "error": "video-classification failed",
+                "reason": "failed to persist uploaded video",
+            }
+        video_path = saved_path
     else:
-        video_path = spec["payload"].get("video_path", "video.mp4")
+        ap = spec.get("payload", {}).get("video_path")
+        video_path = ap if isinstance(ap, str) and ap else "video.mp4"
 
     try:
-        pl = pipeline(
+        pl: VideoClassificationPipeline = pipeline(
             "video-classification",
             model=spec["model_id"],
             device=device_arg(dev),
         )
-        out = pl(video_path)
+        out = pl(video_path)  # video_path is a concrete str
         if isinstance(out, list):
             for o in out:
                 if "score" in o:
@@ -60,8 +70,8 @@ def run_video_classification(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
         }
     finally:
         # Cleanup temp file
-        if video_file is not None and video_path is not None and os.path.exists(video_path):
+        if video_file is not None and os.path.exists(video_path):
             try:
                 os.remove(video_path)
-            except Exception as _:
+            except Exception:
                 pass

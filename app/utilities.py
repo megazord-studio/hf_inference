@@ -3,6 +3,7 @@ from typing import Dict
 from typing import Iterator
 from typing import Optional
 from typing import Protocol
+from typing import cast
 
 import torch
 from PIL import Image
@@ -10,6 +11,8 @@ from transformers import AutoModelForCausalLM
 from transformers import AutoModelForVision2Seq
 from transformers import AutoProcessor
 from transformers import pipeline
+from transformers.pipelines import ImageToTextPipeline
+from transformers.pipelines import VisualQuestionAnsweringPipeline
 
 from .helpers import device_arg
 from .helpers import device_str
@@ -39,7 +42,9 @@ class ModelProtocol(Protocol):
 class ProcessorProtocol(Protocol):
     """Protocol for transformer processors."""
 
-    def batch_decode(self, sequences: torch.Tensor, skip_special_tokens: bool = False) -> list[str]:
+    def batch_decode(
+        self, sequences: torch.Tensor, skip_special_tokens: bool = False
+    ) -> list[str]:
         """Decode token sequences to strings."""
         ...
 
@@ -88,7 +93,9 @@ def soft_skip(reason: str, hint: Optional[str] = None) -> None:
     safe_print_output(out)
 
 
-def soft_hint_error(title: str, reason: str, hint: Optional[str] = None) -> None:
+def soft_hint_error(
+    title: str, reason: str, hint: Optional[str] = None
+) -> None:
     out = {"error": title, "reason": reason}
     if hint:
         out["hint"] = hint
@@ -98,7 +105,9 @@ def soft_hint_error(title: str, reason: str, hint: Optional[str] = None) -> None
 # ---------- VLM helpers ----------
 
 
-def _cast_inputs_to_model_dtype(model: ModelProtocol, inputs: Dict[str, Any]) -> Dict[str, Any]:
+def _cast_inputs_to_model_dtype(
+    model: ModelProtocol, inputs: Dict[str, Any]
+) -> Dict[str, Any]:
     try:
         model_dtype = next(
             (p.dtype for p in model.parameters() if p is not None),
@@ -106,7 +115,7 @@ def _cast_inputs_to_model_dtype(model: ModelProtocol, inputs: Dict[str, Any]) ->
         )
     except StopIteration:
         model_dtype = torch.float16
-    out = {}
+    out: Dict[str, Any] = {}
     for k, v in inputs.items():
         if torch.is_tensor(v):
             v = v.to(model.device)
@@ -127,7 +136,9 @@ def _cast_inputs_to_model_dtype(model: ModelProtocol, inputs: Dict[str, Any]) ->
     return out
 
 
-def _decode_generate(model: ModelProtocol, processor: ProcessorProtocol, **inputs: Any) -> str:
+def _decode_generate(
+    model: ModelProtocol, processor: ProcessorProtocol, **inputs: Any
+) -> str:
     with torch.inference_mode():
         gen = model.generate(**inputs, max_new_tokens=64)
     try:
@@ -141,7 +152,12 @@ def _decode_generate(model: ModelProtocol, processor: ProcessorProtocol, **input
         )
 
 
-def _proc_inputs(processor: ProcessorProtocol, text: str, img: Image.Image, model: ModelProtocol) -> Dict[str, Any]:
+def _proc_inputs(
+    processor: ProcessorProtocol,
+    text: str,
+    img: Image.Image,
+    model: ModelProtocol,
+) -> Dict[str, Any]:
     inputs = processor(text=text, images=img, return_tensors="pt")
     inputs = {
         k: (v.to(model.device) if torch.is_tensor(v) else v)
@@ -152,13 +168,21 @@ def _proc_inputs(processor: ProcessorProtocol, text: str, img: Image.Image, mode
 
 def _final_caption_fallback(img: Image.Image, dev: str) -> Dict[str, Any]:
     try:
-        pl = pipeline(
-            "image-to-text",
-            model="nlpconnect/vit-gpt2-image-captioning",
-            device=device_arg(dev),
-        )
+        # Build kwargs dict to avoid MyPy picking the wrong overload for pipeline(...)
+        pl_kwargs: Dict[str, Any] = {
+            "task": "image-to-text",
+            "model": "nlpconnect/vit-gpt2-image-captioning",
+            "device": device_arg(dev),
+        }
+        pl = cast(ImageToTextPipeline, pipeline(**pl_kwargs))
+        # Call using positional 'inputs' to satisfy overload (inputs: Image | str)
         out = pl(img)
-        if isinstance(out, list) and out and "generated_text" in out[0]:
+        if (
+            isinstance(out, list)
+            and out
+            and isinstance(out[0], dict)
+            and "generated_text" in out[0]
+        ):
             return {"text": out[0]["generated_text"]}
         if isinstance(out, str):
             return {"text": out}
@@ -175,14 +199,16 @@ def _final_caption_fallback(img: Image.Image, dev: str) -> Dict[str, Any]:
     }
 
 
-def _vlm_minicpm(spec: RunnerSpec, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
+def _vlm_minicpm(
+    spec: RunnerSpec, img: Image.Image, prompt: str, dev: str
+) -> Dict[str, Any]:
     try:
         proc = AutoProcessor.from_pretrained(
             spec["model_id"], trust_remote_code=True
         )
         model = AutoModelForVision2Seq.from_pretrained(
             spec["model_id"], trust_remote_code=True, torch_dtype=torch.float16
-        ).to(device_str())
+        ).to(torch.device(device_str()))
         text = (
             prompt
             or "Caption this image in one sentence and include one color."
@@ -194,15 +220,19 @@ def _vlm_minicpm(spec: RunnerSpec, img: Image.Image, prompt: str, dev: str) -> D
         return _final_caption_fallback(img, dev)
 
 
-def _vlm_llava(spec: RunnerSpec, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
+def _vlm_llava(
+    spec: RunnerSpec, img: Image.Image, prompt: str, dev: str
+) -> Dict[str, Any]:
     try:
         q = prompt or "Describe this image in one sentence."
-        vqa = pipeline(
-            "visual-question-answering",
-            model=spec["model_id"],
-            trust_remote_code=True,
-            device=device_arg(dev),
-        )
+        # Build kwargs via dict to avoid overload confusion
+        vqa_kwargs: Dict[str, Any] = {
+            "task": "visual-question-answering",
+            "model": spec["model_id"],
+            "trust_remote_code": True,
+            "device": device_arg(dev),
+        }
+        vqa = cast(VisualQuestionAnsweringPipeline, pipeline(**vqa_kwargs))
         ans = vqa(image=img, question=q)
         if (
             isinstance(ans, list)
@@ -218,14 +248,16 @@ def _vlm_llava(spec: RunnerSpec, img: Image.Image, prompt: str, dev: str) -> Dic
         return _final_caption_fallback(img, dev)
 
 
-def _vlm_florence2(spec: RunnerSpec, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
+def _vlm_florence2(
+    spec: RunnerSpec, img: Image.Image, prompt: str, dev: str
+) -> Dict[str, Any]:
     try:
         proc = AutoProcessor.from_pretrained(
             spec["model_id"], trust_remote_code=True
         )
         model = AutoModelForCausalLM.from_pretrained(
             spec["model_id"], trust_remote_code=True, torch_dtype=torch.float16
-        ).to(device_str())
+        ).to(torch.device(device_str()))  # type: ignore
         text = prompt or "Describe the image briefly and include one color."
         inputs = _proc_inputs(proc, text, img, model)
         txt = _decode_generate(model, proc, **inputs)

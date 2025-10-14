@@ -1,7 +1,10 @@
 from typing import Any
 from typing import Dict
 
+import numpy as np
+from numpy.typing import NDArray
 from transformers import pipeline
+from transformers.pipelines import TextToAudioPipeline
 
 from app.helpers import audio_to_bytes
 from app.helpers import device_arg
@@ -13,23 +16,43 @@ from app.utilities import is_no_weight_files_error
 
 def run_tts(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
-    Run text-to-speech inference.
+    Run text-to-speech (text-to-audio) inference.
     Returns audio as bytes in a dictionary with metadata.
     """
     try:
-        pl = pipeline(
-            "text-to-speech", model=spec["model_id"], device=device_arg(dev)
-        )
-        out = pl(spec["payload"]["tts_text"])
-        audio = (
-            out["audio"] if isinstance(out, dict) and "audio" in out else out
-        )
-        sr = (
-            out.get("sampling_rate", 16000) if isinstance(out, dict) else 16000
+        text = str(spec.get("payload", {}).get("tts_text", "")).strip()
+        if not text:
+            return {
+                "error": "text-to-speech failed",
+                "reason": "empty tts_text",
+            }
+
+        pl: TextToAudioPipeline = pipeline(
+            task="text-to-audio",
+            model=spec["model_id"],
+            device=device_arg(dev),
         )
 
-        # Convert audio to bytes
-        audio_bytes = audio_to_bytes(audio, sr)
+        out = pl(text)
+
+        if isinstance(out, dict):
+            audio_any: Any = out.get("audio")
+            sr = int(out.get("sampling_rate", 16000))
+        else:
+            audio_any = out
+            sr = 16000
+
+        if audio_any is None:
+            return {
+                "error": "text-to-speech failed",
+                "reason": "no audio returned",
+            }
+
+        audio_arr: NDArray[np.float32] = np.asarray(
+            audio_any, dtype=np.float32
+        )
+        audio_bytes = audio_to_bytes(audio_arr, sr)
+
         return {
             "file_data": audio_bytes,
             "file_name": f"{spec['model_id'].replace('/', '_')}_tts.wav",

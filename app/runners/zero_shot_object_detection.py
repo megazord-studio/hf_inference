@@ -12,7 +12,9 @@ from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_zero_shot_object_detection(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
+def run_zero_shot_object_detection(
+    spec: RunnerSpec, dev: str
+) -> Dict[str, Any]:
     """
     Run zero-shot object detection inference.
     Accepts either image_path or UploadFile from spec["files"]["image"].
