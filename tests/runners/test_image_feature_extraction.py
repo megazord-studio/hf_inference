@@ -1,5 +1,8 @@
 import pytest
-from tests.conftest import create_spec, check_response_for_skip_or_error
+
+from tests.conftest import check_response_for_skip_or_error
+from tests.conftest import create_spec
+
 
 @pytest.mark.parametrize(
     "model_id,payload",
@@ -9,7 +12,9 @@ from tests.conftest import create_spec, check_response_for_skip_or_error
     ],
 )
 def test_image_feature_extraction(client, sample_image, model_id, payload):
-    spec = create_spec(model_id=model_id, task="image-feature-extraction", payload={})
+    spec = create_spec(
+        model_id=model_id, task="image-feature-extraction", payload={}
+    )
     files = {"image": ("test.png", sample_image, "image/png")}
     resp = client.post("/inference", data={"spec": spec}, files=files)
     assert resp.status_code in (200, 500)

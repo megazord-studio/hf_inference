@@ -1,11 +1,18 @@
-import io
 import base64
+
 import numpy as np
 import torch
 from PIL import Image
 from transformers import pipeline
-from app.helpers import device_arg, ensure_image, get_upload_file_image, safe_json, image_to_bytes
-from app.utilities import is_gated_repo_error, is_missing_model_error
+
+from app.helpers import device_arg
+from app.helpers import ensure_image
+from app.helpers import get_upload_file_image
+from app.helpers import image_to_bytes
+from app.helpers import safe_json
+from app.utilities import is_gated_repo_error
+from app.utilities import is_missing_model_error
+
 
 def _convert_masks_to_base64(seg_list):
     """Convert mask images to base64 encoded strings for JSON response."""
@@ -23,23 +30,29 @@ def _convert_masks_to_base64(seg_list):
                     entry[k] = v
             else:
                 entry[k] = v
-        
+
         if isinstance(mask, (Image.Image, np.ndarray, torch.Tensor)):
             if isinstance(mask, torch.Tensor):
                 mask = mask.detach().cpu().numpy()
             if isinstance(mask, np.ndarray):
                 from PIL import Image as PILImage
-                mask_img = PILImage.fromarray((mask * 255).astype(np.uint8)) if mask.ndim == 2 else PILImage.fromarray(mask)
+
+                mask_img = (
+                    PILImage.fromarray((mask * 255).astype(np.uint8))
+                    if mask.ndim == 2
+                    else PILImage.fromarray(mask)
+                )
             else:
                 mask_img = mask
-            
+
             # Convert mask to base64
             mask_bytes = image_to_bytes(mask_img, format="PNG")
-            mask_b64 = base64.b64encode(mask_bytes).decode('utf-8')
+            mask_b64 = base64.b64encode(mask_bytes).decode("utf-8")
             entry["mask_base64"] = mask_b64
-        
+
         result.append(entry)
     return result
+
 
 def run_image_segmentation(spec, dev: str):
     """
@@ -51,9 +64,13 @@ def run_image_segmentation(spec, dev: str):
     img = get_upload_file_image(spec.get("files", {}).get("image"))
     if img is None:
         img = ensure_image(spec["payload"].get("image_path", "image.jpg"))
-    
+
     try:
-        pl = pipeline("image-segmentation", model=spec["model_id"], device=device_arg(dev))
+        pl = pipeline(
+            "image-segmentation",
+            model=spec["model_id"],
+            device=device_arg(dev),
+        )
         out = pl(img)
         masks_with_b64 = _convert_masks_to_base64(out)
         return safe_json({"masks": masks_with_b64})
@@ -61,5 +78,8 @@ def run_image_segmentation(spec, dev: str):
         if is_gated_repo_error(e):
             return {"skipped": True, "reason": "gated model (no access/auth)"}
         if is_missing_model_error(e):
-            return {"skipped": True, "reason": "model not found on Hugging Face"}
+            return {
+                "skipped": True,
+                "reason": "model not found on Hugging Face",
+            }
         return {"error": "image-segmentation failed", "reason": repr(e)}

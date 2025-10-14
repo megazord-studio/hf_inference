@@ -1,23 +1,32 @@
 import torch
-from app.runners.patches.patch_offline_kwarg import _patch_offload_kwarg
 from diffusers import StableDiffusionPipeline
+
+from app.runners.patches.patch_offline_kwarg import _patch_offload_kwarg
+
 try:
     from diffusers import AutoPipelineForText2Image
 except Exception:
     AutoPipelineForText2Image = None
 
-from app.helpers import image_to_bytes, device_str
-from app.utilities import is_gated_repo_error, is_missing_model_error
+from app.helpers import device_str
+from app.helpers import image_to_bytes
+from app.utilities import is_gated_repo_error
+from app.utilities import is_missing_model_error
 
 
 def _choose_dtype() -> torch.dtype:
     if torch.cuda.is_available():
         return torch.float16
-    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+    if (
+        getattr(torch.backends, "mps", None)
+        and torch.backends.mps.is_available()
+    ):
         return torch.float16
     return torch.float32
 
+
 _patch_offload_kwarg()
+
 
 def run_text_to_image(spec, dev: str):
     """
@@ -33,7 +42,7 @@ def run_text_to_image(spec, dev: str):
             torch_dtype=dtype,
             use_safetensors=True,
             low_cpu_mem_usage=False,  # avoid init-empty-weights path
-            device_map=None,          # avoid auto device mapping at load time
+            device_map=None,  # avoid auto device mapping at load time
             trust_remote_code=False,
         )
 
@@ -79,5 +88,8 @@ def run_text_to_image(spec, dev: str):
                 "hint": "Use runwayml/stable-diffusion-v1-5 or sdxl-turbo.",
             }
         if is_missing_model_error(e):
-            return {"skipped": True, "reason": "model not found on Hugging Face"}
+            return {
+                "skipped": True,
+                "reason": "model not found on Hugging Face",
+            }
         return {"error": "text-to-image failed", "reason": repr(e)}

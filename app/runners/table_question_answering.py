@@ -1,6 +1,11 @@
-from transformers import pipeline, AutoTokenizer
-from app.helpers import device_arg, safe_json
-from app.utilities import is_gated_repo_error, is_missing_model_error
+from transformers import AutoTokenizer
+from transformers import pipeline
+
+from app.helpers import device_arg
+from app.helpers import safe_json
+from app.utilities import is_gated_repo_error
+from app.utilities import is_missing_model_error
+
 
 def _build_tapas_dataframe(table):
     """
@@ -23,6 +28,7 @@ def _build_tapas_dataframe(table):
     else:
         # Fallback to existing helper, then sanitize
         from app.helpers import to_dataframe  # lazy import to avoid cycles
+
         df = to_dataframe(table)
 
     # Sanitize: fill NaNs, coerce to string, reset index
@@ -40,7 +46,10 @@ def run_table_qa(spec, dev: str):
         model_id = spec["model_id"]
         query = str(p.get("table_query", "")).strip()
         if not query:
-            return {"error": "table-question-answering failed", "reason": "empty query"}
+            return {
+                "error": "table-question-answering failed",
+                "reason": "empty query",
+            }
 
         df = _build_tapas_dataframe(p["table"])
 
@@ -83,7 +92,10 @@ def run_table_qa(spec, dev: str):
         if is_gated_repo_error(e):
             return {"skipped": True, "reason": "gated model (no access/auth)"}
         if is_missing_model_error(e):
-            return {"skipped": True, "reason": "model not found on Hugging Face"}
+            return {
+                "skipped": True,
+                "reason": "model not found on Hugging Face",
+            }
         return {
             "error": "table-question-answering failed",
             "reason": repr(e),

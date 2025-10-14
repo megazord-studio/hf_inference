@@ -1,7 +1,16 @@
 from __future__ import annotations
-from typing import Optional, Dict, Any, List, Tuple, Set
-from urllib.parse import urlparse, parse_qs
-from datetime import datetime, timedelta
+
+from datetime import datetime
+from datetime import timedelta
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
+
 import requests
 
 HF_API = "https://huggingface.co/api/models"
@@ -11,6 +20,7 @@ _CACHE_TTL = timedelta(minutes=10)
 _cache_min: Dict[str, Tuple[datetime, List[Dict[str, Any]]]] = {}
 _cache_full: Dict[str, Tuple[datetime, List[Dict[str, Any]]]] = {}
 
+
 def get_cached_min(task: str) -> Optional[List[Dict[str, Any]]]:
     ent = _cache_min.get(task)
     if not ent:
@@ -18,8 +28,10 @@ def get_cached_min(task: str) -> Optional[List[Dict[str, Any]]]:
     ts, data = ent
     return data if (datetime.utcnow() - ts) < _CACHE_TTL else None
 
+
 def set_cached_min(task: str, data: List[Dict[str, Any]]) -> None:
     _cache_min[task] = (datetime.utcnow(), data)
+
 
 def get_cached_full(task: str) -> Optional[List[Dict[str, Any]]]:
     ent = _cache_full.get(task)
@@ -28,12 +40,13 @@ def get_cached_full(task: str) -> Optional[List[Dict[str, Any]]]:
     ts, data = ent
     return data if (datetime.utcnow() - ts) < _CACHE_TTL else None
 
+
 def set_cached_full(task: str, data: List[Dict[str, Any]]) -> None:
     _cache_full[task] = (datetime.utcnow(), data)
 
+
 # ----------------------------- helpers ---------------------------------------
 
-from urllib.parse import urlparse, parse_qs
 
 def _parse_next_cursor(resp: requests.Response) -> Optional[str]:
     link = resp.headers.get("Link") or resp.headers.get("link")
@@ -49,6 +62,7 @@ def _parse_next_cursor(resp: requests.Response) -> Optional[str]:
                 return None
     return None
 
+
 def gated_to_str(val: Any) -> str:
     if isinstance(val, str):
         v = val.strip()
@@ -57,8 +71,14 @@ def gated_to_str(val: Any) -> str:
         return "true" if val else "false"
     return "true" if val else "false"
 
-def _page_models(task: str, page_limit: int, cursor: Optional[str] = None,
-                 *, gated_filter: Optional[bool] = None) -> tuple[list[dict], Optional[str]]:
+
+def _page_models(
+    task: str,
+    page_limit: int,
+    cursor: Optional[str] = None,
+    *,
+    gated_filter: Optional[bool] = None,
+) -> tuple[list[dict], Optional[str]]:
     params = {"pipeline_tag": task, "limit": str(page_limit)}
     if cursor:
         params["cursor"] = cursor
@@ -74,11 +94,16 @@ def _page_models(task: str, page_limit: int, cursor: Optional[str] = None,
         items = []
     return items, _parse_next_cursor(resp)
 
-def fetch_all_ids_by_task_gated(task: str, page_limit: int = 1000, hard_page_cap: int = 100) -> Set[str]:
+
+def fetch_all_ids_by_task_gated(
+    task: str, page_limit: int = 1000, hard_page_cap: int = 100
+) -> Set[str]:
     gated_ids: Set[str] = set()
     cursor: Optional[str] = None
     for _ in range(hard_page_cap):
-        page, next_cursor = _page_models(task, page_limit, cursor, gated_filter=True)
+        page, next_cursor = _page_models(
+            task, page_limit, cursor, gated_filter=True
+        )
         for m in page:
             if m.get("private", False):
                 continue
@@ -93,7 +118,10 @@ def fetch_all_ids_by_task_gated(task: str, page_limit: int = 1000, hard_page_cap
             break
     return gated_ids
 
-def fetch_all_by_task(task: str, page_limit: int = 1000, hard_page_cap: int = 100) -> List[Dict[str, Any]]:
+
+def fetch_all_by_task(
+    task: str, page_limit: int = 1000, hard_page_cap: int = 100
+) -> List[Dict[str, Any]]:
     """
     Fetch all non-private *transformers* models for a task.
     Annotate 'gated' as "manual"/"true"/"false".
@@ -101,11 +129,17 @@ def fetch_all_by_task(task: str, page_limit: int = 1000, hard_page_cap: int = 10
     all_items: List[Dict[str, Any]] = []
     cursor: Optional[str] = None
     for _ in range(hard_page_cap):
-        page, next_cursor = _page_models(task, page_limit, cursor, gated_filter=None)
+        page, next_cursor = _page_models(
+            task, page_limit, cursor, gated_filter=None
+        )
         public = [
-            m for m in page
+            m
+            for m in page
             if not m.get("private", False)
-               and (m.get("library_name") == "transformers" or m.get("libraryName") == "transformers")
+            and (
+                m.get("library_name") == "transformers"
+                or m.get("libraryName") == "transformers"
+            )
         ]
         all_items.extend(public)
         if next_cursor:
@@ -115,11 +149,15 @@ def fetch_all_by_task(task: str, page_limit: int = 1000, hard_page_cap: int = 10
         else:
             break
 
-    gated_ids = fetch_all_ids_by_task_gated(task, page_limit=page_limit, hard_page_cap=hard_page_cap)
+    gated_ids = fetch_all_ids_by_task_gated(
+        task, page_limit=page_limit, hard_page_cap=hard_page_cap
+    )
     for m in all_items:
         raw = m.get("gated", False)
         if isinstance(raw, str) and raw.strip():
             m["gated"] = raw  # keep e.g. "manual"
         else:
-            m["gated"] = "true" if (m.get("id") in gated_ids or bool(raw)) else "false"
+            m["gated"] = (
+                "true" if (m.get("id") in gated_ids or bool(raw)) else "false"
+            )
     return all_items

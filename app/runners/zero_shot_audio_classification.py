@@ -1,7 +1,14 @@
-from transformers import pipeline
-from app.helpers import device_arg, safe_json, get_upload_file_path
 import os
-from app.utilities import is_gated_repo_error, is_missing_model_error, is_no_weight_files_error
+
+from transformers import pipeline
+
+from app.helpers import device_arg
+from app.helpers import get_upload_file_path
+from app.helpers import safe_json
+from app.utilities import is_gated_repo_error
+from app.utilities import is_missing_model_error
+from app.utilities import is_no_weight_files_error
+
 
 def run_zero_shot_audio_classification(spec, dev: str):
     """
@@ -17,10 +24,14 @@ def run_zero_shot_audio_classification(spec, dev: str):
         audio_path = get_upload_file_path(audio_file, temp_path)
     else:
         audio_path = spec["payload"].get("audio_path", "audio.wav")
-    
+
     try:
         p = spec["payload"]
-        pl = pipeline("zero-shot-audio-classification", model=spec["model_id"], device=device_arg(dev))
+        pl = pipeline(
+            "zero-shot-audio-classification",
+            model=spec["model_id"],
+            device=device_arg(dev),
+        )
         out = pl(audio_path, candidate_labels=p["candidate_labels"])
         for o in out:
             o["score"] = float(o["score"])
@@ -29,13 +40,19 @@ def run_zero_shot_audio_classification(spec, dev: str):
         if is_gated_repo_error(e):
             return {"skipped": True, "reason": "gated model (no access/auth)"}
         if is_missing_model_error(e) or is_no_weight_files_error(e):
-            return {"skipped": True, "reason": "model not loadable (missing/unsupported weights)"}
-        return {"error": "zero-shot-audio-classification failed", "reason": repr(e),
-                "hint": "May require torchaudio/librosa & proper CUDA vision deps."}
+            return {
+                "skipped": True,
+                "reason": "model not loadable (missing/unsupported weights)",
+            }
+        return {
+            "error": "zero-shot-audio-classification failed",
+            "reason": repr(e),
+            "hint": "May require torchaudio/librosa & proper CUDA vision deps.",
+        }
     finally:
         # Cleanup temp file
         if audio_file is not None and os.path.exists(audio_path):
             try:
                 os.remove(audio_path)
-            except:
+            except Exception as _:
                 pass

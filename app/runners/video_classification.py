@@ -1,7 +1,13 @@
-from transformers import pipeline
-from app.helpers import device_arg, safe_json, get_upload_file_path
 import os
-from app.utilities import is_gated_repo_error, is_missing_model_error
+
+from transformers import pipeline
+
+from app.helpers import device_arg
+from app.helpers import get_upload_file_path
+from app.helpers import safe_json
+from app.utilities import is_gated_repo_error
+from app.utilities import is_missing_model_error
+
 
 def run_video_classification(spec, dev: str):
     """
@@ -17,9 +23,13 @@ def run_video_classification(spec, dev: str):
         video_path = get_upload_file_path(video_file, temp_path)
     else:
         video_path = spec["payload"].get("video_path", "video.mp4")
-    
+
     try:
-        pl = pipeline("video-classification", model=spec["model_id"], device=device_arg(dev))
+        pl = pipeline(
+            "video-classification",
+            model=spec["model_id"],
+            device=device_arg(dev),
+        )
         out = pl(video_path)
         if isinstance(out, list):
             for o in out:
@@ -28,17 +38,27 @@ def run_video_classification(spec, dev: str):
         return safe_json(out)
     except Exception as e:
         if "requires the PyAv library" in repr(e):
-            return {"skipped": True, "reason": "missing dependency: PyAV", "hint": "Install with: pip install av"}
+            return {
+                "skipped": True,
+                "reason": "missing dependency: PyAV",
+                "hint": "Install with: pip install av",
+            }
         if is_gated_repo_error(e):
             return {"skipped": True, "reason": "gated model (no access/auth)"}
         if is_missing_model_error(e):
-            return {"skipped": True, "reason": "model not found on Hugging Face"}
-        return {"error": "video-classification failed", "reason": repr(e),
-                "hint": "This pipeline may need decord/pyav (pip install av) and GPU-appropriate deps."}
+            return {
+                "skipped": True,
+                "reason": "model not found on Hugging Face",
+            }
+        return {
+            "error": "video-classification failed",
+            "reason": repr(e),
+            "hint": "This pipeline may need decord/pyav (pip install av) and GPU-appropriate deps.",
+        }
     finally:
         # Cleanup temp file
         if video_file is not None and os.path.exists(video_path):
             try:
                 os.remove(video_path)
-            except:
+            except Exception as _:
                 pass

@@ -6,5 +6,5 @@ def run_mask_generation(spec, dev: str):
     return {
         "error": "mask-generation unsupported",
         "reason": "Segment Anything models are not exposed via transformers.pipeline.",
-        "hint": "Use facebook/sam... with the segment-anything library, or switch to an image-segmentation model."
+        "hint": "Use facebook/sam... with the segment-anything library, or switch to an image-segmentation model.",
     }

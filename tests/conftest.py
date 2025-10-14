@@ -1,12 +1,11 @@
-import json
 import io
+import json
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-
 
 ASSETS_DIR = (Path(__file__).resolve().parents[1] / "assets").resolve()
 
@@ -64,18 +63,16 @@ def sample_video():
 
 def create_spec(model_id: str, task: str, payload: dict = None) -> str:
     """Helper to create spec JSON string."""
-    return json.dumps({
-        "model_id": model_id,
-        "task": task,
-        "payload": payload or {}
-    })
+    return json.dumps(
+        {"model_id": model_id, "task": task, "payload": payload or {}}
+    )
 
 
 def check_response_for_skip_or_error(data, model_id: str):
     """
     Check if JSON response contains 'skipped' or 'error' fields.
     If found, skip the test with appropriate message instead of failing.
-    
+
     Args:
         data: JSON response data (dict or list)
         model_id: Model ID for better error messages

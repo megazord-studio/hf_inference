@@ -1,19 +1,28 @@
 # app/views/hf_models_table.py
 
 from __future__ import annotations
-from typing import Optional, Dict, Any, List
+
 import html
 import json
 from string import Template
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 from app.runners import RUNNERS
 
-def render_models_table(task: Optional[str], _rows_unused: List[Dict[str, Any]]) -> str:
+
+def render_models_table(
+    task: Optional[str], _rows_unused: List[Dict[str, Any]]
+) -> str:
     # Build the task selector HTML
     opts = []
     for t in sorted(RUNNERS.keys()):
         sel = " selected" if task == t else ""
-        opts.append(f'<option value="{html.escape(t)}"{sel}>{html.escape(t)}</option>')
+        opts.append(
+            f'<option value="{html.escape(t)}"{sel}>{html.escape(t)}</option>'
+        )
     opts_html = "".join(opts)
 
     # Safe JS literal for task (quoted string)
@@ -424,4 +433,6 @@ def render_models_table(task: Optional[str], _rows_unused: List[Dict[str, Any]])
       </div>
         """
 
-    return template.substitute(TASK_JS=task_js, OPTS_HTML=opts_html, MAIN_UI=main_ui)
+    return template.substitute(
+        TASK_JS=task_js, OPTS_HTML=opts_html, MAIN_UI=main_ui
+    )

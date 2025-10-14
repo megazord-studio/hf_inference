@@ -5,6 +5,7 @@ def _patch_offload_kwarg():
     into module __init__. Older or variant classes do not accept it.
     We monkeypatch common offenders to ignore that kwarg.
     """
+
     def _try_patch(qualified, attr="__init__"):
         try:
             mod_path, cls_name = qualified.rsplit(".", 1)
@@ -27,13 +28,25 @@ def _patch_offload_kwarg():
 
     # Transformers CLIP variants
     _try_patch("transformers.models.clip.modeling_clip.CLIPTextModel")
-    _try_patch("transformers.models.clip.modeling_clip.CLIPTextModelWithProjection")
-    _try_patch("transformers.models.clip.modeling_clip.CLIPVisionModelWithProjection")
+    _try_patch(
+        "transformers.models.clip.modeling_clip.CLIPTextModelWithProjection"
+    )
+    _try_patch(
+        "transformers.models.clip.modeling_clip.CLIPVisionModelWithProjection"
+    )
 
     # OpenCLIP (some SDXL variants can use it)
-    _try_patch("transformers.models.open_clip.modeling_open_clip.CLIPTextModel")
-    _try_patch("transformers.models.open_clip.modeling_open_clip.CLIPTextModelWithProjection")
-    _try_patch("transformers.models.open_clip.modeling_open_clip.CLIPVisionModelWithProjection")
+    _try_patch(
+        "transformers.models.open_clip.modeling_open_clip.CLIPTextModel"
+    )
+    _try_patch(
+        "transformers.models.open_clip.modeling_open_clip.CLIPTextModelWithProjection"
+    )
+    _try_patch(
+        "transformers.models.open_clip.modeling_open_clip.CLIPVisionModelWithProjection"
+    )
 
     # Diffusers safety checker
-    _try_patch("diffusers.pipelines.stable_diffusion.safety_checker.StableDiffusionSafetyChecker")
+    _try_patch(
+        "diffusers.pipelines.stable_diffusion.safety_checker.StableDiffusionSafetyChecker"
+    )

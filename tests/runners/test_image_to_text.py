@@ -1,5 +1,8 @@
 import pytest
-from tests.conftest import create_spec, check_response_for_skip_or_error
+
+from tests.conftest import check_response_for_skip_or_error
+from tests.conftest import create_spec
+
 
 @pytest.mark.parametrize(
     "model_id,payload",

@@ -1,5 +1,8 @@
 import pytest
-from tests.conftest import create_spec, check_response_for_skip_or_error
+
+from tests.conftest import check_response_for_skip_or_error
+from tests.conftest import create_spec
+
 
 @pytest.mark.parametrize(
     "model_id,payload",
@@ -18,7 +21,10 @@ def test_depth_estimation(client, sample_image, model_id, payload):
     if resp.status_code == 200:
         # Check if response is binary (image file) or JSON
         content_type = resp.headers.get("content-type", "")
-        if "image" in content_type or "application/octet-stream" in content_type:
+        if (
+            "image" in content_type
+            or "application/octet-stream" in content_type
+        ):
             # Binary response - verify it's not empty
             assert len(resp.content) > 0
         else:

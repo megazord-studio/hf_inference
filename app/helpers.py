@@ -1,21 +1,31 @@
-import os, sys, json
 import io
-from typing import Any, Dict, List, Optional, Union
+import json
+import os
+import sys
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+
 import numpy as np
 import pandas as pd
+import soundfile as sf
 import torch
 import yaml
-from PIL import Image, ImageDraw
-import soundfile as sf
+from PIL import Image
+from PIL import ImageDraw
 
 # ---------- device & printing ----------
+
 
 def device_str() -> str:
     return "cuda:0" if torch.cuda.is_available() else "cpu"
 
+
 def device_arg(dev: str):
     # transformers >=4.41 accepts device str / torch.device / int
     return dev
+
 
 def safe_json(obj):
     if isinstance(obj, dict):
@@ -30,6 +40,7 @@ def safe_json(obj):
         return obj.tolist()
     try:
         import torch
+
         if isinstance(obj, torch.Tensor):
             if obj.numel() == 1:
                 return float(obj.item())
@@ -38,17 +49,25 @@ def safe_json(obj):
         pass
     return str(obj)
 
+
 def safe_print_output(obj: Any):
     clean = safe_json(obj)
     print(f"Output type: {type(clean)}")
     print(json.dumps(clean, indent=2, ensure_ascii=False))
 
+
 def print_header():
-    import transformers, diffusers
+    import diffusers
+    import transformers
+
     print(f"python: {sys.version.split()[0]} on device={device_str()}")
-    print(f"transformers: {transformers.__version__} diffusers: {diffusers.__version__} HAS_DIFFUSERS: True")
+    print(
+        f"transformers: {transformers.__version__} diffusers: {diffusers.__version__} HAS_DIFFUSERS: True"
+    )
+
 
 # ---------- I/O helpers ----------
+
 
 def load_demo(path: str = "./demo.yaml") -> List[Dict[str, Any]]:
     with open(path, "r", encoding="utf-8") as f:
@@ -56,6 +75,7 @@ def load_demo(path: str = "./demo.yaml") -> List[Dict[str, Any]]:
     demos = doc.get("demos", [])
     print(f"[BOOT] Loaded {len(demos)} demos from {path}")
     return demos
+
 
 def ensure_image(path: str) -> Image.Image:
     """
@@ -69,11 +89,11 @@ def ensure_image(path: str) -> Image.Image:
         img = Image.new("RGB", (768, 512), "#E8F2FF")
         d = ImageDraw.Draw(img)
         d.rectangle((20, 400, 300, 500), fill="#F4F4F4", outline="#CCCCCC")
-        d.text((30, 410), f"placeholder {os.path.basename(path)}", fill="#333333")
+        d.text(
+            (30, 410), f"placeholder {os.path.basename(path)}", fill="#333333"
+        )
         return img
 
-def ensure_audio_path(name: str) -> str:
-    return os.path.join(OUT_DIR, name)
 
 def save_wav(audio: np.ndarray, sr: int, path: str):
     arr = np.asarray(audio).squeeze()
@@ -81,6 +101,7 @@ def save_wav(audio: np.ndarray, sr: int, path: str):
     if arr.ndim == 2 and arr.shape[0] < arr.shape[1]:
         arr = arr.T
     sf.write(path, arr, sr)
+
 
 def to_dataframe(table_like: List[List[str]]) -> pd.DataFrame:
     rows = [[str(x) for x in r] for r in table_like]
@@ -90,7 +111,9 @@ def to_dataframe(table_like: List[List[str]]) -> pd.DataFrame:
         return pd.DataFrame(data, columns=header)
     return pd.DataFrame(rows)
 
+
 # ---------- File handling for FastAPI ----------
+
 
 def get_upload_file_image(upload_file) -> Optional[Image.Image]:
     """Convert UploadFile to PIL Image."""
@@ -100,6 +123,7 @@ def get_upload_file_image(upload_file) -> Optional[Image.Image]:
     upload_file.file.seek(0)  # Reset for potential re-reading
     return Image.open(io.BytesIO(contents)).convert("RGB")
 
+
 def get_upload_file_bytes(upload_file) -> Optional[bytes]:
     """Get bytes from UploadFile."""
     if upload_file is None:
@@ -107,6 +131,7 @@ def get_upload_file_bytes(upload_file) -> Optional[bytes]:
     contents = upload_file.file.read()
     upload_file.file.seek(0)  # Reset for potential re-reading
     return contents
+
 
 def get_upload_file_path(upload_file, temp_path: str) -> Optional[str]:
     """Save UploadFile to temporary path and return path."""
@@ -118,11 +143,13 @@ def get_upload_file_path(upload_file, temp_path: str) -> Optional[str]:
     upload_file.file.seek(0)  # Reset for potential re-reading
     return temp_path
 
+
 def image_to_bytes(img: Image.Image, format: str = "PNG") -> bytes:
     """Convert PIL Image to bytes."""
     buf = io.BytesIO()
     img.save(buf, format=format)
     return buf.getvalue()
+
 
 def audio_to_bytes(audio: np.ndarray, sr: int) -> bytes:
     """Convert audio array to WAV bytes."""
@@ -131,5 +158,5 @@ def audio_to_bytes(audio: np.ndarray, sr: int) -> bytes:
     if arr.ndim == 2 and arr.shape[0] < arr.shape[1]:
         arr = arr.T
     buf = io.BytesIO()
-    sf.write(buf, arr, sr, format='WAV')
+    sf.write(buf, arr, sr, format="WAV")
     return buf.getvalue()
