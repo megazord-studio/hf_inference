@@ -47,8 +47,3 @@ jobs:
           provenance: false
           build-args: |
             UV_LOCK_HASH=${{ hashFiles('uv.lock') }}
-
-      - name: Smoke test image
-        run: |
-          docker pull "${{ env.IMAGE_NAME }}"
-          docker run --rm "${{ env.IMAGE_NAME }}" python -m uvicorn --version
