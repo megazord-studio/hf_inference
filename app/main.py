@@ -41,6 +41,8 @@ app.include_router(hf_models.router)
 
 
 class InferenceSpec(BaseModel):
+    """Specification for an inference request."""
+
     model_id: str
     task: str
     payload: Dict[str, Any] = {}

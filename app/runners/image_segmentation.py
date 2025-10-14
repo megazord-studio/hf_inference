@@ -20,7 +20,7 @@ from app.utilities import is_missing_model_error
 def _convert_masks_to_base64(seg_list: Any) -> Any:
     """Convert mask images to base64 encoded strings for JSON response."""
     result: Any = []
-    for i, seg in enumerate(seg_list):
+    for seg in seg_list:
         mask = seg.get("mask", None)
         entry: Dict[str, Any] = {}
         for k, v in seg.items():
@@ -49,7 +49,7 @@ def _convert_masks_to_base64(seg_list: Any) -> Any:
                 mask_img = mask
 
             # Convert mask to base64
-            mask_bytes = image_to_bytes(mask_img, format="PNG")
+            mask_bytes = image_to_bytes(mask_img, img_format="PNG")
             mask_b64 = base64.b64encode(mask_bytes).decode("utf-8")
             entry["mask_base64"] = mask_b64
 

@@ -40,7 +40,7 @@ def run_depth_estimation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             d_img = PILImage.fromarray((d * 255).astype("uint8"))
 
             # Convert to bytes
-            img_bytes = image_to_bytes(d_img, format="PNG")
+            img_bytes = image_to_bytes(d_img, img_format="PNG")
             return {
                 "file_data": img_bytes,
                 "file_name": f"depth_{spec['model_id'].replace('/', '_')}.png",

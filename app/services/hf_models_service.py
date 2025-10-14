@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+import datetime
 from datetime import timedelta
 from typing import Any
 from typing import Dict
@@ -17,8 +17,8 @@ HF_API = "https://huggingface.co/api/models"
 
 # --- simple in-memory caches (10 min) ----------------------------------------
 _CACHE_TTL = timedelta(minutes=10)
-_cache_min: Dict[str, Tuple[datetime, List[Dict[str, Any]]]] = {}
-_cache_full: Dict[str, Tuple[datetime, List[Dict[str, Any]]]] = {}
+_cache_min: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
+_cache_full: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
 
 
 def get_cached_min(task: str) -> Optional[List[Dict[str, Any]]]:
@@ -26,23 +26,15 @@ def get_cached_min(task: str) -> Optional[List[Dict[str, Any]]]:
     if not ent:
         return None
     ts, data = ent
-    return data if (datetime.utcnow() - ts) < _CACHE_TTL else None
+    return (
+        data
+        if (datetime.datetime.now(datetime.UTC) - ts) < _CACHE_TTL
+        else None
+    )
 
 
 def set_cached_min(task: str, data: List[Dict[str, Any]]) -> None:
-    _cache_min[task] = (datetime.utcnow(), data)
-
-
-def get_cached_full(task: str) -> Optional[List[Dict[str, Any]]]:
-    ent = _cache_full.get(task)
-    if not ent:
-        return None
-    ts, data = ent
-    return data if (datetime.utcnow() - ts) < _CACHE_TTL else None
-
-
-def set_cached_full(task: str, data: List[Dict[str, Any]]) -> None:
-    _cache_full[task] = (datetime.utcnow(), data)
+    _cache_min[task] = (datetime.datetime.now(datetime.UTC), data)
 
 
 # ----------------------------- helpers ---------------------------------------
@@ -82,7 +74,7 @@ def _page_models(
     params = {"pipeline_tag": task, "limit": str(page_limit)}
     if cursor:
         params["cursor"] = cursor
-    if gated_filter is True:
+    if gated_filter:
         params["gated"] = "true"
     elif gated_filter is False:
         params["gated"] = "false"

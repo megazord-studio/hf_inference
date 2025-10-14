@@ -32,6 +32,8 @@ def _build_tapas_dataframe(table: Any) -> Any:
 
 
 def run_table_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
+    df: Any = None
+    query: str = ""
     try:
         p = spec["payload"]
         model_id = spec["model_id"]
@@ -42,7 +44,7 @@ def run_table_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
                 "reason": "empty query",
             }
 
-        df: Any = _build_tapas_dataframe(p["table"])
+        df = _build_tapas_dataframe(p["table"])
 
         force_cpu = -1 if "tapas" in model_id.lower() else device_arg(dev)
 
@@ -66,7 +68,11 @@ def run_table_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
 
     except Exception as e:
         msg = repr(e)
-        if "Categorical(logits" in msg or "nan" in msg.lower():
+        if (
+            ("Categorical(logits" in msg or "nan" in msg.lower())
+            and df is not None
+            and query
+        ):
             try:
                 pl = cast(
                     TableQuestionAnsweringPipeline,

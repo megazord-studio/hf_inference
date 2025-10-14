@@ -1,5 +1,7 @@
 from typing import Any
 from typing import Dict
+from typing import List
+from typing import cast
 
 from transformers import pipeline
 
@@ -22,7 +24,7 @@ def run_ner(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             aggregation_strategy="simple",
             device=device_arg(dev),
         )
-        out = pl(spec["payload"]["prompt"])
+        out = cast(List[Dict[str, Any]], pl(spec["payload"]["prompt"]))
         for o in out:
             o["score"] = float(o.get("score", 0.0))
         return safe_json(out)

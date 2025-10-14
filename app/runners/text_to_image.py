@@ -55,8 +55,8 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             trust_remote_code=False,
         )
 
-        # Help mypy: Optional[Type[Any]] for the runtime alias
-        AutoT2I_t: Optional[Type[Any]] = AutoT2I
+        # Help mypy for the runtime alias
+        AutoT2I_t: Any = AutoT2I
 
         if AutoT2I_t is not None:
             try:
@@ -85,7 +85,7 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             result = pipe(prompt=prompt, num_inference_steps=20)
             img = result.images[0]
 
-        img_bytes = image_to_bytes(img, format="PNG")
+        img_bytes = image_to_bytes(img, img_format="PNG")
         return {
             "file_data": img_bytes,
             "file_name": f"sd_{model_id.replace('/', '_')}.png",

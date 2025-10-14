@@ -221,6 +221,12 @@ Poe tasks (run with uv run poe <task>):
   - `uv run poe types`
 - dev: start the dev server with auto-reload
   - `uv run poe dev`
+- security: run safety and bandit
+  - `uv run poe security`
+- complexity: check code complexity with radon
+  - `uv run poe complexity`
+- deadcode: find unused code with vulture
+  - `uv run poe deadcode`
 
 ## Contributing
 

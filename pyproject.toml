@@ -1,10 +1,16 @@
 [project]
 name = "hf-inference"
 version = "0.1.0"
-description = "Hugging Face Inference Helper"
-readme = "README.md"
+description = "A unified FastAPI server for Hugging Face model inference across 31+ tasks"
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
+authors = [
+  { name = "megazord.studio GmbH", email = "info@megazord.studio" }
+]
+maintainers = [
+  { name = "megazord.studio GmbH", email = "info@megazord.studio" }
+]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -61,6 +67,9 @@ dev = [
   "mypy",
   "poethepoet",
   "mdformat",
+  "bandit",
+  "vulture",
+  "radon",
 ]
 
 [project.scripts]
@@ -77,6 +86,9 @@ uv run ruff check --fix || exit 1
 uv run mdformat . || exit 1
 ''' }
 types = { shell = "uv run mypy" }
+security = { shell = "uv run bandit -r app --severity-level high" }
+complexity = { shell = "uv run radon cc -s -a app" }
+deadcode = { shell = "uv run vulture app tests" }
 dev = { shell = "uvicorn app.main:app --reload" }
 
 [tool.ruff]
@@ -115,6 +127,7 @@ build-backend = "hatchling.build"
 packages = ["app"]
 include = [
   "app/static/**",
+  "app/py.typed",
 ]
 
 # For source distributions, include tests and assets for reference

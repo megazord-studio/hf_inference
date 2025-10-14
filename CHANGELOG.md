@@ -11,5 +11,5 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 - Initial public release on PyPI
 - FastAPI server with unified /inference endpoint
 - 31+ Hugging Face tasks supported (text, vision, audio, video)
-- CLI entry point `hf-inference`
+- Entry point `hf-inference`
 - Tests, linting, typing setup
