@@ -257,7 +257,7 @@ def _vlm_florence2(
         )
         model = AutoModelForCausalLM.from_pretrained(
             spec["model_id"], trust_remote_code=True, torch_dtype=torch.float16
-        ).to(torch.device(device_str()))  # type: ignore
+        ).to(torch.device(device_str()))
         text = prompt or "Describe the image briefly and include one color."
         inputs = _proc_inputs(proc, text, img, model)
         txt = _decode_generate(model, proc, **inputs)

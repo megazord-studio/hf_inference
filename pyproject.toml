@@ -1,10 +1,16 @@
 [project]
 name = "hf-inference"
 version = "0.1.0"
-description = "Hugging Face Inference Helper"
-readme = "README.md"
+description = "A unified FastAPI server for Hugging Face model inference across 31+ tasks"
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
+authors = [
+  { name = "Megazord Studio", email = "hello@megazord.studio" }
+]
+maintainers = [
+  { name = "Megazord Studio", email = "hello@megazord.studio" }
+]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
