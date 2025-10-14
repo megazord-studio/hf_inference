@@ -121,6 +121,7 @@ build-backend = "hatchling.build"
 packages = ["app"]
 include = [
   "app/static/**",
+  "app/py.typed",
 ]
 
 # For source distributions, include tests and assets for reference
