@@ -21,20 +21,19 @@ RUN groupadd -g ${GID} ${USER} \
 USER ${USER}
 WORKDIR /app
 
-# ---- uv + Python 3.13 ----------------------------------------------------
+# ---- uv + Python 3.12 (not 3.13) -----------------------------------------
 ENV PATH="/home/${USER}/.local/bin:${PATH}"
 ENV UV_LINK_MODE=copy
 ENV PIP_NO_CACHE_DIR=1
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
- && uv python install 3.13 \
- && uv venv --python 3.13 .venv
+ && uv python install 3.12 \
+ && uv venv --python 3.12 .venv
 ENV PATH="/app/.venv/bin:${PATH}"
 
 # ---- deps (copy files required by build backend) --------------------------
-# Include LICENSE (and README.md if referenced) before uv sync
 COPY --chown=${UID}:${GID} pyproject.toml uv.lock LICENSE README.md ./
 
-# Tie this layer to the lock to avoid stale venv caches
+# tie venv layer to the lock file
 RUN echo "uv.lock=${UV_LOCK_HASH}" \
  && uv sync --frozen --link-mode=copy \
  && rm -rf /home/${USER}/.cache/uv
@@ -50,8 +49,8 @@ RUN uv pip install --no-deps --link-mode=copy \
 # ---- app code -------------------------------------------------------------
 COPY --chown=${UID}:${GID} . .
 
-# ---- sanity check (fail build early if deps missing) ----------------------
-RUN python -c "import uvicorn, fastapi; print('deps-ok')"
+# ---- sanity check ---------------------------------------------------------
+RUN python -c "import uvicorn, fastapi, numpy; print('deps-ok', numpy.__version__)"
 
 # ---- runtime --------------------------------------------------------------
 ENV HF_HOME=/app/.cache/huggingface
