@@ -1,5 +1,6 @@
 from typing import Any
 
+
 # --- Patch: defensively strip `offload_state_dict` from ctor kwargs ---
 def _patch_offload_kwarg() -> None:
     """

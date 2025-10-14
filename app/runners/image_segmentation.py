@@ -1,7 +1,6 @@
+import base64
 from typing import Any
 from typing import Dict
-
-import base64
 
 import numpy as np
 import torch

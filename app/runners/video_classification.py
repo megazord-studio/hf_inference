@@ -1,7 +1,6 @@
+import os
 from typing import Any
 from typing import Dict
-
-import os
 
 from transformers import pipeline
 
