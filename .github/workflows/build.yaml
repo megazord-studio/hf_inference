@@ -34,7 +34,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Model is no longer baked into the image, so no HF secrets/args needed here.
       - name: Build and push (linux/amd64)
         uses: docker/build-push-action@v6
         with:
@@ -46,3 +45,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
+          build-args: |
+            UV_LOCK_HASH=${{ hashFiles('uv.lock') }}
+
+      - name: Smoke test image
+        run: |
+          docker pull "${{ env.IMAGE_NAME }}"
+          docker run --rm "${{ env.IMAGE_NAME }}" python -m uvicorn --version
