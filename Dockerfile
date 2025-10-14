@@ -4,6 +4,10 @@
 
 FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
 
+# ---- lock-aware caching ---------------------------------------------------
+ARG UV_LOCK_HASH
+ENV UV_LOCK_HASH=${UV_LOCK_HASH}
+
 # ---- base OS deps --------------------------------------------------------
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl \
@@ -33,7 +37,9 @@ ENV PATH="/app/.venv/bin:${PATH}"
 
 # ---- base deps from pyproject --------------------------------------------
 COPY --chown=${UID}:${GID} pyproject.toml uv.lock ./
-RUN uv sync --frozen --link-mode=copy \
+# this echo ensures the layer changes when UV_LOCK_HASH changes
+RUN echo "uv.lock=${UV_LOCK_HASH}" \
+ && uv sync --frozen --link-mode=copy \
  && rm -rf /home/${USER}/.cache/uv || true
 
 # ---- CUDA wheels ---------------------------------------------------------
