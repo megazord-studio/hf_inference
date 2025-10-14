@@ -1,16 +1,28 @@
 [project]
-name = "app"
+name = "hf-inference"
 version = "0.1.0"
-description = "Add your description here"
+description = "Hugging Face Inference Helper"
 readme = "README.md"
 requires-python = ">=3.12"
+license = { file = "LICENSE" }
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3 :: Only",
+  "Framework :: FastAPI",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries",
+]
+keywords = ["huggingface", "transformers", "diffusers", "fastapi", "inference", "ml", "ai"]
 dependencies = [
-  # Core stacks
   "transformers==4.46.3",
   "diffusers==0.31.0",
   "huggingface-hub==0.25.2",
   "accelerate==0.31.0",
-  # Models & utils
   "sentence-transformers==5.1.1",
   "torch>=2.2",
   "torchvision>=0.17.0",
@@ -34,9 +46,84 @@ dependencies = [
   "av>=16.0.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/megazord-studio/hf_inference"
+Repository = "https://github.com/megazord-studio/hf_inference"
+Issues = "https://github.com/megazord-studio/hf_inference/issues"
+Changelog = "https://github.com/megazord-studio/hf_inference/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0.0",
   "pytest-asyncio>=0.23.0",
   "httpx>=0.27.0",
+  "ruff>=0.6.0",
+  "mypy>=1.10.0",
+  "twine>=5.1.0",
+  "poethepoet>=0.37.0",
+]
+
+[project.scripts]
+# CLI entrypoint to run the server: `hf-inference`
+"hf-inference" = "app.main:main"
+
+[tool.poe.tasks]
+# Run tasks with: uv run poe <task>
+# e.g. uv run poe test
+test = { shell = "uv run pytest -ra || exit 1" }
+format = { shell = '''
+uv run ruff format || exit 1
+uv run ruff check --fix || exit 1
+''' }
+types = { shell = "uv run mypy" }
+dev = { shell = "uvicorn app.main:app --reload" }
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "Q", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.mypy]
+python_version = "3.12"
+files = [
+  # "app/**/*.py",
+]
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+show_error_codes = true
+
+[tool.hatch.build]
+include = [
+  "README.md",
+  "LICENSE",
+  "app/static/**",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+include = [
+  "app/static/**",
+]
+
+# For source distributions, include tests and assets for reference
+[tool.hatch.build.targets.sdist]
+include = [
+  "app/**",
+  "assets/**",
+  "tests/**",
+  "README.md",
+  "LICENSE",
+  "pyproject.toml",
+  "Dockerfile",
 ]

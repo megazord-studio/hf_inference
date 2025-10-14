@@ -1,0 +1,21 @@
+# Normalize line endings
+* text=auto eol=lf
+
+# Treat common binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mp4 binary
+*.wav binary
+*.mp3 binary
+
+# Exclude dev-only files from git-archive exports (not from PyPI wheels)
+/.github export-ignore
+/.idea export-ignore
+/.venv export-ignore
+/tests export-ignore
+/assets export-ignore
+/Dockerfile export-ignore
+

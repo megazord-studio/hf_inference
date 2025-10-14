@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 app/main.py
 
@@ -7,14 +6,16 @@ FastAPI application for HuggingFace model inference.
 Endpoints:
 - GET /healthz - health check endpoint
 - POST /inference - inference endpoint accepting multipart form data
-- GET /catalog - model catalog endpoint
+- GET / - model sorting and filtering UI
 """
 
 import io
 import json
 import os
 import sys
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 from app.routes import hf_models
 
@@ -27,13 +28,14 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
-import uvicorn
 
 from app.helpers import device_str
 from app.runners import RUNNERS
 
 app = FastAPI(title="HF Inference API", version="0.1.0")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# Use a package-relative path for static assets so it works when installed
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(hf_models.router)
 
@@ -130,12 +132,3 @@ async def inference(
                 "reason": str(e),
             }
         )
-
-
-def main():
-    """Run the FastAPI application with uvicorn."""
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-if __name__ == "__main__":
-    main()

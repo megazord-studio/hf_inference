@@ -50,8 +50,5 @@ COPY --chown=${UID}:${GID} . .
 # ---- runtime cache root for HF -------------------------------------------
 ENV HF_HOME=/app/.cache/huggingface
 
-# NOTE: do NOT set HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE here.
-# The app will toggle them to offline after the first startup download.
-
 # ---- entrypoint ----------------------------------------------------------
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
