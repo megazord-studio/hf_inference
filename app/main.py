@@ -27,12 +27,26 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pydantic import ValidationError
+from starlette.middleware import Middleware
 
+from app.auth import SharedSecretAuthMiddleware
 from app.helpers import device_str
 from app.routes import hf_models
 from app.runners import RUNNERS
 
-app = FastAPI(title="HF Inference API", version="0.1.0")
+middleware = [
+    Middleware(
+        SharedSecretAuthMiddleware,
+        env_var="INFERENCE_SHARED_SECRET",
+        exempt_paths=("/", "/healthz", "/docs", "/redoc", "/openapi.json"),
+    )
+]
+
+app = FastAPI(
+    title="HF Inference API",
+    version="0.1.0",
+    middleware=middleware,
+)
 # Use a package-relative path for static assets so it works when installed
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
