@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Login · HF Model Playground{% endblock %}
+{% block body %}
+<div class="page-grid"></div>
+
+<div class="wrap">
+  <h1 class="glitch" data-text="HF Inference">HF Inference</h1>
+  <p class="subtitle">Access Portal · Secure Session Required</p>
+
+  {% if not login_password_enabled %}
+  <div class="info">Password login disabled (no INFERENCE_LOGIN_PASSWORD). Set one if you crave ceremony; otherwise your bearer token is your badge.</div>
+  {% endif %}
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/login" autocomplete="on" spellcheck="false">
+    <input type="hidden" name="next" value="{{ next_path }}" />
+    <div class="input-group">
+      <label for="username">USERNAME</label>
+      <input id="username" name="username" placeholder="(defaults to {{ login_user }})" value="{{ login_user }}" autocomplete="username" />
+    </div>
+    <div class="input-group">
+      <label for="password">PASSWORD</label>
+      <input id="password" name="password" type="password" placeholder="Password" autocomplete="current-password" />
+    </div>
+    <button type="submit">INITIATE SESSION</button>
+  </form>
+
+  <div class="footer">
+    <span>Neon grid session shell · <a href="https://github.com/megazord-studio/hf_inference" target="_blank" rel="noopener">source</a></span>
+  </div>
+</div>
+{% endblock %}

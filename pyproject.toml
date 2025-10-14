@@ -51,6 +51,7 @@ dependencies = [
   "python-multipart~=0.0.20",
   "av~=16.0",
   "hf-transfer>=0.1.9",
+  "Jinja2~=3.1",
 ]
 
 [project.urls]
@@ -118,6 +119,7 @@ include = [
   "README.md",
   "LICENSE",
   "app/static/**",
+  "app/templates/**",
 ]
 
 [build-system]
@@ -128,6 +130,7 @@ build-backend = "hatchling.build"
 packages = ["app"]
 include = [
   "app/static/**",
+  "app/templates/**",
   "app/py.typed",
 ]
 

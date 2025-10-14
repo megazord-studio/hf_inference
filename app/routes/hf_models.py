@@ -1,26 +1,24 @@
 from __future__ import annotations
 
-import html
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+import os
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter
-from fastapi import Query
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
 
 from app.runners import RUNNERS
-from app.services.hf_models_service import fetch_all_by_task
-from app.services.hf_models_service import gated_to_str
-from app.services.hf_models_service import get_cached_min
-from app.services.hf_models_service import set_cached_min
-from app.views.hf_models_table import render_models_table
+from app.services.hf_models_service import (
+    fetch_all_by_task,
+    gated_to_str,
+    get_cached_min,
+    set_cached_min,
+)
+
+_templates_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
+templates = Jinja2Templates(directory=_templates_dir)
 
 router = APIRouter(tags=["models"])
-
-# ------------------------------ JSON endpoint -------------------------------
 
 
 @router.get("/models", response_class=JSONResponse)
@@ -40,9 +38,7 @@ def list_models_minimal(
       id, likes, trendingScore, downloads, gated
     """
     if not task:
-        return JSONResponse(
-            {"available_tasks": sorted(RUNNERS.keys())}, status_code=200
-        )
+        return JSONResponse({"available_tasks": sorted(RUNNERS.keys())}, status_code=200)
 
     if task not in RUNNERS:
         return JSONResponse(
@@ -60,9 +56,7 @@ def list_models_minimal(
     try:
         models = fetch_all_by_task(task, page_limit=limit, hard_page_cap=200)
     except Exception as e:
-        return JSONResponse(
-            {"error": "hf_api_failed", "reason": str(e)}, status_code=502
-        )
+        return JSONResponse({"error": "hf_api_failed", "reason": str(e)}, status_code=502)
 
     minimal: List[Dict[str, Any]] = [
         {
@@ -81,23 +75,26 @@ def list_models_minimal(
 # ------------------------------ HTML endpoint -------------------------------
 
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("/")
 def list_models_table(
+    request: Request,
     task: Optional[str] = Query(
         None, description="Implemented pipeline tag, e.g. 'image-text-to-text'"
     ),
-) -> HTMLResponse:
+):
     """
     Virtualized table + Web Worker (client-side filtering/sorting on full dataset).
     """
-    if not task:
-        return HTMLResponse(render_models_table(None, []))
+    tasks = sorted(RUNNERS.keys())
+    invalid_task = task is not None and task not in RUNNERS
 
-    if task not in RUNNERS:
-        return HTMLResponse(
-            f"<pre>Unsupported task: {html.escape(task)}</pre>",
-            status_code=400,
-        )
-
-    # Do not inline massive JSON; the page will fetch /models?task=...
-    return HTMLResponse(render_models_table(task, []))
+    return templates.TemplateResponse(
+        "models.html",
+        {
+            "request": request,
+            "tasks": tasks,
+            "task": task,
+            "invalid_task": invalid_task,
+        },
+        status_code=400 if invalid_task else 200,
+    )
