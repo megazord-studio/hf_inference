@@ -10,6 +10,7 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 - Authentication support with bearer tokens and login endpoint
 - Fix docker and build issues
+- Add run modal for models
 
 ## [0.1.0] - 2025-10-14
 

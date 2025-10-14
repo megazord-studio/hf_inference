@@ -46,7 +46,7 @@
         <table>
           <thead>
           <tr>
-            <th class="sortable" data-key="id" style="width:52%">
+            <th class="sortable" data-key="id" style="width:46%">
               <span class="label">Model <span class="sort-icon">▲</span></span>
             </th>
             <th class="sortable" data-key="gated" style="width:12%">
@@ -60,6 +60,9 @@
             </th>
             <th class="sortable" data-key="trendingScore" style="width:12%; text-align:right">
               <span class="label">Trend <span class="sort-icon">▲</span></span>
+            </th>
+            <th class="run-col" style="width:8%; text-align:center">
+              <span class="label">Run</span>
             </th>
           </tr>
           </thead>
@@ -91,10 +94,14 @@
   </form>
 </div>
 
+<!-- Dialog host (we'll programmatically move it under <body>, just in case) -->
+<sl-dialog id="runDialog" class="run-dialog" label="Run model"></sl-dialog>
+
+<!-- Include external sub-template (no new route) -->
+{% include "run_modal.html" %}
+
 <script>
-/* (unchanged JS from previous step, including Clusterize + worker + rowHtml with <tr> wrappers) */
-{{- "" -}}
-(function(){
+(async function(){
   const formEl = document.getElementById('panelForm');
   const task = new URLSearchParams(location.search).get('task') || (formEl ? formEl.dataset.selectedTask : '') || '';
 
@@ -119,50 +126,64 @@
   if(!task || !contentArea) return;
 
   const workerSrc = `
-      let ALL = [];
-      function safeMax(rows, getter, minVal=1){ let max = minVal; for (let i=0;i<rows.length;i++){ const v = getter(rows[i]); if (v>max) max=v; } return max; }
-      function neonScoreFactory(rows){
-        const maxLogD = safeMax(rows, r => Math.log1p(r.downloads||0), 1);
-        const maxLikes = safeMax(rows, r => (r.likes||0), 1);
-        const maxTrend = safeMax(rows, r => (r.trendingScore||0), 1);
-        return (r) => { const nd=Math.log1p(r.downloads||0)/maxLogD; const nl=(r.likes||0)/maxLikes; const nt=(r.trendingScore||0)/maxTrend; return 0.5*nd + 0.3*nl + 0.2*nt; };
-      }
-      function cmp(a,b){ return a<b ? -1 : a>b ? 1 : 0; }
-      onmessage = (e) => {
-        const {type, payload} = e.data || {};
-        if(type === 'set'){
-          ALL = payload || [];
-          const gatedValues = Array.from(new Set(ALL.map(r => (r.gated||'false') + ''))).sort();
-          postMessage({type:'ready', total: ALL.length, gatedValues});
-          return;
-        }
-        if(type === 'query'){
-          const { term, gated, neon, sortKey, sortDir } = payload;
-          let base = ALL;
-          if(gated){ base = base.filter(r => String(r.gated) === gated); }
-          if(term){ const t = term.toLowerCase(); base = base.filter(r => (r.id||'').toLowerCase().includes(t)); }
-          if(neon){
-            const score = neonScoreFactory(base);
-            base = base.slice().sort((a,b) => score(b) - score(a));
-          } else if (sortKey){
-            const dir = (sortDir === 'asc') ? 1 : -1;
-            base = base.slice().sort((a,b) => {
-              const va = (sortKey==='id'||sortKey==='gated') ? (String(a[sortKey]||'')) : Number(a[sortKey]||0);
-              const vb = (sortKey==='id'||sortKey==='gated') ? (String(b[sortKey]||'')) : Number(b[sortKey]||0);
-              return dir * cmp(va,vb);
-            });
-          }
-          postMessage({type:'result', rows: base});
-        }
-        if(type === 'csv'){
-          const rows = payload || ALL;
-          const head = ['id','gated','downloads','likes','trendingScore'];
-          const esc = (s) => '"' + String(s).replaceAll('"','""') + '"';
-          const lines = [head.join(',')].concat(rows.map(r => [r.id, r.gated, r.downloads||0, r.likes||0, r.trendingScore||0].map(esc).join(',')));
-          postMessage({type:'csv', csv: lines.join('\\n')});
-        }
+    let ALL = [];
+    function safeMax(rows, getter, minVal=1){
+      let max = minVal;
+      for (let i=0;i<rows.length;i++){ const v = getter(rows[i]); if (v>max) max=v; }
+      return max;
+    }
+    function neonScoreFactory(rows){
+      const maxLogD = safeMax(rows, r => Math.log1p(r.downloads||0), 1);
+      const maxLikes = safeMax(rows, r => (r.likes||0), 1);
+      const maxTrend = safeMax(rows, r => (r.trendingScore||0), 1);
+      return (r) => {
+        const nd=Math.log1p(r.downloads||0)/maxLogD;
+        const nl=(r.likes||0)/maxLikes;
+        const nt=(r.trendingScore||0)/maxTrend;
+        return 0.5*nd + 0.3*nl + 0.2*nt;
       };
-    `;
+    }
+    function cmp(a,b){ return a<b ? -1 : a>b ? 1 : 0; }
+    onmessage = (e) => {
+      const {type, payload} = e.data || {};
+      if(type === 'set'){
+        ALL = payload || [];
+        const gatedValues = Array.from(new Set(ALL.map(r => (r.gated||'false') + ''))).sort();
+        postMessage({type:'ready', total: ALL.length, gatedValues});
+        return;
+      }
+      if(type === 'query'){
+        const { term, gated, neon, sortKey, sortDir } = payload;
+        let base = ALL;
+        if(gated){ base = base.filter(r => String(r.gated) === gated); }
+        if(term){
+          const t = term.toLowerCase();
+          base = base.filter(r => (r.id||'').toLowerCase().includes(t));
+        }
+        if(neon){
+          const score = neonScoreFactory(base);
+          base = base.slice().sort((a,b) => score(b) - score(a));
+        } else if (sortKey){
+          const dir = (sortDir === 'asc') ? 1 : -1;
+          base = base.slice().sort((a,b) => {
+            const va = (sortKey==='id'||sortKey==='gated') ? (String(a[sortKey]||'')) : Number(a[sortKey]||0);
+            const vb = (sortKey==='id'||sortKey==='gated') ? (String(b[sortKey]||'')) : Number(b[sortKey]||0);
+            return dir * cmp(va,vb);
+          });
+        }
+        postMessage({type:'result', rows: base});
+      }
+      if(type === 'csv'){
+        const rows = payload || ALL;
+        const head = ['id','gated','downloads','likes','trendingScore'];
+        const esc = (s) => '"' + String(s).replaceAll('"','""') + '"';
+        const lines = [head.join(',')].concat(
+          rows.map(r => [r.id, r.gated, r.downloads||0, r.likes||0, r.trendingScore||0].map(esc).join(','))
+        );
+        postMessage({type:'csv', csv: lines.join('\\n')});
+      }
+    };
+  `;
   const blob = new Blob([workerSrc], {type:'application/javascript'});
   const worker = new Worker(URL.createObjectURL(blob));
 
@@ -172,8 +193,50 @@
     contentElem: contentArea,
     rows_in_block: 60,
     blocks_in_cluster: 4,
-    no_data_text: 'No data'
+    no_data_text: 'No data',
+    tag: 'tr'
   });
+
+  // dialog + external sub-template wiring
+  const dlg = document.getElementById('runDialog');
+  const runTmpl = document.getElementById('runModalTemplate'); // in run_modal.html
+
+  // ensure dialog sits under <body>, then wait until it's fully defined
+  if (dlg && dlg.parentElement !== document.body) document.body.appendChild(dlg);
+  await customElements.whenDefined('sl-dialog');
+
+  // open modal and inject model/task
+  window.runModel = async function(id){
+    try{
+      if (!runTmpl || !dlg) return;
+      const node = runTmpl.content.cloneNode(true);
+      const taskVal = task || 'model';
+      const hfUrl = 'https://huggingface.co/' + id.split('/').map(s => encodeURIComponent(s)).join('/');
+
+      node.querySelectorAll('[data-model-title]').forEach(el => {
+        el.textContent = id; el.setAttribute('title', id);
+      });
+      node.querySelectorAll('[data-task]').forEach(el => el.textContent = taskVal);
+      node.querySelectorAll('[data-href="hf"]').forEach(el => {
+        el.href = hfUrl;
+      });
+      node.querySelectorAll('[data-href="start"]').forEach(el => {
+        el.href = '/run?task=' + encodeURIComponent(task || '') + '&model=' + encodeURIComponent(id);
+      });
+
+      dlg.innerHTML = '';
+      dlg.appendChild(node);
+      dlg.label = 'Run · ' + id;
+      dlg.style.setProperty('--width', '680px');
+
+      // IMPORTANT: only use show() to avoid flicker / double-state
+      await dlg.show();
+    } catch (e){
+      console.error('Failed to open run modal', e);
+    }
+  };
+
+  dlg.addEventListener('sl-after-hide', () => { dlg.innerHTML = ''; });
 
   function rowHtml(r){
     const link = '<span class="link"><a href="https://huggingface.co/' + r.id + '" target="_blank" title="' + r.id + '">' + r.id + '</a></span>';
@@ -181,12 +244,24 @@
     if(r.gated === 'true') chip = '<span class="chip chip-true">gated</span>';
     if(r.gated === 'manual') chip = '<span class="chip chip-manual">manual</span>';
     const fmt = (v) => (Number(v||0)).toLocaleString('en-US');
+
+    const runBtn =
+      '<div class="cell-run">' +
+      '<button class="neon-run" title="Run this model" onclick="runModel(\'' +
+      r.id.replace(/'/g, "\\'") +
+      '\')">' +
+      '<span class="neon-run__icon">▶</span>' +
+      '<span class="neon-run__label">RUN</span>' +
+      '</button>' +
+      '</div>';
+
     return '<tr>'
-      + '<td style="width:52%">' + link + '</td>'
+      + '<td style="width:46%">' + link + '</td>'
       + '<td style="width:12%">' + chip + '</td>'
       + '<td class="num" style="width:12%">' + fmt(r.downloads) + '</td>'
       + '<td class="num" style="width:12%">' + fmt(r.likes) + '</td>'
       + '<td class="num" style="width:12%">' + fmt(r.trendingScore) + '</td>'
+      + '<td class="run-cell" style="width:8%">' + runBtn + '</td>'
       + '</tr>';
   }
 
@@ -236,27 +311,36 @@
     }
     if(type === 'csv'){
       const url = URL.createObjectURL(new Blob([e.data.csv || ''], {type:'text/csv'}));
-      const a = document.createElement('a'); a.href = url; a.download = (task || 'models') + '.csv';
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 2000);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (task || 'models') + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 2000);
     }
   };
 
-  (async function loadAll(){
-    try{
-      const res = await fetch('/models?task=' + encodeURIComponent(task));
-      const data = await res.json();
-      if (!Array.isArray(data)) { if (spinner) spinner.textContent = 'No data for this task'; return; }
-      if (spinner) spinner.textContent = 'Loaded ' + data.length.toLocaleString('en-US') + ' models';
-      const rows = data.map(r => ({
-        id: r.id,
-        downloads: Number(r.downloads||0),
-        likes: Number(r.likes||0),
-        trendingScore: Number(r.trendingScore||0),
-        gated: (function(g){ if (typeof g === 'string' && g.trim()) return g.trim(); return g ? 'true' : 'false'; })(r.gated)
-      }));
-      worker.postMessage({type:'set', payload: rows});
-    } catch(err){ if (spinner) spinner.textContent = 'Failed to load models'; console.error(err); }
-  })();
+  try{
+    const res = await fetch('/models?task=' + encodeURIComponent(task));
+    const data = await res.json();
+    if (!Array.isArray(data)) {
+      if (spinner) spinner.textContent = 'No data for this task';
+      return;
+    }
+    if (spinner) spinner.textContent = 'Loaded ' + data.length.toLocaleString('en-US') + ' models';
+    const rows = data.map(r => ({
+      id: r.id,
+      downloads: Number(r.downloads||0),
+      likes: Number(r.likes||0),
+      trendingScore: Number(r.trendingScore||0),
+      gated: (function(g){ if (typeof g === 'string' && g.trim()) return g.trim(); return g ? 'true' : 'false'; })(r.gated)
+    }));
+    worker.postMessage({type:'set', payload: rows});
+  } catch(err){
+    if (spinner) spinner.textContent = 'Failed to load models';
+    console.error(err);
+  }
 
   let t = null;
   if(q){ q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(refresh, 150); }); }

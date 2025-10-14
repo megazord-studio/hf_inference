@@ -8,6 +8,9 @@
   --zebra:rgba(138,43,226,.05);
   --shadow-neon:0 0 16px rgba(0,255,208,.28), 0 0 22px rgba(255,92,240,.18);
   --radius:16px;
+
+  /* <<< make Shoelace dialogs THE top-most thing >>> */
+  --sl-z-index-dialog: 2147483000;
 }
 
 html,body {
@@ -18,10 +21,17 @@ html,body {
       linear-gradient(180deg, rgba(255,92,240,.06), transparent 30%),
       var(--bg);
   color:var(--text);
-  font:14px/1.55 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+
+  font-family: "Orbitron", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+
+  font-size:14px;
+  line-height:1.55;
 }
 
-/* Background grid overlay (opt-in per page) */
+/* Background grid overlay */
 .page-grid,
 .page-grid::before,
 .page-grid::after { position: fixed; inset: 0; pointer-events: none; }
@@ -75,10 +85,21 @@ h1 { margin:0 0 8px; font-weight:900; letter-spacing:.2px;
 .toolbar::after { content:""; position:absolute; inset:0; pointer-events:none; border-radius:calc(var(--radius) - 2px); box-shadow:inset 0 0 0 1px rgba(0,255,208,.10), inset 0 0 18px rgba(138,43,226,.12); }
 .spacer { flex:1; }
 
-input, select, sl-button::part(base) { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:12px; padding:10px 12px; outline:none; box-shadow:inset 0 0 0 1px rgba(0,255,208,.05); }
+input, select, sl-button::part(base) {
+  background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:12px;
+  padding:10px 12px; outline:none; box-shadow:inset 0 0 0 1px rgba(0,255,208,.05);
+  font-family: inherit; font-weight:600;
+}
 
-.neon-btn { appearance:none; border:0; cursor:pointer; padding:10px 14px; border-radius:12px; font-weight:800; letter-spacing:.2px; color:#0b0f14; background: linear-gradient(135deg, var(--neon), var(--neon3) 60%, var(--neon2)); box-shadow: var(--shadow-neon); transition: transform .08s ease, filter .15s ease, box-shadow .15s ease; }
-.neon-btn:hover { filter:brightness(1.06); transform: translateY(-1px); }
+.neon-btn {
+  appearance: none; border: 0; cursor: pointer; padding: 10px 14px; border-radius: 12px;
+  font-family: "Orbitron", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 800; letter-spacing: .2px; color: #0b0f14;
+  background: linear-gradient(135deg, var(--neon), var(--neon3) 60%, var(--neon2));
+  box-shadow: var(--shadow-neon);
+  transition: transform .08s ease, filter .15s ease, box-shadow .15s ease;
+}
+.neon-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .neon-btn.is-active { box-shadow: 0 0 28px rgba(0,255,208,.55), 0 0 36px rgba(255,92,240,.35); outline: 2px solid rgba(90,240,255,.35); }
 
 #count { margin: 8px 16px 0; display:inline-block; padding:6px 10px; border-radius:10px; background: linear-gradient(90deg, rgba(0,255,208,.12), rgba(255,92,240,.12)); border: 1px solid var(--line); box-shadow: 0 0 10px rgba(0,255,208,.15) inset; }
@@ -109,7 +130,7 @@ td.num { text-align:right; font-weight:800; letter-spacing:.15px; text-shadow:0 
 .sort-asc .sort-icon { opacity:1; transform: rotate(180deg); text-shadow:0 0 8px rgba(0,255,208,.4); }
 .sort-desc .sort-icon { opacity:1; transform: rotate(0deg);   text-shadow:0 0 8px rgba(0,255,208,.4); }
 
-/* ---------------- Login page specific (restores centered neon card) -------- */
+/* ---------------- Login page specific ---------------- */
 .wrap{
   position:relative; z-index:10; max-width:660px;
   margin:clamp(40px,14vh,160px) auto; padding:42px 46px 52px;
@@ -143,9 +164,10 @@ label{ display:block; font-size:11px; letter-spacing:1.4px; font-weight:700; tex
 .input-group{ margin-bottom:18px; position:relative; }
 .wrap input{
   width:100%; background:rgba(8,18,30,.85); border:1px solid var(--line); border-radius:14px;
-  padding:14px 16px 13px; font-size:14px; color:var(--text); font-weight:600; letter-spacing:.3px;
+  padding:14px 16px 13px; font-size:14px; color:var(--text); font-weight:700; letter-spacing:.3px;
   outline:none; box-shadow:inset 0 0 0 1px rgba(0,255,208,.08),0 0 0 0 rgba(0,255,208,0);
   transition:.25s border,.25s box-shadow,.25s background;
+  font-family: inherit;
 }
 .wrap input:focus{ border-color:var(--neon); box-shadow:0 0 0 2px rgba(0,255,208,.35),0 0 0 6px rgba(255,92,240,.22); background:#0d1f33; }
 .wrap input::placeholder{ color:rgba(230,243,255,.35); letter-spacing:.5px; }
@@ -156,6 +178,7 @@ label{ display:block; font-size:11px; letter-spacing:1.4px; font-weight:700; tex
   color:#041014; background:linear-gradient(135deg,var(--neon),var(--neon3) 55%,var(--neon2));
   box-shadow:0 0 16px rgba(0,255,208,.35),0 0 42px -10px rgba(255,92,240,.85);
   transition:.22s transform,.22s filter,.4s box-shadow;
+  font-family: inherit;
 }
 .wrap button::before{ content:""; position:absolute; inset:0;
   background:linear-gradient(120deg,rgba(255,255,255,.35),transparent 38%,transparent 62%,rgba(255,255,255,.25));
@@ -177,4 +200,293 @@ label{ display:block; font-size:11px; letter-spacing:1.4px; font-weight:700; tex
 
 @media (max-width:640px){
   .wrap{ margin:32px 18px; padding:38px 30px 46px; }
+}
+
+/* ---- Run column: alignment & width ------------------------------------- */
+.run-col { text-align: center; width: 8% !important; min-width: 70px; }
+.run-cell { padding: 0 !important; width: 8% !important; }
+.cell-run {
+  height: 100%; display: flex; align-items: center; justify-content: center; padding: 2px 0;
+}
+
+/* ---- Neon RUN pill ------------------------------------------------------ */
+.neon-run {
+  --h: 26px;
+  height: var(--h);
+  min-width: 60px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-family: "Orbitron", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 700; font-size: 10.5px; letter-spacing: .5px;
+  color: #dffcff; text-shadow: 0 0 6px rgba(0,255,208,.55);
+  background: rgba(12, 18, 30, 0.55);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(0,255,208,0.25);
+  box-shadow: 0 0 6px rgba(0,255,208,0.25), 0 0 8px rgba(255,92,240,0.20), inset 0 0 6px rgba(0,255,208,0.15);
+  cursor: pointer; user-select: none; outline: none; transition: all 0.15s ease;
+}
+.neon-run:hover {
+  color: #fff; background: rgba(20, 32, 48, 0.7);
+  box-shadow: 0 0 12px rgba(0,255,208,0.35), 0 0 16px rgba(255,92,240,0.25), inset 0 0 8px rgba(0,255,208,0.25);
+  transform: translateY(-1px);
+}
+.neon-run:active { transform: translateY(0); filter: brightness(0.95); }
+.neon-run__icon { font-size: 11px; line-height: 1; text-shadow: 0 0 6px rgba(0,255,208,0.5); }
+.neon-run__label { line-height: 1; transform: translateY(1px); }
+.neon-run:hover { animation: neonPulse 1.4s ease-in-out infinite alternate; }
+@keyframes neonPulse { from { box-shadow: 0 0 8px rgba(0,255,208,0.2), 0 0 12px rgba(255,92,240,0.15); }
+  to   { box-shadow: 0 0 14px rgba(0,255,208,0.4), 0 0 20px rgba(255,92,240,0.3); } }
+
+/* ---- Shoelace dialog skin ------------------------------------------- */
+.run-dialog { z-index: 2147483100; }
+.run-dialog::part(overlay) { z-index: 2147483101; }
+.run-dialog::part(panel)   { z-index: 2147483102; max-width: var(--width, 680px); }
+
+.run-dialog::part(base) {
+  border-radius: 16px;
+  background:
+      radial-gradient(1000px 240px at 10% -10%, rgba(255,92,240,.08), transparent 70%),
+      radial-gradient(1000px 240px at 90% -10%, rgba(0,255,208,.10), transparent 70%),
+      linear-gradient(180deg, rgba(22,30,48,.92), rgba(10,16,28,.92));
+  border: 1px solid var(--line);
+  box-shadow: 0 40px 80px rgba(0,0,0,.55), 0 0 28px rgba(0,255,208,.18);
+  color: var(--text);
+  font-family: "Orbitron", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+.run-dialog::part(header) {
+  font-weight: 900; letter-spacing: .4px;
+  text-shadow: 0 0 10px rgba(0,255,208,.35);
+}
+
+/* Modal body + actions */
+.run-modal-body { padding: 8px 2px; }
+.run-modal-header { margin: 4px 0 18px; }
+.run-modal-header h3 {
+  margin: 6px 0 4px; font-size: 16px; font-weight: 800; letter-spacing: .3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.run-chip {
+  display:inline-block; font-size:10px; letter-spacing:.6px; padding:4px 8px;
+  border-radius:999px; color:var(--text);
+  background: rgba(0,255,208,.12); border:1px solid rgba(0,255,208,.35);
+  text-transform: lowercase;
+}
+.run-modal-actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:14px 0 10px; }
+.btn-primary, .btn-ghost {
+  display:inline-flex; align-items:center; justify-content:center; gap:10px;
+  height:40px; border-radius:12px; text-decoration:none; font-weight:800; letter-spacing:.4px;
+}
+.btn-primary {
+  color:#041014;
+  background:linear-gradient(135deg, var(--neon), var(--neon3) 60%, var(--neon2));
+  box-shadow:0 0 16px rgba(0,255,208,.35), 0 0 22px rgba(255,92,240,.22); border:0;
+}
+.btn-primary:hover { filter:brightness(1.06); transform:translateY(-1px); transition:.15s ease; }
+.btn-ghost {
+  color:var(--text); background:rgba(12,18,30,.6); border:1px solid var(--line);
+  box-shadow:inset 0 0 0 1px rgba(0,255,208,.12);
+}
+.btn-ghost:hover { border-color:rgba(148,163,184,.35); box-shadow:inset 0 0 0 1px rgba(0,255,208,.18); transform:translateY(-1px); transition:.15s ease; }
+.ico { filter:drop-shadow(0 0 6px rgba(0,255,208,.45)); }
+.run-hint { margin-top:10px; font-size:12px; color:var(--muted); display:inline-flex; align-items:center; gap:8px; }
+.run-hint .dot { width:7px; height:7px; border-radius:50%; background:radial-gradient(circle at 50% 40%, var(--neon), #28ffd1); box-shadow:0 0 10px rgba(0,255,208,.55); }
+
+/* ================= Amber “Coming Soon” variant ===================== */
+:root {
+  --amber: #ffd166;
+  --amber-2: #ffb703;
+  --amber-ink: #0f0e0a;
+}
+
+/* Use .run-amber on the modal body to switch accents */
+.run-amber .run-modal-header h3 {
+  text-shadow: 0 0 8px rgba(255, 209, 102, .35);
+}
+
+.run-chip--amber {
+  background: rgba(255, 209, 102, .12);
+  border: 1px solid rgba(255, 209, 102, .55);
+  color: var(--text);
+}
+
+.run-soon {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px 14px;
+  margin: 8px 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 209, 102, .35);
+  background:
+      linear-gradient(180deg, rgba(255, 183, 3, .08), rgba(0,0,0,.06)),
+      rgba(18, 16, 24, .35);
+  box-shadow:
+      inset 0 0 0 1px rgba(255, 209, 102, .10),
+      0 0 22px rgba(255, 183, 3, .10);
+}
+
+.run-soon .spark {
+  color: var(--amber);
+  text-shadow: 0 0 8px rgba(255, 209, 102, .65);
+  filter: drop-shadow(0 0 6px rgba(255, 183, 3, .45));
+  line-height: 1;
+  margin-top: 1px;
+}
+
+/* Amber ghost button */
+.btn-ghost--amber {
+  border-color: rgba(255, 209, 102, .35);
+  box-shadow: inset 0 0 0 1px rgba(255, 209, 102, .15);
+}
+.btn-ghost--amber:hover {
+  border-color: rgba(255, 183, 3, .6);
+  box-shadow:
+      inset 0 0 0 1px rgba(255, 183, 3, .28),
+      0 0 16px rgba(255, 183, 3, .18);
+  transform: translateY(-1px);
+  transition: .15s ease;
+}
+
+/* When using the amber/coming-soon variant, single-column actions */
+.run-amber .run-modal-actions { grid-template-columns: 1fr; }
+
+/* ==== Modal polish ===================================================== */
+.run-dialog::part(base) {
+  border-radius: 18px;
+  background:
+      radial-gradient(1200px 360px at 85% -10%, rgba(0,255,208,.10), transparent 70%),
+      radial-gradient(1200px 360px at 15% -10%, rgba(255,92,240,.08), transparent 70%),
+      linear-gradient(180deg, rgba(20,28,42,.96), rgba(10,16,28,.94));
+  border: 1px solid rgba(255,255,255,.06);
+  box-shadow:
+      0 40px 100px rgba(0,0,0,.65),
+      0 0 0 1px rgba(0,255,208,.10) inset,
+      0 0 40px rgba(0,255,208,.12);
+  backdrop-filter: blur(10px) saturate(120%);
+}
+
+.run-dialog::part(overlay) {
+  backdrop-filter: blur(3px);
+  background: radial-gradient(1200px 800px at 50% -10%, rgba(0,255,208,.10), transparent 60%),
+  rgba(2,6,12,.60);
+}
+
+/* Body spacing */
+.run-modal-body { padding: 6px 2px 10px; }
+.run-modal-header { margin: 2px 0 16px; }
+
+/* Title w/ subtle underline accent */
+.run-modal-header h3,
+.run-title {
+  position: relative;
+  margin: 6px 0 10px;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: .35px;
+  text-shadow: 0 0 10px rgba(0,255,208,.35);
+}
+.run-amber .run-modal-header h3::after,
+.run-amber .run-title::after {
+  content: "";
+  position: absolute; left: 0; bottom: -6px;
+  width: 140px; height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(255,209,102,.9), rgba(255,183,3,.35), transparent 70%);
+  box-shadow: 0 0 10px rgba(255,209,102,.55);
+}
+
+/* Task pill */
+.run-chip,
+.run-chip--amber {
+  display:inline-block;
+  margin-bottom: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  letter-spacing: .7px;
+  text-transform: lowercase;
+  backdrop-filter: blur(2px);
+}
+.run-chip--amber {
+  background: rgba(255,209,102,.12);
+  border: 1px solid rgba(255,209,102,.55);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(255,209,102,.15), 0 0 16px rgba(255,183,3,.12);
+}
+
+/* “Coming soon” card */
+.run-soon {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  column-gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  margin: 8px 0 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,209,102,.28);
+  background:
+      linear-gradient(180deg, rgba(255,183,3,.10), rgba(0,0,0,.06)),
+      rgba(18,16,24,.35);
+  box-shadow:
+      inset 0 0 0 1px rgba(255,209,102,.10),
+      0 0 24px rgba(255,183,3,.14);
+}
+.run-soon .spark {
+  width: 10px; height: 10px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #ffd166, #ffb703 70%);
+  box-shadow: 0 0 12px rgba(255,209,102,.85), 0 0 22px rgba(255,183,3,.35);
+}
+.run-soon strong { color: #fff; }
+.run-amber .muted { color: #e6e8ff; opacity:.85; }
+
+/* Actions: single column with premium buttons */
+.run-amber .run-modal-actions { grid-template-columns: 1fr; gap: 10px; }
+
+.btn-ghost, .btn-primary {
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 900;
+  letter-spacing: .45px;
+  transition: transform .12s ease, filter .15s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.btn-ghost {
+  color: var(--text);
+  background: rgba(12,18,30,.55);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: inset 0 0 0 1px rgba(0,255,208,.10);
+}
+.btn-ghost:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255,209,102,.45);
+  box-shadow:
+      inset 0 0 0 1px rgba(255,209,102,.30),
+      0 0 18px rgba(255,183,3,.18);
+}
+
+/* Optional “primary” if you bring it back later */
+.btn-primary {
+  color: #0e0a08;
+  background: linear-gradient(135deg, #ffd166, #ffb703 40%, #ff5cf0 100%);
+  box-shadow: 0 0 22px rgba(255,209,102,.35), 0 0 28px rgba(255,92,240,.18);
+  border: 0;
+}
+.btn-primary:hover { filter: brightness(1.05); transform: translateY(-1px); }
+
+/* Tighten the hint row */
+.run-hint { margin-top: 8px; font-size: 12px; gap: 10px; }
+.run-hint .dot {
+  width: 8px; height: 8px;
+  background: radial-gradient(circle at 50% 40%, var(--neon), #28ffd1);
+  box-shadow: 0 0 12px rgba(0,255,208,.65);
+}
+
+/* Responsive */
+@media (max-width: 520px) {
+  .run-dialog::part(panel) { max-width: 92vw; }
+  .run-modal-header h3 { font-size: 16px; }
+  .run-soon { grid-template-columns: 14px 1fr; }
 }
