@@ -77,6 +77,11 @@ def is_no_weight_files_error(e: Exception) -> bool:
     )
 
 
+def is_missing_model_index_error(e: Exception) -> bool:
+    msg = repr(e)
+    return "does not appear to have a file named model_index.json" in msg
+
+
 def is_gated_repo_error(e: Exception) -> bool:
     msg = repr(e).lower()
     return (
@@ -275,6 +280,7 @@ __all__ = [
     "is_cuda_oom",
     "is_missing_model_error",
     "is_no_weight_files_error",
+    "is_missing_model_index_error",
     "is_gated_repo_error",
     "soft_skip",
     "soft_hint_error",
