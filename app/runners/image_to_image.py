@@ -3,6 +3,9 @@ from PIL import Image
 from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipeline
 from app.helpers import ensure_image, get_upload_file_image, image_to_bytes, device_str
 from app.utilities import is_gated_repo_error, is_missing_model_error
+from app.runners.patches.patch_offline_kwarg import _patch_offload_kwarg
+
+_patch_offload_kwarg()
 
 def run_image_to_image(spec, dev: str):
     """
