@@ -20,15 +20,22 @@ from PIL import ImageDraw
 
 
 def device_str() -> str:
+    """Return the device string for PyTorch ('cuda:0' or 'cpu')."""
     return "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
 def device_arg(dev: str) -> str:
+    """Return device argument for transformers (accepts device str, torch.device, or int)."""
     # transformers >=4.41 accepts device str / torch.device / int
     return dev
 
 
 def safe_json(obj: Any) -> Any:
+    """
+    Convert Python objects to JSON-serializable format.
+
+    Handles numpy arrays, torch tensors, and other non-serializable types.
+    """
     if isinstance(obj, dict):
         return {k: safe_json(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -52,12 +59,14 @@ def safe_json(obj: Any) -> Any:
 
 
 def safe_print_output(obj: Any) -> None:
+    """Print object as formatted JSON, converting non-serializable types."""
     clean = safe_json(obj)
     print(f"Output type: {type(clean)}")
     print(json.dumps(clean, indent=2, ensure_ascii=False))
 
 
 def print_header() -> None:
+    """Print environment information (Python version, device, library versions)."""
     import diffusers
     import transformers
 
@@ -71,6 +80,7 @@ def print_header() -> None:
 
 
 def load_demo(path: str = "./demo.yaml") -> List[Dict[str, Any]]:
+    """Load demo configurations from a YAML file."""
     with open(path, "r", encoding="utf-8") as f:
         doc = yaml.safe_load(f)
     demos = doc.get("demos", [])
@@ -79,6 +89,7 @@ def load_demo(path: str = "./demo.yaml") -> List[Dict[str, Any]]:
 
 
 def ensure_image(path: str) -> Image.Image:
+    """Load an image from path or URL, converting to RGB."""
     """
     Get an image from path, or create a placeholder in memory if it doesn't exist.
     Does not save anything to disk.
