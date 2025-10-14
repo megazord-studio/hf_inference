@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Login · HF Model Playground{% endblock %}
+{% block title %}Login · HF Model Arcade{% endblock %}
 {% block body %}
 <div class="page-grid"></div>
 
 <div class="wrap">
   <h1 class="glitch" data-text="HF Inference">HF Inference</h1>
-  <p class="subtitle">Access Portal · Secure Session Required</p>
+  <p class="subtitle">Developer login: grab a session, tickle some transformers, ship results.</p>
 
   {% if not login_password_enabled %}
-  <div class="info">Password login disabled (no INFERENCE_LOGIN_PASSWORD). Set one if you crave ceremony; otherwise your bearer token is your badge.</div>
+  <div class="info">Password login is disabled. No INFERENCE_LOGIN_PASSWORD detected; your bearer token is your VIP pass. Proceed accordingly.</div>
   {% endif %}
 
   {% if error %}
@@ -18,18 +18,18 @@
   <form method="post" action="/login" autocomplete="on" spellcheck="false">
     <input type="hidden" name="next" value="{{ next_path }}" />
     <div class="input-group">
-      <label for="username">USERNAME</label>
-      <input id="username" name="username" placeholder="(defaults to {{ login_user }})" value="{{ login_user }}" autocomplete="username" />
+      <label for="username">Username</label>
+      <input id="username" name="username" placeholder="({{ login_user }} if you smash Enter)" value="{{ login_user }}" autocomplete="username" />
     </div>
     <div class="input-group">
-      <label for="password">PASSWORD</label>
-      <input id="password" name="password" type="password" placeholder="Password" autocomplete="current-password" />
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" placeholder="env var secret goes here" autocomplete="current-password" />
     </div>
-    <button type="submit">INITIATE SESSION</button>
+    <button type="submit">AUTHENTICATE</button>
   </form>
 
   <div class="footer">
-    <span>Neon grid session shell · <a href="https://github.com/megazord-studio/hf_inference" target="_blank" rel="noopener">source</a></span>
+    <span>PSA: creds come from env vars; don’t paste them in chat. · <a href="https://github.com/megazord-studio/hf_inference" target="_blank" rel="noopener">source</a></span>
   </div>
 </div>
 {% endblock %}

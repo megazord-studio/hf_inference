@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}HF Model Playground{% endblock %}
+{% block title %}HF Model Arcade{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="https://unpkg.com/@shoelace-style/shoelace@2.15.1/cdn/themes/dark.css" />
 <script type="module" src="https://unpkg.com/@shoelace-style/shoelace@2.15.1/cdn/shoelace-autoloader.js"></script>
@@ -11,15 +11,15 @@
 <div class="container">
   <div class="header-bar">
     <div>
-      <h1>HF Model Playground</h1>
-      <p class="tagline">Browse gigantic lists of Hugging Face models without melting your tab. Pick a task, live filter by substring, sort by columns or hit the flashy <strong>Neon Pulse</strong> button for a goofy composite popularity guess. Export to CSV, script the rest.</p>
+      <h1>HF Model Arcade</h1>
+      <p class="tagline">A zero‑calorie buffet of models. Pick a task, filter like you’re grepping prod logs, sort columns, or smash <strong>Neon Pulse</strong> to get a questionable yet entertaining popularity score. Export to CSV and automate the boring parts.</p>
     </div>
-    <a href="/logout" class="logout-btn" title="End session and return to login">Logout</a>
+    <a href="/logout" class="logout-btn" title="Yeet the cookie and bounce">Log out</a>
   </div>
 
   <form id="panelForm" class="panel" data-selected-task="{{ task or '' }}">
     <div>
-      <label for="task" class="muted">Task (implemented)</label>
+      <label for="task" class="muted">Task (wired up)</label>
       <select id="task" name="task" onchange="location.href='/?task=' + encodeURIComponent(this.value)">
         <option value="">(choose a task)</option>
         {% for t in tasks %}
@@ -31,17 +31,17 @@
     {% if task and not invalid_task %}
     <div class="card">
       <div class="toolbar">
-        <input id="q" placeholder="Substring filter (e.g. llama)" style="flex:2" />
-        <select id="gatedSel" style="flex:1"></select>
-        <button id="neonSort" type="button" class="neon-btn" title="Sort by combined popularity signal">⚡ Neon&nbsp;Pulse</button>
+        <input id="q" placeholder="Greppish filter (e.g. llama)" style="flex:2" />
+        <select id="gatedSel" style="flex:1" title="Filter by gating (open/gated/manual)"></select>
+        <button id="neonSort" type="button" class="neon-btn" title="Sort by spicy composite signal">⚡ Neon&nbsp;Pulse</button>
         <div class="spacer"></div>
-        <sl-button id="downloadCsv" size="small" outline>CSV Dump</sl-button>
+        <sl-button id="downloadCsv" size="small" outline title="Ship it to your notebook">Export CSV</sl-button>
       </div>
       <div class="toolbar" style="padding-top:0; gap:0">
         <div id="count" class="muted"></div>
       </div>
 
-      <div id="spinner" class="muted">Loading all models…</div>
+      <div id="spinner" class="muted">Summoning a ridiculous amount of models…</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -59,7 +59,7 @@
               <span class="label">Likes <span class="sort-icon">▲</span></span>
             </th>
             <th class="sortable" data-key="trendingScore" style="width:12%; text-align:right">
-              <span class="label">Trend <span class="sort-icon">▲</span></span>
+              <span class="label">Trend‑ish <span class="sort-icon">▲</span></span>
             </th>
             <th class="run-col" style="width:8%; text-align:center">
               <span class="label">Run</span>
@@ -78,26 +78,24 @@
     <div class="card note">
       {% if invalid_task %}
       <h2>Unsupported task</h2>
-      <p>The task "{{ task }}" is not supported. Pick a valid task from the list.</p>
+      <p>Task “{{ task }}” isn’t wired here. Pick one from the menu like a civilized engineer.</p>
       {% else %}
       <h2>Pick a Task ↑</h2>
-      <p>Select a pipeline task to pull a (large) list of public models. Everything loads client-side once, then you can:</p>
-      <p>• Filter by substring (cheap, fast).<br/>
-        • Toggle a gated status filter once data arrives.<br/>
-        • Click table headers to sort asc/desc.<br/>
-        • Smash <strong>Neon Pulse</strong> for a blended popularity score (downloads / likes / trend).<br/>
-        • Dump what you see with the CSV button and script away.</p>
-      <p>Zero ML magic here—just ergonomics so you can find the next model to improve.</p>
+      <p>Choose a pipeline and we’ll shovel in a very large JSON so your browser can do what browsers do best: index things and pretend it’s a database.</p>
+      <p>• Substring filter like a pro.<br/>
+        • Flip the gated filter once data lands.<br/>
+        • Click headers to sort (asc/desc).<br/>
+        • Tap <strong>Neon Pulse</strong> for vibes‑based ranking (downloads/likes/trend).<br/>
+        • Export the current view to CSV and script away.</p>
+      <p>Zero ML “magic” here. Just ergonomics so you can locate your next yak to shave.</p>
       {% endif %}
     </div>
     {% endif %}
   </form>
 </div>
 
-<!-- Dialog host (we'll programmatically move it under <body>, just in case) -->
 <sl-dialog id="runDialog" class="run-dialog" label="Run model"></sl-dialog>
 
-<!-- Include external sub-template (no new route) -->
 {% include "run_modal.html" %}
 
 <script>
@@ -193,7 +191,7 @@
     contentElem: contentArea,
     rows_in_block: 60,
     blocks_in_cluster: 4,
-    no_data_text: 'No data',
+    no_data_text: 'No data (wrong timeline?)',
     tag: 'tr'
   });
 
@@ -226,13 +224,13 @@
 
       dlg.innerHTML = '';
       dlg.appendChild(node);
-      dlg.label = 'Run · ' + id;
+      dlg.label = 'Quick run • ' + id;
       dlg.style.setProperty('--width', '680px');
 
       // IMPORTANT: only use show() to avoid flicker / double-state
       await dlg.show();
     } catch (e){
-      console.error('Failed to open run modal', e);
+      console.error('Run modal face‑planted', e);
     }
   };
 
@@ -325,10 +323,10 @@
     const res = await fetch('/models?task=' + encodeURIComponent(task));
     const data = await res.json();
     if (!Array.isArray(data)) {
-      if (spinner) spinner.textContent = 'No data for this task';
+      if (spinner) spinner.textContent = 'No data for this task (did you summon the right pipeline?)';
       return;
     }
-    if (spinner) spinner.textContent = 'Loaded ' + data.length.toLocaleString('en-US') + ' models';
+    if (spinner) spinner.textContent = 'Loaded ' + data.length.toLocaleString('en-US') + ' models. Your tab survives. Probably.';
     const rows = data.map(r => ({
       id: r.id,
       downloads: Number(r.downloads||0),
@@ -338,7 +336,7 @@
     }));
     worker.postMessage({type:'set', payload: rows});
   } catch(err){
-    if (spinner) spinner.textContent = 'Failed to load models';
+    if (spinner) spinner.textContent = 'Network gremlins. Could not load models.';
     console.error(err);
   }
 
