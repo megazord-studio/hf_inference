@@ -17,6 +17,7 @@ A small FastAPI server and CLI that make trying Hugging Face models consistent. 
 - Supported tasks
 - Examples
 - Testing (read this)
+- Authentication (read this)
 - Security notes
 - Performance notes
 - Development
@@ -67,6 +68,86 @@ curl http://localhost:8000/healthz
 curl -X POST http://localhost:8000/inference \
   -F 'spec={"model_id":"gpt2","task":"text-generation","payload":{"prompt":"Hello HF"}}'
 ```
+
+## Authentication 🔐
+
+The server can be run open (default) or protected with either:
+
+1. Bearer token(s) via Authorization header
+2. Login form and signed session cookie (/login)
+
+If you do NOT configure any auth-related env vars, the middleware fails OPEN (no authentication required). Set at least
+one of the secrets below for any protection.
+
+### 1. Bearer token
+
+Set INFERENCE_SHARED_SECRET to a token string (or a comma-separated list for key rotation). Example:
+
+```bash
+export INFERENCE_SHARED_SECRET="superlongsecret1,superlongsecret2"
+uv run poe dev
+```
+
+Send requests with one of the tokens:
+
+```bash
+curl -H 'Authorization: Bearer superlongsecret1' \
+  -X POST http://localhost:8000/inference \
+  -F 'spec={"model_id":"gpt2","task":"text-generation","payload":{"prompt":"Hi"}}'
+```
+
+### 2. Session login (/login)
+
+Provide a username (optional) and password via env vars:
+
+- INFERENCE_LOGIN_PASSWORD (REQUIRED to enable the login flow)
+- INFERENCE_LOGIN_USER (default: admin)
+
+Then visit http://localhost:8000/login in a browser, submit the form, and a signed session cookie (default name: `session`) will be set.
+
+Example:
+
+```bash
+export INFERENCE_LOGIN_PASSWORD='change-me'
+export INFERENCE_SESSION_SECRET='hex-or-random-string'  # stable HMAC key (else random per start)
+uv run poe dev
+```
+
+### Session signing secret
+
+INFERENCE_SESSION_SECRET supplies the HMAC key used to sign the session cookie. If omitted, a random key is generated at
+startup (all sessions invalidate on restart). Always set this in production.
+
+### Exempt / public paths
+
+The following paths are always unauthenticated (health and docs):
+
+```
+/healthz
+/docs
+/redoc
+/openapi.json
+/login
+/logout
+/static
+```
+
+### Combining methods
+
+You can enable BOTH bearer tokens and session login simultaneously. A request is allowed if EITHER a valid Authorization
+header OR a valid session cookie is present.
+
+### Summary of core env vars
+
+| Purpose | Variable | Default | Notes |
+| ------- | -------- | ------- | ----- |
+| Bearer token(s) | INFERENCE_SHARED_SECRET | (empty) | Comma-separated list. If empty, bearer auth disabled. |
+| Login username | INFERENCE_LOGIN_USER | admin | Only used if password set. |
+| Login password | INFERENCE_LOGIN_PASSWORD | (empty) | If empty, login/session auth disabled. Set to enable form auth. |
+| Session signing key | INFERENCE_SESSION_SECRET | (random each start) | Set for stable sessions across restarts. |
+| Host bind | HF_INF_HOST | 0.0.0.0 | CLI flag --host overrides. |
+| Port | HF_INF_PORT | 8000 | CLI flag --port overrides. |
+| Log level | HF_INF_LOG_LEVEL | info | Standard levels. |
 
 ## Docker 🐳
 

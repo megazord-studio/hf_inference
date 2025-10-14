@@ -33,7 +33,7 @@ def render_models_table(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>mega model search</title>
+  <title>HF Model Playground</title>
   <link rel="stylesheet" href="https://unpkg.com/@shoelace-style/shoelace@2.15.1/cdn/themes/dark.css" />
   <script type="module" src="https://unpkg.com/@shoelace-style/shoelace@2.15.1/cdn/shoelace-autoloader.js"></script>
   <script src="https://unpkg.com/clusterize.js@0.18.1/clusterize.min.js"></script>
@@ -70,68 +70,47 @@ def render_models_table(
     }
 
     .container { max-width:1200px; margin:28px auto 44px; padding:0 16px; }
-    h1 { margin:0 0 14px; font-weight:900; letter-spacing:.2px;
+    h1 { margin:0 0 8px; font-weight:900; letter-spacing:.2px;
          text-shadow:0 0 16px rgba(0,255,208,.35), 0 0 24px rgba(255,92,240,.2); }
+    .tagline { margin:0 0 22px; font-size:13px; color:var(--muted); max-width:900px; }
+
+    .header-bar { display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+    .logout-btn {
+      display:inline-block; padding:10px 16px; font-weight:700; letter-spacing:.25px; text-decoration:none; color:#0b0f14;
+      background:linear-gradient(135deg, var(--neon), var(--neon3) 60%, var(--neon2));
+      border-radius:12px; box-shadow:var(--shadow-neon);
+      transition:filter .15s ease, transform .08s ease;
+    }
+    .logout-btn:hover { filter:brightness(1.07); transform:translateY(-1px); }
 
     .panel { display:grid; gap:12px; }
     .row   { display:grid; gap:12px; grid-template-columns: 1fr; }
 
-    .card {
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      background:
+    .card { border:1px solid var(--line); border-radius:var(--radius); background:
         linear-gradient(180deg, rgba(138,43,226,.08), rgba(0,0,0,.22)),
         radial-gradient(1000px 140px at 10% 0%, rgba(255,92,240,.08), transparent 70%),
-        var(--panel3);
-      box-shadow:inset 0 0 10px rgba(138,43,226,.08), 0 0 28px rgba(0,255,208,.10);
-      overflow:hidden;
-    }
+        var(--panel3); box-shadow:inset 0 0 10px rgba(138,43,226,.08), 0 0 28px rgba(0,255,208,.10); overflow:hidden; }
+    .card.note { padding:22px 24px 26px; }
+    .card.note h2 { margin:0 0 10px; font-size:18px; }
+    .card.note p { margin:0 0 12px; line-height:1.55; }
+    .card.note code { background:rgba(0,255,208,.12); padding:2px 6px; border-radius:6px; }
 
     .toolbar { display:flex; gap:12px; align-items:center; padding:16px; position:relative; }
-    .toolbar::after {
-      content:""; position:absolute; inset:0; pointer-events:none; border-radius:calc(var(--radius) - 2px);
-      box-shadow:inset 0 0 0 1px rgba(0,255,208,.10), inset 0 0 18px rgba(138,43,226,.12);
-    }
+    .toolbar::after { content:""; position:absolute; inset:0; pointer-events:none; border-radius:calc(var(--radius) - 2px); box-shadow:inset 0 0 0 1px rgba(0,255,208,.10), inset 0 0 18px rgba(138,43,226,.12); }
     .spacer { flex:1; }
 
-    input, select, sl-button::part(base) {
-      background:var(--panel2); color:var(--text);
-      border:1px solid var(--line); border-radius:12px; padding:10px 12px; outline:none;
-      box-shadow:inset 0 0 0 1px rgba(0,255,208,.05);
-    }
+    input, select, sl-button::part(base) { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:12px; padding:10px 12px; outline:none; box-shadow:inset 0 0 0 1px rgba(0,255,208,.05); }
 
-    .neon-btn {
-      appearance:none; border:0; cursor:pointer;
-      padding:10px 14px; border-radius:12px; font-weight:800; letter-spacing:.2px;
-      color:#0b0f14;
-      background: linear-gradient(135deg, var(--neon), var(--neon3) 60%, var(--neon2));
-      box-shadow: var(--shadow-neon);
-      transition: transform .08s ease, filter .15s ease, box-shadow .15s ease;
-    }
+    .neon-btn { appearance:none; border:0; cursor:pointer; padding:10px 14px; border-radius:12px; font-weight:800; letter-spacing:.2px; color:#0b0f14; background: linear-gradient(135deg, var(--neon), var(--neon3) 60%, var(--neon2)); box-shadow: var(--shadow-neon); transition: transform .08s ease, filter .15s ease, box-shadow .15s ease; }
     .neon-btn:hover { filter:brightness(1.06); transform: translateY(-1px); }
-    .neon-btn.is-active {
-      box-shadow: 0 0 28px rgba(0,255,208,.55), 0 0 36px rgba(255,92,240,.35);
-      outline: 2px solid rgba(90,240,255,.35);
-    }
+    .neon-btn.is-active { box-shadow: 0 0 28px rgba(0,255,208,.55), 0 0 36px rgba(255,92,240,.35); outline: 2px solid rgba(90,240,255,.35); }
 
-    #count {
-      margin: 8px 16px 0;
-      display:inline-block; padding:6px 10px; border-radius:10px;
-      background: linear-gradient(90deg, rgba(0,255,208,.12), rgba(255,92,240,.12));
-      border: 1px solid var(--line); box-shadow: 0 0 10px rgba(0,255,208,.15) inset;
-    }
+    #count { margin: 8px 16px 0; display:inline-block; padding:6px 10px; border-radius:10px; background: linear-gradient(90deg, rgba(0,255,208,.12), rgba(255,92,240,.12)); border: 1px solid var(--line); box-shadow: 0 0 10px rgba(0,255,208,.15) inset; }
     #spinner { padding:12px 16px; color:var(--muted); }
 
     .table-wrap { height: 70vh; overflow: hidden; }
     table { width:100%; border-collapse:separate; border-spacing:0; }
-    thead th {
-      position:sticky; top:0; z-index:1;
-      background:
-        linear-gradient(180deg, rgba(0,255,208,.10), rgba(0,0,0,0)),
-        var(--panel3);
-      padding:12px 10px; text-align:left; font-weight:900; border-bottom:1px solid var(--line);
-      letter-spacing:.2px;
-    }
+    thead th { position:sticky; top:0; z-index:1; background: linear-gradient(180deg, rgba(0,255,208,.10), rgba(0,0,0,0)), var(--panel3); padding:12px 10px; text-align:left; font-weight:900; border-bottom:1px solid var(--line); letter-spacing:.2px; }
     tbody td { padding:10px; border-bottom:1px solid var(--line); }
     tbody tr:nth-child(even) td { background:var(--zebra); }
     tbody tr:hover td { background:var(--hover); }
@@ -156,7 +135,13 @@ def render_models_table(
 </head>
 <body>
   <div class="container">
-    <h1>Transformers HF Models</h1>
+    <div class="header-bar">
+      <div>
+        <h1>HF Model Playground</h1>
+        <p class="tagline">Browse gigantic lists of Hugging Face models without melting your tab. Pick a task, live filter by substring, sort by columns or hit the flashy <strong>Neon Pulse</strong> button for a goofy composite popularity guess. Export to CSV, script the rest.</p>
+      </div>
+      <a href="/logout" class="logout-btn" title="End session and return to login">Logout</a>
+    </div>
 
     <form id="panelForm" class="panel">
       <div>
@@ -389,16 +374,16 @@ def render_models_table(
 </html>
 """)
 
-    main_ui = ""
+    # Provide different main UI based on whether a task is selected
     if task:
         main_ui = """
       <div class="card">
         <div class="toolbar">
-          <input id="q" placeholder="Search model (substring)" style="flex:2" />
+          <input id="q" placeholder="Substring filter (e.g. llama)" style="flex:2" />
           <select id="gatedSel" style="flex:1"></select>
           <button id="neonSort" type="button" class="neon-btn" title="Sort by combined popularity signal">⚡ Neon&nbsp;Pulse</button>
           <div class="spacer"></div>
-          <sl-button id="downloadCsv" size="small" outline>CSV</sl-button>
+          <sl-button id="downloadCsv" size="small" outline>CSV Dump</sl-button>
         </div>
         <div id="count" class="muted"></div>
         <div id="spinner" class="muted">Loading all models…</div>
@@ -430,6 +415,20 @@ def render_models_table(
             </table>
           </div>
         </div>
+      </div>
+        """
+    else:
+        main_ui = """
+      <div class="card note">
+        <h2>Pick a Task ↑</h2>
+        <p>Select a pipeline task to pull a (large) list of public models. Everything loads client‑side once, then you can:</p>
+        <p>• Filter by substring (cheap, fast).<br/>
+           • Toggle a gated status filter once data arrives.<br/>
+           • Click table headers to sort asc/desc.<br/>
+           • Smash <strong>Neon Pulse</strong> for a blended popularity score (downloads / likes / trend).<br/>
+           • Dump what you see with the CSV button and script away.</p>
+        <p>Zero ML magic here—just ergonomics so you can find the next model to jailbreak improve.</p>
+        <p><em>Pro tip:</em> open devtools network tab if you enjoy watching a single JSON payload blaze in.</p>
       </div>
         """
 
