@@ -19,7 +19,7 @@ classifiers = [
 ]
 keywords = ["huggingface", "transformers", "diffusers", "fastapi", "inference", "ml", "ai"]
 dependencies = [
-  "transformers==4.46.3",
+  "transformers==4.53.0",
   "diffusers==0.31.0",
   "huggingface-hub==0.25.2",
   "accelerate==0.31.0",
@@ -33,7 +33,7 @@ dependencies = [
   "timm>=1.0.20",
   "einops>=0.8.1",
   "pydantic>=2.12.0",
-  "protobuf==4.25.3",
+  "protobuf==4.25.8",
   "soundfile>=0.13.1",
   "sacremoses>=0.1.1",
   "sentencepiece>=0.2.1",
