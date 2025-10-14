@@ -12,6 +12,7 @@ from app.helpers import ensure_image
 from app.helpers import get_upload_file_image
 from app.helpers import image_to_bytes
 from app.helpers import safe_json
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
@@ -56,7 +57,7 @@ def _convert_masks_to_base64(seg_list: Any) -> Any:
     return result
 
 
-def run_image_segmentation(spec: Any, dev: str) -> Dict[str, Any]:
+def run_image_segmentation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run image segmentation inference.
     Accepts either image_path or UploadFile from spec["files"]["image"].

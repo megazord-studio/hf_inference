@@ -7,12 +7,13 @@ from transformers import pipeline
 from app.helpers import device_arg
 from app.helpers import get_upload_file_path
 from app.helpers import safe_json
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 from app.utilities import is_no_weight_files_error
 
 
-def run_asr(spec: Any, dev: str) -> Dict[str, Any]:
+def run_asr(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run automatic speech recognition inference.
     Accepts either audio_path or UploadFile from spec["files"]["audio"].

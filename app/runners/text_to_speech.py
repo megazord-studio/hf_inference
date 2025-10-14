@@ -5,12 +5,13 @@ from transformers import pipeline
 
 from app.helpers import audio_to_bytes
 from app.helpers import device_arg
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 from app.utilities import is_no_weight_files_error
 
 
-def run_tts(spec: Any, dev: str) -> Dict[str, Any]:
+def run_tts(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run text-to-speech inference.
     Returns audio as bytes in a dictionary with metadata.

@@ -1,6 +1,8 @@
 from typing import Any
 from typing import Dict
+from typing import Iterator
 from typing import Optional
+from typing import Protocol
 
 import torch
 from PIL import Image
@@ -12,6 +14,39 @@ from transformers import pipeline
 from .helpers import device_arg
 from .helpers import device_str
 from .helpers import safe_print_output
+from .types import RunnerSpec
+
+# ---------- Protocol definitions for type hints ----------
+
+
+class ModelProtocol(Protocol):
+    """Protocol for transformer models."""
+
+    def parameters(self) -> Iterator[torch.nn.Parameter]:
+        """Return model parameters."""
+        ...
+
+    @property
+    def device(self) -> torch.device:
+        """Return the device the model is on."""
+        ...
+
+    def generate(self, **kwargs: Any) -> torch.Tensor:
+        """Generate output tokens."""
+        ...
+
+
+class ProcessorProtocol(Protocol):
+    """Protocol for transformer processors."""
+
+    def batch_decode(self, sequences: torch.Tensor, skip_special_tokens: bool = False) -> list[str]:
+        """Decode token sequences to strings."""
+        ...
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """Process inputs."""
+        ...
+
 
 # ---------- error detectors & friendly outputs ----------
 
@@ -63,7 +98,7 @@ def soft_hint_error(title: str, reason: str, hint: Optional[str] = None) -> None
 # ---------- VLM helpers ----------
 
 
-def _cast_inputs_to_model_dtype(model: Any, inputs: Dict[str, Any]) -> Dict[str, Any]:
+def _cast_inputs_to_model_dtype(model: ModelProtocol, inputs: Dict[str, Any]) -> Dict[str, Any]:
     try:
         model_dtype = next(
             (p.dtype for p in model.parameters() if p is not None),
@@ -92,7 +127,7 @@ def _cast_inputs_to_model_dtype(model: Any, inputs: Dict[str, Any]) -> Dict[str,
     return out
 
 
-def _decode_generate(model: Any, processor: Any, **inputs: Any) -> str:
+def _decode_generate(model: ModelProtocol, processor: ProcessorProtocol, **inputs: Any) -> str:
     with torch.inference_mode():
         gen = model.generate(**inputs, max_new_tokens=64)
     try:
@@ -106,7 +141,7 @@ def _decode_generate(model: Any, processor: Any, **inputs: Any) -> str:
         )
 
 
-def _proc_inputs(processor: Any, text: str, img: Image.Image, model: Any) -> Dict[str, Any]:
+def _proc_inputs(processor: ProcessorProtocol, text: str, img: Image.Image, model: ModelProtocol) -> Dict[str, Any]:
     inputs = processor(text=text, images=img, return_tensors="pt")
     inputs = {
         k: (v.to(model.device) if torch.is_tensor(v) else v)
@@ -140,7 +175,7 @@ def _final_caption_fallback(img: Image.Image, dev: str) -> Dict[str, Any]:
     }
 
 
-def _vlm_minicpm(spec: Any, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
+def _vlm_minicpm(spec: RunnerSpec, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
     try:
         proc = AutoProcessor.from_pretrained(
             spec["model_id"], trust_remote_code=True
@@ -159,7 +194,7 @@ def _vlm_minicpm(spec: Any, img: Image.Image, prompt: str, dev: str) -> Dict[str
         return _final_caption_fallback(img, dev)
 
 
-def _vlm_llava(spec: Any, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
+def _vlm_llava(spec: RunnerSpec, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
     try:
         q = prompt or "Describe this image in one sentence."
         vqa = pipeline(
@@ -183,7 +218,7 @@ def _vlm_llava(spec: Any, img: Image.Image, prompt: str, dev: str) -> Dict[str, 
         return _final_caption_fallback(img, dev)
 
 
-def _vlm_florence2(spec: Any, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
+def _vlm_florence2(spec: RunnerSpec, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
     try:
         proc = AutoProcessor.from_pretrained(
             spec["model_id"], trust_remote_code=True

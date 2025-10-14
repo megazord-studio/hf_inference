@@ -11,13 +11,14 @@ from app.helpers import ensure_image
 from app.helpers import get_upload_file_image
 from app.helpers import image_to_bytes
 from app.runners.patches.patch_offline_kwarg import _patch_offload_kwarg
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 _patch_offload_kwarg()
 
 
-def run_image_to_image(spec: Any, dev: str) -> Dict[str, Any]:
+def run_image_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run image-to-image inference.
     Accepts either init_image_path or UploadFile from spec["files"]["image"].

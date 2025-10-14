@@ -12,6 +12,7 @@ import pandas as pd
 import soundfile as sf
 import torch
 import yaml  # type: ignore[import-untyped]
+from fastapi import UploadFile
 from PIL import Image
 from PIL import ImageDraw
 
@@ -115,7 +116,7 @@ def to_dataframe(table_like: List[List[str]]) -> pd.DataFrame:
 # ---------- File handling for FastAPI ----------
 
 
-def get_upload_file_image(upload_file: Any) -> Optional[Image.Image]:
+def get_upload_file_image(upload_file: Optional[UploadFile]) -> Optional[Image.Image]:
     """Convert UploadFile to PIL Image."""
     if upload_file is None:
         return None
@@ -124,7 +125,7 @@ def get_upload_file_image(upload_file: Any) -> Optional[Image.Image]:
     return Image.open(io.BytesIO(contents)).convert("RGB")
 
 
-def get_upload_file_bytes(upload_file: Any) -> Optional[bytes]:
+def get_upload_file_bytes(upload_file: Optional[UploadFile]) -> Optional[bytes]:
     """Get bytes from UploadFile."""
     if upload_file is None:
         return None
@@ -133,7 +134,7 @@ def get_upload_file_bytes(upload_file: Any) -> Optional[bytes]:
     return contents
 
 
-def get_upload_file_path(upload_file: Any, temp_path: str) -> Optional[str]:
+def get_upload_file_path(upload_file: Optional[UploadFile], temp_path: str) -> Optional[str]:
     """Save UploadFile to temporary path and return path."""
     if upload_file is None:
         return None

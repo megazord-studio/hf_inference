@@ -9,11 +9,12 @@ from transformers import pipeline
 
 from app.helpers import device_arg
 from app.helpers import device_str
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_feature_extraction(spec: Any, dev: str) -> Dict[str, Any]:
+def run_feature_extraction(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run feature extraction inference.
     Returns the result as a dictionary instead of printing.

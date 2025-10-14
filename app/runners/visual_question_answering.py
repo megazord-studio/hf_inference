@@ -7,12 +7,13 @@ from app.helpers import device_arg
 from app.helpers import ensure_image
 from app.helpers import get_upload_file_image
 from app.helpers import safe_json
+from app.types import RunnerSpec
 from app.utilities import _final_caption_fallback
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_vqa(spec: Any, dev: str) -> Dict[str, Any]:
+def run_vqa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run visual question answering inference.
     Accepts either image_path or UploadFile from spec["files"]["image"].

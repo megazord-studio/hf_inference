@@ -5,11 +5,12 @@ from transformers import pipeline
 
 from app.helpers import device_arg
 from app.helpers import safe_json
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_qa(spec: Any, dev: str) -> Dict[str, Any]:
+def run_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run question answering inference.
     Returns the result as a dictionary instead of printing.

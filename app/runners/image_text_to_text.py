@@ -6,13 +6,14 @@ from transformers import pipeline
 from app.helpers import device_arg
 from app.helpers import ensure_image
 from app.helpers import get_upload_file_image
+from app.types import RunnerSpec
 from app.utilities import _final_caption_fallback
 from app.utilities import _vlm_florence2
 from app.utilities import _vlm_llava
 from app.utilities import _vlm_minicpm
 
 
-def run_vlm_image_text_to_text(spec: Any, dev: str) -> Dict[str, Any]:
+def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run vision-language model image-text-to-text inference.
     Accepts either image_path or UploadFile from spec["files"]["image"].

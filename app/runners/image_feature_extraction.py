@@ -11,11 +11,12 @@ from app.helpers import device_arg
 from app.helpers import device_str
 from app.helpers import ensure_image
 from app.helpers import get_upload_file_image
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_image_feature_extraction(spec: Any, dev: str) -> Dict[str, Any]:
+def run_image_feature_extraction(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run image feature extraction inference.
     Accepts either image_path or UploadFile from spec["files"]["image"].

@@ -1,8 +1,10 @@
 from typing import Any
 from typing import Dict
 
+from app.types import RunnerSpec
 
-def run_mask_generation(spec: Any, dev: str) -> Dict[str, Any]:
+
+def run_mask_generation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Mask generation is not supported via transformers pipeline.
     Returns an error message.

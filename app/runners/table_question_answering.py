@@ -6,6 +6,7 @@ from transformers import pipeline
 
 from app.helpers import device_arg
 from app.helpers import safe_json
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
@@ -39,7 +40,7 @@ def _build_tapas_dataframe(table: Any) -> Any:
     return df
 
 
-def run_table_qa(spec: Any, dev: str) -> Dict[str, Any]:
+def run_table_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run table question answering inference.
     Returns the result as a dictionary instead of printing.
