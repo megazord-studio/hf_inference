@@ -1,16 +1,19 @@
 import os
+from typing import Any
+from typing import Dict
 
 from transformers import pipeline
 
 from app.helpers import device_arg
 from app.helpers import get_upload_file_path
 from app.helpers import safe_json
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 from app.utilities import is_no_weight_files_error
 
 
-def run_asr(spec, dev: str):
+def run_asr(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run automatic speech recognition inference.
     Accepts either audio_path or UploadFile from spec["files"]["audio"].
@@ -26,12 +29,20 @@ def run_asr(spec, dev: str):
         audio_path = spec["payload"].get("audio_path", "audio.wav")
 
     try:
+        # Guard to satisfy typing: ensure a concrete str path is provided
+        if audio_path is None:
+            return {
+                "error": "automatic-speech-recognition failed",
+                "reason": "missing audio file path",
+            }
+        path: str = audio_path
+
         pl = pipeline(
             "automatic-speech-recognition",
             model=spec["model_id"],
             device=device_arg(dev),
         )
-        out = pl(audio_path)
+        out = pl(path)
         return safe_json(out)
     except Exception as e:
         if is_gated_repo_error(e):
@@ -47,8 +58,12 @@ def run_asr(spec, dev: str):
         }
     finally:
         # Cleanup temp file
-        if audio_file is not None and os.path.exists(audio_path):
+        if (
+            audio_file is not None
+            and audio_path is not None
+            and os.path.exists(audio_path)
+        ):
             try:
                 os.remove(audio_path)
-            except Exception as _:
+            except Exception:
                 pass

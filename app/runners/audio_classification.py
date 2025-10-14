@@ -1,16 +1,19 @@
 import os
+from typing import Any
+from typing import Dict
 
 from transformers import pipeline
 
 from app.helpers import device_arg
 from app.helpers import get_upload_file_path
 from app.helpers import safe_json
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 from app.utilities import is_no_weight_files_error
 
 
-def run_audio_classification(spec, dev: str):
+def run_audio_classification(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run audio classification inference.
     Accepts either audio_path or UploadFile from spec["files"]["audio"].
@@ -26,6 +29,13 @@ def run_audio_classification(spec, dev: str):
         audio_path = spec["payload"].get("audio_path", "audio.wav")
 
     try:
+        # Guard to satisfy typing: ensure a concrete str path is provided
+        if audio_path is None:
+            return {
+                "error": "audio-classification failed",
+                "reason": "missing audio file path",
+            }
+
         pl = pipeline(
             "audio-classification",
             model=spec["model_id"],
@@ -47,8 +57,12 @@ def run_audio_classification(spec, dev: str):
         return {"error": "audio-classification failed", "reason": repr(e)}
     finally:
         # Cleanup temp file
-        if audio_file is not None and os.path.exists(audio_path):
+        if (
+            audio_file is not None
+            and audio_path is not None
+            and os.path.exists(audio_path)
+        ):
             try:
                 os.remove(audio_path)
-            except Exception as _:
+            except Exception:
                 pass

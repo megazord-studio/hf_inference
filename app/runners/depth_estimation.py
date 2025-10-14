@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 import torch
 from PIL import Image as PILImage
 from transformers import pipeline
@@ -6,11 +9,12 @@ from app.helpers import device_arg
 from app.helpers import ensure_image
 from app.helpers import get_upload_file_image
 from app.helpers import image_to_bytes
+from app.types import RunnerSpec
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_depth_estimation(spec, dev: str):
+def run_depth_estimation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run depth estimation inference.
     Accepts either image_path or UploadFile from spec["files"]["image"].

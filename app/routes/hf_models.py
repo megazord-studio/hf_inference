@@ -34,7 +34,7 @@ def list_models_minimal(
         le=1000,
         description="Per-page fetch size for internal pagination",
     ),
-):
+) -> JSONResponse:
     """
     Minimal JSON for ALL non-private transformers models of a task (10 min cache):
       id, likes, trendingScore, downloads, gated
@@ -92,7 +92,7 @@ def list_models_table(
         le=1000,
         description="Per-page fetch size for internal pagination",
     ),
-):
+) -> HTMLResponse:
     """
     Virtualized table + Web Worker (client-side filtering/sorting on full dataset).
     """

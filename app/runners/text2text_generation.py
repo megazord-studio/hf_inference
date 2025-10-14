@@ -1,13 +1,17 @@
+from typing import Any
+from typing import Dict
+
 from transformers import pipeline
 
 from app.helpers import device_arg
 from app.helpers import safe_json
+from app.types import RunnerSpec
 from app.utilities import is_cuda_oom
 from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_text2text(spec, dev: str):
+def run_text2text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     Run text2text generation inference.
     Returns the result as a dictionary instead of printing.
