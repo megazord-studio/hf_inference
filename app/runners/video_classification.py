@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 import os
 
 from transformers import pipeline
@@ -9,7 +12,7 @@ from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_video_classification(spec, dev: str):
+def run_video_classification(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run video classification inference.
     Accepts either video_path or UploadFile from spec["files"]["video"].
@@ -57,7 +60,7 @@ def run_video_classification(spec, dev: str):
         }
     finally:
         # Cleanup temp file
-        if video_file is not None and os.path.exists(video_path):
+        if video_file is not None and video_path is not None and os.path.exists(video_path):
             try:
                 os.remove(video_path)
             except Exception as _:

@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 from transformers import pipeline
 
 from app.helpers import device_arg
@@ -9,7 +12,7 @@ from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_vqa(spec, dev: str):
+def run_vqa(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run visual question answering inference.
     Accepts either image_path or UploadFile from spec["files"]["image"].

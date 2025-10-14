@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 import torch
 from diffusers import StableDiffusionImg2ImgPipeline
 from diffusers import StableDiffusionInpaintPipeline
@@ -14,7 +17,7 @@ from app.utilities import is_missing_model_error
 _patch_offload_kwarg()
 
 
-def run_image_to_image(spec, dev: str):
+def run_image_to_image(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run image-to-image inference.
     Accepts either init_image_path or UploadFile from spec["files"]["image"].

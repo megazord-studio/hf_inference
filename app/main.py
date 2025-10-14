@@ -22,6 +22,7 @@ from fastapi import Form
 from fastapi import HTTPException
 from fastapi import UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -46,7 +47,7 @@ class InferenceSpec(BaseModel):
 
 
 @app.get("/healthz")
-async def healthz():
+async def healthz() -> Dict[str, Any]:
     """Health check endpoint."""
     return {"status": "ok", "device": device_str()}
 
@@ -57,7 +58,7 @@ async def inference(
     image: Optional[UploadFile] = File(None),
     audio: Optional[UploadFile] = File(None),
     video: Optional[UploadFile] = File(None),
-):
+) -> Response:
     """
     Inference endpoint accepting multipart form data.
 

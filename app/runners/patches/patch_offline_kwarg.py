@@ -1,12 +1,14 @@
+from typing import Any
+
 # --- Patch: defensively strip `offload_state_dict` from ctor kwargs ---
-def _patch_offload_kwarg():
+def _patch_offload_kwarg() -> None:
     """
     Some accelerate/transformers/diffusers combos inject `offload_state_dict`
     into module __init__. Older or variant classes do not accept it.
     We monkeypatch common offenders to ignore that kwarg.
     """
 
-    def _try_patch(qualified, attr="__init__"):
+    def _try_patch(qualified: str, attr: str = "__init__") -> None:
         try:
             mod_path, cls_name = qualified.rsplit(".", 1)
             mod = __import__(mod_path, fromlist=[cls_name])
@@ -17,7 +19,7 @@ def _patch_offload_kwarg():
             if getattr(orig, "__name__", "") == "_patched_ignore_offload":
                 return
 
-            def _patched_ignore_offload(self, *args, **kwargs):
+            def _patched_ignore_offload(self: Any, *args: Any, **kwargs: Any) -> Any:
                 kwargs.pop("offload_state_dict", None)
                 return orig(self, *args, **kwargs)
 

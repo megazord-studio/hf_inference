@@ -90,7 +90,7 @@ force-single-line = true
 [tool.mypy]
 python_version = "3.12"
 files = [
-  # "app/**/*.py",
+  "app/**/*.py",
 ]
 ignore_missing_imports = true
 disallow_untyped_defs = true

@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 from transformers import pipeline
 
 from app.helpers import device_arg
@@ -6,7 +9,7 @@ from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_qa(spec, dev: str):
+def run_qa(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run question answering inference.
     Returns the result as a dictionary instead of printing.

@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Dict
+from typing import Optional
 
 import torch
 from PIL import Image
@@ -45,14 +46,14 @@ def is_gated_repo_error(e: Exception) -> bool:
     )
 
 
-def soft_skip(reason: str, hint: str = None):
+def soft_skip(reason: str, hint: Optional[str] = None) -> None:
     out = {"skipped": True, "reason": reason}
     if hint:
         out["hint"] = hint
     safe_print_output(out)
 
 
-def soft_hint_error(title: str, reason: str, hint: str = None):
+def soft_hint_error(title: str, reason: str, hint: Optional[str] = None) -> None:
     out = {"error": title, "reason": reason}
     if hint:
         out["hint"] = hint
@@ -62,7 +63,7 @@ def soft_hint_error(title: str, reason: str, hint: str = None):
 # ---------- VLM helpers ----------
 
 
-def _cast_inputs_to_model_dtype(model, inputs: Dict[str, Any]):
+def _cast_inputs_to_model_dtype(model: Any, inputs: Dict[str, Any]) -> Dict[str, Any]:
     try:
         model_dtype = next(
             (p.dtype for p in model.parameters() if p is not None),
@@ -91,7 +92,7 @@ def _cast_inputs_to_model_dtype(model, inputs: Dict[str, Any]):
     return out
 
 
-def _decode_generate(model, processor, **inputs):
+def _decode_generate(model: Any, processor: Any, **inputs: Any) -> str:
     with torch.inference_mode():
         gen = model.generate(**inputs, max_new_tokens=64)
     try:
@@ -105,7 +106,7 @@ def _decode_generate(model, processor, **inputs):
         )
 
 
-def _proc_inputs(processor, text: str, img: Image.Image, model):
+def _proc_inputs(processor: Any, text: str, img: Image.Image, model: Any) -> Dict[str, Any]:
     inputs = processor(text=text, images=img, return_tensors="pt")
     inputs = {
         k: (v.to(model.device) if torch.is_tensor(v) else v)
@@ -114,7 +115,7 @@ def _proc_inputs(processor, text: str, img: Image.Image, model):
     return _cast_inputs_to_model_dtype(model, inputs)
 
 
-def _final_caption_fallback(img: Image.Image, dev: str):
+def _final_caption_fallback(img: Image.Image, dev: str) -> Dict[str, Any]:
     try:
         pl = pipeline(
             "image-to-text",
@@ -139,7 +140,7 @@ def _final_caption_fallback(img: Image.Image, dev: str):
     }
 
 
-def _vlm_minicpm(spec, img: Image.Image, prompt: str, dev: str):
+def _vlm_minicpm(spec: Any, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
     try:
         proc = AutoProcessor.from_pretrained(
             spec["model_id"], trust_remote_code=True
@@ -158,7 +159,7 @@ def _vlm_minicpm(spec, img: Image.Image, prompt: str, dev: str):
         return _final_caption_fallback(img, dev)
 
 
-def _vlm_llava(spec, img: Image.Image, prompt: str, dev: str):
+def _vlm_llava(spec: Any, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
     try:
         q = prompt or "Describe this image in one sentence."
         vqa = pipeline(
@@ -182,7 +183,7 @@ def _vlm_llava(spec, img: Image.Image, prompt: str, dev: str):
         return _final_caption_fallback(img, dev)
 
 
-def _vlm_florence2(spec, img: Image.Image, prompt: str, dev: str):
+def _vlm_florence2(spec: Any, img: Image.Image, prompt: str, dev: str) -> Dict[str, Any]:
     try:
         proc = AutoProcessor.from_pretrained(
             spec["model_id"], trust_remote_code=True

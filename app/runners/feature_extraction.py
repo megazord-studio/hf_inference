@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 import numpy as np
 import torch
 from transformers import AutoModel
@@ -10,7 +13,7 @@ from app.utilities import is_gated_repo_error
 from app.utilities import is_missing_model_error
 
 
-def run_feature_extraction(spec, dev: str):
+def run_feature_extraction(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run feature extraction inference.
     Returns the result as a dictionary instead of printing.

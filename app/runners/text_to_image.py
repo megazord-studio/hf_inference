@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 import torch
 from diffusers import StableDiffusionPipeline
 
@@ -28,7 +31,7 @@ def _choose_dtype() -> torch.dtype:
 _patch_offload_kwarg()
 
 
-def run_text_to_image(spec, dev: str):
+def run_text_to_image(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run text-to-image inference.
     Returns image as bytes in a dictionary with metadata.

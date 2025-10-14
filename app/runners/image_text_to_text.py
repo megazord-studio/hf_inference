@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 from transformers import pipeline
 
 from app.helpers import device_arg
@@ -9,7 +12,7 @@ from app.utilities import _vlm_llava
 from app.utilities import _vlm_minicpm
 
 
-def run_vlm_image_text_to_text(spec, dev: str):
+def run_vlm_image_text_to_text(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run vision-language model image-text-to-text inference.
     Accepts either image_path or UploadFile from spec["files"]["image"].

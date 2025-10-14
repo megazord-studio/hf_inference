@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 from typing import Tuple
 
 from transformers import AutoTokenizer
@@ -26,7 +29,7 @@ def _normalize_mask_sentence(model_id: str, sentence: str) -> Tuple[str, str]:
     return s, mask_token
 
 
-def run_fill_mask(spec, dev: str):
+def run_fill_mask(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run fill mask inference.
     Returns the result as a dictionary instead of printing.

@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 from transformers import pipeline
 
 from app.helpers import audio_to_bytes
@@ -7,7 +10,7 @@ from app.utilities import is_missing_model_error
 from app.utilities import is_no_weight_files_error
 
 
-def run_text_to_audio(spec, dev: str):
+def run_text_to_audio(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run text-to-audio inference.
     Returns audio as bytes in a dictionary with metadata.

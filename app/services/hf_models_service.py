@@ -11,7 +11,7 @@ from typing import Tuple
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 HF_API = "https://huggingface.co/api/models"
 

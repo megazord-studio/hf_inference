@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import soundfile as sf
 import torch
-import yaml
+import yaml  # type: ignore[import-untyped]
 from PIL import Image
 from PIL import ImageDraw
 
@@ -22,12 +22,12 @@ def device_str() -> str:
     return "cuda:0" if torch.cuda.is_available() else "cpu"
 
 
-def device_arg(dev: str):
+def device_arg(dev: str) -> str:
     # transformers >=4.41 accepts device str / torch.device / int
     return dev
 
 
-def safe_json(obj):
+def safe_json(obj: Any) -> Any:
     if isinstance(obj, dict):
         return {k: safe_json(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -50,13 +50,13 @@ def safe_json(obj):
     return str(obj)
 
 
-def safe_print_output(obj: Any):
+def safe_print_output(obj: Any) -> None:
     clean = safe_json(obj)
     print(f"Output type: {type(clean)}")
     print(json.dumps(clean, indent=2, ensure_ascii=False))
 
 
-def print_header():
+def print_header() -> None:
     import diffusers
     import transformers
 
@@ -95,7 +95,7 @@ def ensure_image(path: str) -> Image.Image:
         return img
 
 
-def save_wav(audio: np.ndarray, sr: int, path: str):
+def save_wav(audio: np.ndarray, sr: int, path: str) -> None:
     arr = np.asarray(audio).squeeze()
     # If (channels, samples) flip to (samples, channels)
     if arr.ndim == 2 and arr.shape[0] < arr.shape[1]:
@@ -115,7 +115,7 @@ def to_dataframe(table_like: List[List[str]]) -> pd.DataFrame:
 # ---------- File handling for FastAPI ----------
 
 
-def get_upload_file_image(upload_file) -> Optional[Image.Image]:
+def get_upload_file_image(upload_file: Any) -> Optional[Image.Image]:
     """Convert UploadFile to PIL Image."""
     if upload_file is None:
         return None
@@ -124,7 +124,7 @@ def get_upload_file_image(upload_file) -> Optional[Image.Image]:
     return Image.open(io.BytesIO(contents)).convert("RGB")
 
 
-def get_upload_file_bytes(upload_file) -> Optional[bytes]:
+def get_upload_file_bytes(upload_file: Any) -> Optional[bytes]:
     """Get bytes from UploadFile."""
     if upload_file is None:
         return None
@@ -133,7 +133,7 @@ def get_upload_file_bytes(upload_file) -> Optional[bytes]:
     return contents
 
 
-def get_upload_file_path(upload_file, temp_path: str) -> Optional[str]:
+def get_upload_file_path(upload_file: Any, temp_path: str) -> Optional[str]:
     """Save UploadFile to temporary path and return path."""
     if upload_file is None:
         return None

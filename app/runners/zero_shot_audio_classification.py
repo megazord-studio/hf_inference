@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Dict
+
 import os
 
 from transformers import pipeline
@@ -10,7 +13,7 @@ from app.utilities import is_missing_model_error
 from app.utilities import is_no_weight_files_error
 
 
-def run_zero_shot_audio_classification(spec, dev: str):
+def run_zero_shot_audio_classification(spec: Any, dev: str) -> Dict[str, Any]:
     """
     Run zero-shot audio classification inference.
     Accepts either audio_path or UploadFile from spec["files"]["audio"].
@@ -51,7 +54,7 @@ def run_zero_shot_audio_classification(spec, dev: str):
         }
     finally:
         # Cleanup temp file
-        if audio_file is not None and os.path.exists(audio_path):
+        if audio_file is not None and audio_path is not None and os.path.exists(audio_path):
             try:
                 os.remove(audio_path)
             except Exception as _:
