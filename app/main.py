@@ -143,3 +143,14 @@ async def inference(
                 "reason": str(e),
             },
         )
+
+
+def main() -> None:
+    """Run the HF Inference API with default host and port."""
+    import uvicorn
+
+    host = os.getenv("HF_INFERENCE_HOST", "0.0.0.0")
+    port = int(os.getenv("HF_INFERENCE_PORT", "8000"))
+    reload = os.getenv("HF_INFERENCE_RELOAD", "0") == "1"
+
+    uvicorn.run("app.main:app", host=host, port=port, reload=reload)
