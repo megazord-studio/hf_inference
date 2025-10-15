@@ -1,3 +1,4 @@
+# app/main.py
 """
 app/main.py
 
@@ -15,6 +16,8 @@ import io
 import json
 import logging
 import os
+import time
+import asyncio
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -113,14 +116,18 @@ async def inference(
             payload_keys,
         )
     except Exception:
-        # Protect logging from unexpected payload types
         logger.info("Inference request: model=%s task=%s device=%s", inference_spec.model_id, task, dev)
 
+    # Execute the (likely) blocking runner in a threadpool to avoid blocking the event loop
+    loop = asyncio.get_running_loop()
+    start_time = time.time()
     try:
-        result = runner(runner_spec, dev)
+        result = await loop.run_in_executor(None, runner, runner_spec, dev)
+        duration = time.time() - start_time
+        logger.info("Inference completed: model=%s task=%s device=%s duration=%.2fs", inference_spec.model_id, task, dev, duration)
 
         if isinstance(result, dict):
-            if ("file_data" in result and "file_name" in result and "content_type" in result):
+            if "file_data" in result and "file_name" in result and "content_type" in result:
                 return StreamingResponse(
                     io.BytesIO(result["file_data"]),
                     media_type=result["content_type"],
@@ -133,6 +140,12 @@ async def inference(
         else:
             return JSONResponse(content={"result": result})
 
+    except asyncio.CancelledError:
+        logger.warning("Request cancelled by client: model=%s task=%s device=%s", inference_spec.model_id, task, dev)
+        raise HTTPException(status_code=504, detail="Client disconnected")
+    except MemoryError as me:
+        logger.exception("MemoryError during inference for model=%s task=%s device=%s", inference_spec.model_id, task, dev)
+        raise HTTPException(status_code=503, detail={"error": "Out of memory during inference", "reason": str(me)})
     except Exception as e:
         logger.exception("Inference failed for model=%s task=%s device=%s", inference_spec.model_id, task, dev)
         raise HTTPException(status_code=500, detail={"error": f"{task} inference failed", "reason": str(e)})
