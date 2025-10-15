@@ -13,6 +13,7 @@ Endpoints:
 
 import io
 import json
+import logging
 import os
 from typing import Any, Dict, Optional
 
@@ -27,6 +28,8 @@ from app.helpers import device_str
 from app.routes import hf_models
 import app.routes.auth_routes as auth_routes
 from app.runners import RUNNERS
+
+logger = logging.getLogger("uvicorn.error")
 
 middleware = [
     Middleware(SharedSecretAuthMiddleware, env_var="INFERENCE_SHARED_SECRET")
@@ -72,26 +75,57 @@ async def inference(
         spec_dict = json.loads(spec)
         inference_spec = InferenceSpec(**spec_dict)
     except json.JSONDecodeError as e:
+        logger.info("Invalid JSON in spec: %s", str(e))
         raise HTTPException(status_code=400, detail=f"Invalid JSON in spec: {str(e)}")
     except ValidationError as e:
+        logger.info("Invalid spec format: %s", str(e))
         raise HTTPException(status_code=400, detail=f"Invalid spec format: {str(e)}")
 
     task = inference_spec.task
     runner = RUNNERS.get(task)
 
     if not runner:
-        raise HTTPException(status_code=400, detail={"error": "Unsupported task", "task": task, "supported_tasks": sorted(RUNNERS.keys())})
+        logger.info("Unsupported task requested: %s", task)
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "Unsupported task", "task": task, "supported_tasks": sorted(RUNNERS.keys())},
+        )
 
-    runner_spec = {"model_id": inference_spec.model_id, "task": task, "payload": inference_spec.payload.copy(), "files": {"image": image, "audio": audio, "video": video}}
+    runner_spec = {
+        "model_id": inference_spec.model_id,
+        "task": task,
+        "payload": inference_spec.payload.copy(),
+        "files": {"image": image, "audio": audio, "video": video},
+    }
 
     dev = device_str()
+
+    # Log a concise request summary (do not log file contents)
+    try:
+        has_files = bool(image or audio or video)
+        payload_keys = list(inference_spec.payload.keys()) if isinstance(inference_spec.payload, dict) else []
+        logger.info(
+            "Inference request: model=%s task=%s device=%s has_files=%s payload_keys=%s",
+            inference_spec.model_id,
+            task,
+            dev,
+            has_files,
+            payload_keys,
+        )
+    except Exception:
+        # Protect logging from unexpected payload types
+        logger.info("Inference request: model=%s task=%s device=%s", inference_spec.model_id, task, dev)
 
     try:
         result = runner(runner_spec, dev)
 
         if isinstance(result, dict):
             if ("file_data" in result and "file_name" in result and "content_type" in result):
-                return StreamingResponse(io.BytesIO(result["file_data"]), media_type=result["content_type"], headers={"Content-Disposition": f"attachment; filename={result['file_name']}"})
+                return StreamingResponse(
+                    io.BytesIO(result["file_data"]),
+                    media_type=result["content_type"],
+                    headers={"Content-Disposition": f"attachment; filename={result['file_name']}"},
+                )
             elif "files" in result:
                 return JSONResponse(content=result)
             else:
@@ -100,6 +134,7 @@ async def inference(
             return JSONResponse(content={"result": result})
 
     except Exception as e:
+        logger.exception("Inference failed for model=%s task=%s device=%s", inference_spec.model_id, task, dev)
         raise HTTPException(status_code=500, detail={"error": f"{task} inference failed", "reason": str(e)})
 
 
