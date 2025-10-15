@@ -58,6 +58,11 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             trust_remote_code=True,  # Enable trust_remote_code for custom models
         )
 
+        # StableDiffusionPipeline doesn't support trust_remote_code
+        sd_kwargs = {
+            k: v for k, v in common_kwargs.items() if k != "trust_remote_code"
+        }
+
         # Help mypy for the runtime alias
         AutoT2I_t: Any = AutoT2I
 
@@ -101,7 +106,7 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
                     model_id,
                     safety_checker=None,
                     feature_extractor=None,
-                    **common_kwargs,
+                    **sd_kwargs,
                 )
             except Exception as e:
                 # If model_index.json is missing, try transformers pipeline
