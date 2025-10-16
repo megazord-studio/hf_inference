@@ -1,3 +1,23 @@
+/**
+ * Inference Modal System
+ * 
+ * This file manages the interactive inference modal that appears when users click "Run" on a model.
+ * 
+ * Key Components:
+ * - InferenceModal class: Main modal controller
+ * - Schema loading: Fetches task-specific form fields from /run endpoint  
+ * - Form rendering: Dynamically creates inputs, file uploads, and advanced options
+ * - Progress tracking: Shows download/inference/completion status
+ * - Result handling: Displays text, JSON, images, audio, video outputs
+ * 
+ * Flow:
+ * 1. User clicks Run button → open(modelId, task) called
+ * 2. Load schema from /run?task=<task>
+ * 3. Render form fields based on schema
+ * 4. User submits → POST /inference with FormData
+ * 5. Display results in appropriate format
+ */
+
 const MODAL_ID = "runDialog";
 const TEMPLATE_ID = "inferenceModalTemplate";
 const SCHEMA_ENDPOINT = "/run";
