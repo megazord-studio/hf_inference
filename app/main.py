@@ -14,14 +14,7 @@ Endpoints:
 import io
 import json
 import os
-from pathlib import Path
 from typing import Any, Dict, Optional
-
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-env_path = Path(__file__).parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -84,7 +77,6 @@ async def inference(
         raise HTTPException(status_code=400, detail=f"Invalid spec format: {str(e)}")
 
     task = inference_spec.task
-
     runner = RUNNERS.get(task)
 
     if not runner:
@@ -97,17 +89,15 @@ async def inference(
     try:
         result = runner(runner_spec, dev)
 
-        headers = {"X-Inference-Source": "local"}
-
         if isinstance(result, dict):
             if ("file_data" in result and "file_name" in result and "content_type" in result):
-                return StreamingResponse(io.BytesIO(result["file_data"]), media_type=result["content_type"], headers={"Content-Disposition": f"attachment; filename={result['file_name']}", **headers})
+                return StreamingResponse(io.BytesIO(result["file_data"]), media_type=result["content_type"], headers={"Content-Disposition": f"attachment; filename={result['file_name']}"})
             elif "files" in result:
-                return JSONResponse(content=result, headers=headers)
+                return JSONResponse(content=result)
             else:
-                return JSONResponse(content=result, headers=headers)
+                return JSONResponse(content=result)
         else:
-            return JSONResponse(content={"result": result}, headers=headers)
+            return JSONResponse(content={"result": result})
 
     except Exception as e:
         raise HTTPException(status_code=500, detail={"error": f"{task} inference failed", "reason": str(e)})

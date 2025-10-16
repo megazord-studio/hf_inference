@@ -22,7 +22,6 @@ _cache_full: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
 
 
 def get_cached_min(task: str) -> Optional[List[Dict[str, Any]]]:
-    """Get cached minimal model data for a task if still fresh."""
     ent = _cache_min.get(task)
     if not ent:
         return None

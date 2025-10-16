@@ -21,6 +21,35 @@ templates = Jinja2Templates(directory=_templates_dir)
 router = APIRouter(tags=["models"])
 
 
+
+
+@router.get("/run", response_class=JSONResponse)
+def get_run_schema(
+    task: str = Query(..., description="Pipeline tag selected on the models page"),
+) -> JSONResponse:
+    """Get the UI schema for a specific task - basic implementation."""
+    if task not in RUNNERS:
+        return JSONResponse(
+            {
+                "error": f"unsupported task '{task}'",
+                "supported": sorted(RUNNERS.keys()),
+            },
+            status_code=400,
+        )
+    
+    # Basic schema that works for all tasks
+    schema = {
+        "category": "vision" if "image" in task or "depth" in task else "text",
+        "label": task.replace("-", " ").title(),
+        "description": f"Run {task} inference locally",
+        "inputs": [{"type": "textarea", "name": "prompt", "label": "Input", "placeholder": "Enter text input...", "rows": 4, "required": False}] if "text" in task else [],
+        "files": [{"name": "image", "label": "Image", "accept": "image/*", "preview": "image", "required": True}] if "image" in task or "depth" in task or "vision" in task else [],
+        "advanced": []
+    }
+    
+    return JSONResponse({"task": task, "schema": schema})
+
+
 @router.get("/models", response_class=JSONResponse)
 def list_models_minimal(
     task: Optional[str] = Query(
