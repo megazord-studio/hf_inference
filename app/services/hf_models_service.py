@@ -21,11 +21,15 @@ _cache_min: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
 _cache_full: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
 
 
-def get_cached_min(task: str) -> Optional[List[Dict[str, Any]]]:
+def get_cached_min(
+    task: str, *, allow_stale: bool = False
+) -> Optional[List[Dict[str, Any]]]:
     ent = _cache_min.get(task)
     if not ent:
         return None
     ts, data = ent
+    if allow_stale:
+        return data
     return (
         data
         if (datetime.datetime.now(datetime.UTC) - ts) < _CACHE_TTL

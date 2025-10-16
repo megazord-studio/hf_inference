@@ -17,7 +17,7 @@
     <a href="/logout" class="logout-btn" title="Yeet the cookie and bounce">Log out</a>
   </div>
 
-  <form id="panelForm" class="panel" data-selected-task="{{ task or '' }}">
+  <form id="panelForm" class="panel" data-selected-task="{{ task or '' }}" data-tasks='{{ tasks | tojson | safe }}'>
     <div>
       <label for="task" class="muted">Task (wired up)</label>
       <select id="task" name="task" onchange="location.href='/?task=' + encodeURIComponent(this.value)">
@@ -96,12 +96,24 @@
 
 <sl-dialog id="runDialog" class="run-dialog" label="Run model"></sl-dialog>
 
-{% include "run_modal.html" %}
+{% include "inference_modal.html" %}
 
 <script>
 (async function(){
   const formEl = document.getElementById('panelForm');
   const task = new URLSearchParams(location.search).get('task') || (formEl ? formEl.dataset.selectedTask : '') || '';
+
+  window.__HF_MODELS_PAGE_CONTEXT = window.__HF_MODELS_PAGE_CONTEXT || {};
+  window.__HF_MODELS_PAGE_CONTEXT.selectedTask = task;
+  let allTasks = [];
+  if (formEl && formEl.dataset.tasks) {
+    try {
+      allTasks = JSON.parse(formEl.dataset.tasks);
+    } catch (e) {
+      allTasks = [];
+    }
+  }
+  window.__HF_MODELS_PAGE_CONTEXT.tasks = allTasks;
 
   const q = document.getElementById('q');
   const gatedSel = document.getElementById('gatedSel');
@@ -197,44 +209,12 @@
 
   // dialog + external sub-template wiring
   const dlg = document.getElementById('runDialog');
-  const runTmpl = document.getElementById('runModalTemplate'); // in run_modal.html
 
   // ensure dialog sits under <body>, then wait until it's fully defined
   if (dlg && dlg.parentElement !== document.body) document.body.appendChild(dlg);
-  await customElements.whenDefined('sl-dialog');
-
-  // open modal and inject model/task
-  window.runModel = async function(id){
-    try{
-      if (!runTmpl || !dlg) return;
-      const node = runTmpl.content.cloneNode(true);
-      const taskVal = task || 'model';
-      const hfUrl = 'https://huggingface.co/' + id.split('/').map(s => encodeURIComponent(s)).join('/');
-
-      node.querySelectorAll('[data-model-title]').forEach(el => {
-        el.textContent = id; el.setAttribute('title', id);
-      });
-      node.querySelectorAll('[data-task]').forEach(el => el.textContent = taskVal);
-      node.querySelectorAll('[data-href="hf"]').forEach(el => {
-        el.href = hfUrl;
-      });
-      node.querySelectorAll('[data-href="start"]').forEach(el => {
-        el.href = '/run?task=' + encodeURIComponent(task || '') + '&model=' + encodeURIComponent(id);
-      });
-
-      dlg.innerHTML = '';
-      dlg.appendChild(node);
-      dlg.label = 'Quick run • ' + id;
-      dlg.style.setProperty('--width', '680px');
-
-      // IMPORTANT: only use show() to avoid flicker / double-state
-      await dlg.show();
-    } catch (e){
-      console.error('Run modal face‑planted', e);
-    }
-  };
-
-  dlg.addEventListener('sl-after-hide', () => { dlg.innerHTML = ''; });
+  if (window.customElements && customElements.whenDefined) {
+    await customElements.whenDefined('sl-dialog');
+  }
 
   function rowHtml(r){
     const link = '<span class="link"><a href="https://huggingface.co/' + r.id + '" target="_blank" title="' + r.id + '">' + r.id + '</a></span>';
@@ -322,11 +302,28 @@
   try{
     const res = await fetch('/models?task=' + encodeURIComponent(task));
     const data = await res.json();
+    if (!res.ok) {
+      const parts = [];
+      if (data && typeof data === 'object') {
+        if (data.reason) parts.push(String(data.reason));
+        else if (data.error) parts.push(String(data.error));
+        else if (data.detail) parts.push(String(data.detail));
+        if (data.hint) parts.push(String(data.hint));
+      }
+      if (parts.length === 0) parts.push('Hugging Face models failed to load.');
+      if (spinner) spinner.textContent = parts.join(' ');
+      return;
+    }
     if (!Array.isArray(data)) {
       if (spinner) spinner.textContent = 'No data for this task (did you summon the right pipeline?)';
       return;
     }
-    if (spinner) spinner.textContent = 'Loaded ' + data.length.toLocaleString('en-US') + ' models. Your tab survives. Probably.';
+    const cacheState = res.headers.get('X-HF-Cache');
+    if (spinner) {
+      spinner.textContent = cacheState === 'stale'
+        ? 'Showing cached models while Hugging Face cools down (' + data.length.toLocaleString('en-US') + ' models).'
+        : 'Loaded ' + data.length.toLocaleString('en-US') + ' models. Your tab survives. Probably.';
+    }
     const rows = data.map(r => ({
       id: r.id,
       downloads: Number(r.downloads||0),
@@ -365,4 +362,5 @@
   });
 })();
 </script>
+<script src="/static/js/inference.js"></script>
 {% endblock %}

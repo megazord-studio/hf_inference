@@ -3,8 +3,12 @@ from typing import Dict
 
 from PIL.Image import Image as PILImage
 from transformers import pipeline
-from transformers.pipelines import ImageTextToTextPipeline
 from transformers.pipelines import ImageToTextPipeline
+
+try:  # transformers < 4.49 does not expose this symbol
+    from transformers.pipelines import ImageTextToTextPipeline
+except ImportError:  # pragma: no cover - fallback typing shim
+    from typing import Any as ImageTextToTextPipeline  # type: ignore[assignment]
 
 from app.helpers import device_arg
 from app.helpers import ensure_image
