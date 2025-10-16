@@ -51,6 +51,7 @@ class InferenceSpec(BaseModel):
     model_id: str
     task: str
     payload: Dict[str, Any] = {}
+    max_tokens: Optional[int] = None
 
 
 @app.get("/healthz")
@@ -99,6 +100,7 @@ async def inference(
         "task": task,
         "payload": inference_spec.payload.copy(),
         "files": {"image": image, "audio": audio, "video": video},
+        "max_tokens": inference_spec.max_tokens or 1024,
     }
 
     dev = device_str()

@@ -23,3 +23,4 @@ class RunnerSpec(TypedDict):
     task: str
     payload: Dict[str, Any]
     files: RunnerFiles
+    max_tokens: Optional[int]

@@ -24,6 +24,9 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     """
     payload = spec["payload"]
 
+    # optional: allow caller to request more tokens (default 256)
+    max_tokens = int(payload.get("max_tokens", payload.get("max_new_tokens", 256)))
+
     # Handle UploadFile or fallback to path
     img: PILImage | None = get_upload_file_image(
         spec.get("files", {}).get("image")
@@ -53,8 +56,8 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             trust_remote_code=True,
             device=device_arg(dev),
         )
-        # Call with keyword arguments to satisfy typing stubs
-        out_any: Any = pl(image=img, text=prompt)
+        # Pass generation args to increase returned tokens
+        out_any: Any = pl(image=img, text=prompt, max_new_tokens=max_tokens, max_length=max_tokens)
 
         if isinstance(out_any, dict) and "text" in out_any:
             return {"text": out_any["text"]}
@@ -81,7 +84,7 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             trust_remote_code=True,
             device=device_arg(dev),
         )
-        out2 = pl2(img)  # list[dict[str, Any]]
+        out2 = pl2(img, max_new_tokens=max_tokens, max_length=max_tokens)  # list[dict[str, Any]]
         if (
             isinstance(out2, list)
             and out2
