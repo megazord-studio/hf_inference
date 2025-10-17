@@ -16,9 +16,14 @@ def run_text_to_audio(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run text-to-audio inference.
     Returns audio as bytes in a dictionary with metadata.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         pl = pipeline(
-            "text-to-audio", model=spec["model_id"], device=device_arg(dev)
+            "text-to-audio",
+            model=spec["model_id"],
+            device=device_arg(dev),
+            **extra_args,
         )
         out = pl(spec["payload"]["tta_prompt"])
         audio = (

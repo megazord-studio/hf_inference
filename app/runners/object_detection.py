@@ -18,6 +18,8 @@ def run_object_detection(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Accepts either image_path or UploadFile from spec["files"]["image"].
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     # Handle UploadFile or fallback to path
     img = get_upload_file_image(spec.get("files", {}).get("image"))
     if img is None:
@@ -25,7 +27,10 @@ def run_object_detection(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
 
     try:
         pl = pipeline(
-            "object-detection", model=spec["model_id"], device=device_arg(dev)
+            "object-detection",
+            model=spec["model_id"],
+            device=device_arg(dev),
+            **extra_args,
         )
         out = pl(img)
         return safe_json(out)

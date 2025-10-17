@@ -19,6 +19,8 @@ def run_asr(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Accepts either audio_path or UploadFile from spec["files"]["audio"].
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     # Handle UploadFile or fallback to path
     audio_file = spec.get("files", {}).get("audio")
     if audio_file is not None:
@@ -41,6 +43,7 @@ def run_asr(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             "automatic-speech-recognition",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
         out = pl(path)
         return safe_json(out)

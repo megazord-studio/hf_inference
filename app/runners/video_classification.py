@@ -19,6 +19,8 @@ def run_video_classification(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Accepts either video_path or UploadFile from spec['files']['video'].
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     # Handle UploadFile or fallback to path
     video_file = spec.get("files", {}).get("video")
     video_path: str
@@ -42,6 +44,7 @@ def run_video_classification(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             "video-classification",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
         out = pl(video_path)  # video_path is a concrete str
         if isinstance(out, list):

@@ -15,9 +15,14 @@ def run_text_generation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run text generation inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         pl = pipeline(
-            "text-generation", model=spec["model_id"], device=device_arg(dev)
+            "text-generation",
+            model=spec["model_id"],
+            device=device_arg(dev),
+            **extra_args,
         )
         out = pl(spec["payload"]["prompt"], max_new_tokens=64)
         return safe_json(out)

@@ -30,12 +30,15 @@ def run_doc_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             "reason": "model incompatible with document-question-answering pipeline",
             "hint": "Use a doc-VQA model like impira/layoutlm-document-qa or naver-clova-ix/donut-base-finetuned-docvqa.",
         }
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         pl = pipeline(
             "document-question-answering",
             model=spec["model_id"],
             device=device_arg(dev),
             trust_remote_code=True,
+            **extra_args,
         )
         out = pl(image=img, question=spec["payload"]["question"])
         return safe_json(out)

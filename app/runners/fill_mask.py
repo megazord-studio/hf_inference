@@ -34,9 +34,14 @@ def run_fill_mask(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run fill mask inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         pl = pipeline(
-            "fill-mask", model=spec["model_id"], device=device_arg(dev)
+            "fill-mask",
+            model=spec["model_id"],
+            device=device_arg(dev),
+            **extra_args,
         )
         p = spec["payload"]
         s1, _ = _normalize_mask_sentence(

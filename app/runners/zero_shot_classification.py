@@ -15,11 +15,14 @@ def run_zero_shot_classification(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run zero-shot classification inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         pl = pipeline(
             "zero-shot-classification",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
         out = pl(
             spec["payload"]["prompt"],

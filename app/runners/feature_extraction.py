@@ -19,6 +19,8 @@ def run_feature_extraction(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run feature extraction inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     text = spec["payload"]["prompt"]
     try:
         if "clip" in spec["model_id"].lower():
@@ -36,6 +38,7 @@ def run_feature_extraction(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             "feature-extraction",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
         vec = pl(text)
         return {"embedding_shape": np.array(vec).shape}
