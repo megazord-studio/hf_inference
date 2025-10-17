@@ -1,26 +1,16 @@
-"""Type definitions for the app."""
-
-from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import TypedDict
-
+from typing import Any, Dict, Optional, TypedDict
 from fastapi import UploadFile
 
 
 class RunnerFiles(TypedDict, total=False):
-    """Files that can be passed to a runner."""
-
     image: Optional[UploadFile]
     audio: Optional[UploadFile]
     video: Optional[UploadFile]
 
 
-class RunnerSpec(TypedDict):
-    """Specification for a runner function."""
-
+class RunnerSpec(TypedDict, total=False):
     model_id: str
     task: str
     payload: Dict[str, Any]
     files: RunnerFiles
-    max_tokens: Optional[int]
+    extra_args: Dict[str, Any]  # all model kwargs go here

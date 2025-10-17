@@ -1,17 +1,3 @@
-# app/main.py
-"""
-app/main.py
-
-FastAPI application for HuggingFace model inference.
-
-Endpoints:
-- GET /healthz    - health check endpoint
-- POST /inference - inference endpoint accepting multipart form data
-- GET /           - model sorting and filtering UI
-- GET/POST /login - user login
-- GET /logout     - user logout
-"""
-
 import io
 import json
 import logging
@@ -46,17 +32,14 @@ app.include_router(hf_models.router)
 
 
 class InferenceSpec(BaseModel):
-    """Specification for an inference request."""
-
     model_id: str
     task: str
     payload: Dict[str, Any] = {}
-    max_tokens: Optional[int] = None
+    extra_args: Dict[str, Any] = {}  # no max_tokens anymore
 
 
 @app.get("/healthz")
 async def healthz() -> Dict[str, Any]:
-    """Health check endpoint."""
     return {"status": "ok", "device": device_str()}
 
 
@@ -67,32 +50,22 @@ async def inference(
     audio: Optional[UploadFile] = File(None),
     video: Optional[UploadFile] = File(None),
 ) -> Response:
-    """
-    Inference endpoint accepting multipart form data.
-
-    - spec: JSON string with model_id, task, and payload
-    - image: optional image file
-    - audio: optional audio file
-    - video: optional video file
-    """
     try:
         spec_dict = json.loads(spec)
         inference_spec = InferenceSpec(**spec_dict)
-    except json.JSONDecodeError as e:
-        logger.info("Invalid JSON in spec: %s", str(e))
-        raise HTTPException(status_code=400, detail=f"Invalid JSON in spec: {str(e)}")
-    except ValidationError as e:
-        logger.info("Invalid spec format: %s", str(e))
-        raise HTTPException(status_code=400, detail=f"Invalid spec format: {str(e)}")
+    except (json.JSONDecodeError, ValidationError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid spec: {str(e)}")
 
     task = inference_spec.task
     runner = RUNNERS.get(task)
-
     if not runner:
-        logger.info("Unsupported task requested: %s", task)
         raise HTTPException(
             status_code=400,
-            detail={"error": "Unsupported task", "task": task, "supported_tasks": sorted(RUNNERS.keys())},
+            detail={
+                "error": "Unsupported task",
+                "task": task,
+                "supported_tasks": sorted(RUNNERS.keys()),
+            },
         )
 
     runner_spec = {
@@ -100,65 +73,39 @@ async def inference(
         "task": task,
         "payload": inference_spec.payload.copy(),
         "files": {"image": image, "audio": audio, "video": video},
-        "max_tokens": inference_spec.max_tokens or 1024,
+        "extra_args": dict(inference_spec.extra_args or {}),
     }
 
     dev = device_str()
+    logger.info(
+        "Inference request: model=%s task=%s device=%s has_files=%s extra_arg_keys=%s",
+        inference_spec.model_id,
+        task,
+        dev,
+        bool(image or audio or video),
+        list((inference_spec.extra_args or {}).keys()),
+    )
 
-    # Log a concise request summary (do not log file contents)
+    loop = asyncio.get_running_loop()
+    start = time.time()
     try:
-        has_files = bool(image or audio or video)
-        payload_keys = list(inference_spec.payload.keys()) if isinstance(inference_spec.payload, dict) else []
+        result = await loop.run_in_executor(None, runner, runner_spec, dev)
+        duration = time.time() - start
         logger.info(
-            "Inference request: model=%s task=%s device=%s has_files=%s payload_keys=%s",
+            "Inference completed: model=%s task=%s device=%s duration=%.2fs",
             inference_spec.model_id,
             task,
             dev,
-            has_files,
-            payload_keys,
+            duration,
         )
-    except Exception:
-        logger.info("Inference request: model=%s task=%s device=%s", inference_spec.model_id, task, dev)
-
-    # Execute the (likely) blocking runner in a threadpool to avoid blocking the event loop
-    loop = asyncio.get_running_loop()
-    start_time = time.time()
-    try:
-        result = await loop.run_in_executor(None, runner, runner_spec, dev)
-        duration = time.time() - start_time
-        logger.info("Inference completed: model=%s task=%s device=%s duration=%.2fs", inference_spec.model_id, task, dev, duration)
-
-        if isinstance(result, dict):
-            if "file_data" in result and "file_name" in result and "content_type" in result:
-                return StreamingResponse(
-                    io.BytesIO(result["file_data"]),
-                    media_type=result["content_type"],
-                    headers={"Content-Disposition": f"attachment; filename={result['file_name']}"},
-                )
-            elif "files" in result:
-                return JSONResponse(content=result)
-            else:
-                return JSONResponse(content=result)
-        else:
-            return JSONResponse(content={"result": result})
-
+        return JSONResponse(content=result if isinstance(result, dict) else {"result": result})
     except asyncio.CancelledError:
-        logger.warning("Request cancelled by client: model=%s task=%s device=%s", inference_spec.model_id, task, dev)
         raise HTTPException(status_code=504, detail="Client disconnected")
-    except MemoryError as me:
-        logger.exception("MemoryError during inference for model=%s task=%s device=%s", inference_spec.model_id, task, dev)
-        raise HTTPException(status_code=503, detail={"error": "Out of memory during inference", "reason": str(me)})
     except Exception as e:
-        logger.exception("Inference failed for model=%s task=%s device=%s", inference_spec.model_id, task, dev)
-        raise HTTPException(status_code=500, detail={"error": f"{task} inference failed", "reason": str(e)})
+        logger.exception("Inference failed")
+        raise HTTPException(status_code=500, detail={"error": str(e)})
 
 
 def main() -> None:
-    """Run the HF Inference API with default host and port."""
     import uvicorn
-
-    host = os.getenv("HF_INFERENCE_HOST", "0.0.0.0")
-    port = int(os.getenv("HF_INFERENCE_PORT", "8000"))
-    reload = os.getenv("HF_INFERENCE_RELOAD", "0") == "1"
-
-    uvicorn.run("app.main:app", host=host, port=port, reload=reload)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)
