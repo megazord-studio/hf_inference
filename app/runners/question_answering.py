@@ -15,11 +15,14 @@ def run_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run question answering inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         pl = pipeline(
             "question-answering",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
         p = spec["payload"]
         out = pl(question=p["qa_question"], context=p["qa_context"])

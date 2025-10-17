@@ -16,6 +16,8 @@ def run_sentiment(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run sentiment analysis (text classification) inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         prompt = str(spec.get("payload", {}).get("prompt", "")).strip()
         if not prompt:
@@ -28,6 +30,7 @@ def run_sentiment(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             task="text-classification",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
 
         out = pl(prompt)

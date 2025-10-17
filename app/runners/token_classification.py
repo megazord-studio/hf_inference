@@ -17,12 +17,15 @@ def run_ner(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run token classification (NER) inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         pl = pipeline(
             "token-classification",
             model=spec["model_id"],
             aggregation_strategy="simple",
             device=device_arg(dev),
+            **extra_args,
         )
         out = cast(List[Dict[str, Any]], pl(spec["payload"]["prompt"]))
         for o in out:

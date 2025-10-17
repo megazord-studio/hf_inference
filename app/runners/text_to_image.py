@@ -42,6 +42,8 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run text-to-image inference.
     Returns image as bytes in a dictionary with metadata.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     prompt = spec["payload"]["prompt"]
     model_id = spec["model_id"]
 
@@ -53,6 +55,7 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             low_cpu_mem_usage=False,  # avoid init-empty-weights path
             device_map=None,  # avoid auto device mapping at load time
             trust_remote_code=False,
+            **extra_args,
         )
 
         # Help mypy for the runtime alias

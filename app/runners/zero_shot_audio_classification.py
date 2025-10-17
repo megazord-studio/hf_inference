@@ -53,10 +53,13 @@ def run_zero_shot_audio_classification(
             }
         candidate_labels: list[str] = [str(x) for x in labels_any]
 
+        extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
         pl = pipeline(
             "zero-shot-audio-classification",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
         out = pl(audio_path, candidate_labels=candidate_labels)
         for o in out:

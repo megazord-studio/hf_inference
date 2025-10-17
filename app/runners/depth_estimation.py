@@ -20,6 +20,8 @@ def run_depth_estimation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Accepts either image_path or UploadFile from spec["files"]["image"].
     Returns depth map as bytes or JSON.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     # Handle UploadFile or fallback to path
     img = get_upload_file_image(spec.get("files", {}).get("image"))
     if img is None:
@@ -27,7 +29,10 @@ def run_depth_estimation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
 
     try:
         pl = pipeline(
-            "depth-estimation", model=spec["model_id"], device=device_arg(dev)
+            "depth-estimation",
+            model=spec["model_id"],
+            device=device_arg(dev),
+            **extra_args,
         )
         out = pl(img)
         depth = (

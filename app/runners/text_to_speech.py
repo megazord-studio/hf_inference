@@ -19,6 +19,8 @@ def run_tts(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run text-to-speech (text-to-audio) inference.
     Returns audio as bytes in a dictionary with metadata.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         text = str(spec.get("payload", {}).get("tts_text", "")).strip()
         if not text:
@@ -31,6 +33,7 @@ def run_tts(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             task="text-to-audio",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
 
         out = pl(text)

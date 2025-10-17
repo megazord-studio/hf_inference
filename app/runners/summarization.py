@@ -15,9 +15,14 @@ def run_summarization(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run summarization inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         pl = pipeline(
-            "summarization", model=spec["model_id"], device=device_arg(dev)
+            "summarization",
+            model=spec["model_id"],
+            device=device_arg(dev),
+            **extra_args,
         )
         out = pl(spec["payload"]["prompt"], max_new_tokens=64)
         return safe_json(out)

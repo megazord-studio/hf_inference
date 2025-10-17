@@ -1,12 +1,19 @@
-from typing import Any, Dict
+from typing import Any
+from typing import Dict
 
 from PIL.Image import Image as PILImage
 from transformers import pipeline
-from transformers.pipelines import ImageTextToTextPipeline, ImageToTextPipeline
+from transformers.pipelines import ImageTextToTextPipeline
+from transformers.pipelines import ImageToTextPipeline
 
-from app.helpers import device_arg, ensure_image, get_upload_file_image
+from app.helpers import device_arg
+from app.helpers import ensure_image
+from app.helpers import get_upload_file_image
 from app.types import RunnerSpec
-from app.utilities import _final_caption_fallback, _vlm_florence2, _vlm_llava, _vlm_minicpm
+from app.utilities import _final_caption_fallback
+from app.utilities import _vlm_florence2
+from app.utilities import _vlm_llava
+from app.utilities import _vlm_minicpm
 
 
 def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
@@ -24,11 +31,16 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
 
     # Handle UploadFile or fallback to path
-    img: PILImage | None = get_upload_file_image(spec.get("files", {}).get("image"))
+    img: PILImage | None = get_upload_file_image(
+        spec.get("files", {}).get("image")
+    )
     if img is None:
         img = ensure_image(payload.get("image_path", "image.jpg"))
     if img is None:
-        return {"error": "image-text-to-text failed", "reason": "invalid image"}
+        return {
+            "error": "image-text-to-text failed",
+            "reason": "invalid image",
+        }
 
     prompt: str = str(payload.get("prompt", "Describe the image briefly."))
     mid = str(spec.get("model_id", "")).lower()

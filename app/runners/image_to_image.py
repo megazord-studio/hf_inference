@@ -24,6 +24,8 @@ def run_image_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Accepts either init_image_path or UploadFile from spec["files"]["image"].
     Returns generated image as bytes.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     p = spec["payload"]
 
     # Handle UploadFile or fallback to path
@@ -35,7 +37,7 @@ def run_image_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     try:
         if "inpaint" in model_id.lower():
             pipe = StableDiffusionInpaintPipeline.from_pretrained(
-                model_id, torch_dtype=torch.float16
+                model_id, torch_dtype=torch.float16, **extra_args
             ).to(device_str())
             w, h = init_img.size
             mask = Image.new("L", (w, h), 255)
@@ -50,7 +52,7 @@ def run_image_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             img = out.images[0]
         else:
             pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-                model_id, torch_dtype=torch.float16
+                model_id, torch_dtype=torch.float16, **extra_args
             ).to(device_str())
             with torch.inference_mode():
                 out = pipe(

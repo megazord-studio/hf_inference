@@ -32,6 +32,8 @@ def _build_tapas_dataframe(table: Any) -> Any:
 
 
 def run_table_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     df: Any = None
     query: str = ""
     try:
@@ -54,7 +56,9 @@ def run_table_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-        qa_kwargs: Dict[str, Any] = dict(model=model_id, device=force_cpu)
+        qa_kwargs: Dict[str, Any] = dict(
+            model=model_id, device=force_cpu, **extra_args
+        )
         if tokenizer is not None:
             qa_kwargs["tokenizer"] = tokenizer
 
@@ -80,6 +84,7 @@ def run_table_qa(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
                         "table-question-answering",
                         model=spec["model_id"],
                         device=-1,
+                        **extra_args,
                     ),
                 )
                 out = pl({"table": df, "query": query})

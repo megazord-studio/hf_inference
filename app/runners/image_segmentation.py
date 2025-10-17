@@ -63,6 +63,8 @@ def run_image_segmentation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Accepts either image_path or UploadFile from spec["files"]["image"].
     Returns masks as base64 encoded strings in JSON.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     # Handle UploadFile or fallback to path
     img = get_upload_file_image(spec.get("files", {}).get("image"))
     if img is None:
@@ -73,6 +75,7 @@ def run_image_segmentation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             "image-segmentation",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
         out = pl(img)
         masks_with_b64 = _convert_masks_to_base64(out)

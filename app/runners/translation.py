@@ -15,6 +15,8 @@ def run_translation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run translation inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     p = spec["payload"]
     mid = spec["model_id"].lower()
     try:
@@ -28,7 +30,10 @@ def run_translation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
                     "example": {"src_lang": "en_XX", "tgt_lang": "de_DE"},
                 }
         pl = pipeline(
-            "translation", model=spec["model_id"], device=device_arg(dev)
+            "translation",
+            model=spec["model_id"],
+            device=device_arg(dev),
+            **extra_args,
         )
         out = (
             pl(

@@ -16,11 +16,14 @@ def run_text2text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     Run text2text generation inference.
     Returns the result as a dictionary instead of printing.
     """
+    extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
     try:
         pl = pipeline(
             "text2text-generation",
             model=spec["model_id"],
             device=device_arg(dev),
+            **extra_args,
         )
         out = pl(spec["payload"]["prompt"], max_new_tokens=64)
         return safe_json(out)
@@ -31,6 +34,7 @@ def run_text2text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
                     "text2text-generation",
                     model=spec["model_id"],
                     device="cpu",
+                    **extra_args,
                 )
                 out = pl(spec["payload"]["prompt"], max_new_tokens=64)
                 return safe_json(out)
