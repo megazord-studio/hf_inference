@@ -61,11 +61,14 @@ def sample_video():
     return buf
 
 
-def create_spec(model_id: str, task: str, payload: dict = None) -> str:
+def create_spec(
+    model_id: str, task: str, payload: dict = None, extra_args: dict = None
+) -> str:
     """Helper to create spec JSON string."""
-    return json.dumps(
-        {"model_id": model_id, "task": task, "payload": payload or {}}
-    )
+    spec = {"model_id": model_id, "task": task, "payload": payload or {}}
+    if extra_args:
+        spec["extra_args"] = extra_args
+    return json.dumps(spec)
 
 
 def check_response_for_skip_or_error(data, model_id: str):
