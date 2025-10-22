@@ -1,21 +1,24 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
-from fastapi import APIRouter, Query, Request
+import requests
+from fastapi import APIRouter
+from fastapi import Query
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
-import requests
 
 from app.runners import RUNNERS
+from app.services.hf_models_service import fetch_all_by_task
+from app.services.hf_models_service import gated_to_str
+from app.services.hf_models_service import get_cached_min
+from app.services.hf_models_service import set_cached_min
 from app.task_schemas import get_schema
-from app.services.hf_models_service import (
-    fetch_all_by_task,
-    gated_to_str,
-    get_cached_min,
-    set_cached_min,
-)
 
 _templates_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 templates = Jinja2Templates(directory=_templates_dir)
@@ -33,7 +36,6 @@ def get_run_schema(
             {"error": f"unsupported task '{task}'", "supported": sorted(RUNNERS.keys())},
             status_code=400,
         )
-    
     return JSONResponse({"task": task, "schema": get_schema(task)})
 
 
