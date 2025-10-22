@@ -92,6 +92,13 @@ def _clean(p):
             "Qwen/Qwen2-VL-2B-Instruct",
             {"image_path": "image.jpg", "prompt": "Describe in one sentence."},
         ),
+        (
+            "google/gemma-3-12b-it",
+            {
+                "image_path": "image.jpg",
+                "prompt": "What's on the image",
+            },
+        ),
     ],
 )
 def test_image_text_to_text(client, sample_image, model_id, payload):
