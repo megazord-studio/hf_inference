@@ -9,10 +9,12 @@
 
     <section class="inference-modal__body" data-body>
       <form class="inference-form" data-run-form autocomplete="off" spellcheck="false">
+        <!-- Textual inputs mount here based on task schema -->
         <div class="inference-form__grid" data-input-mount></div>
 
         <div class="inference-form__files" data-file-mount hidden>
           <h4 class="inference-section__title">Files</h4>
+          <!-- Populated when the task schema requires file uploads -->
           <div class="inference-form__file-grid" data-file-grid></div>
         </div>
 
@@ -24,7 +26,8 @@
           </details>
         </div>
 
-  <div class="inference-form__status" data-status hidden role="status" aria-live="polite"></div>
+        <!-- Inline status banner for validation and runtime feedback -->
+        <div class="inference-form__status" data-status hidden role="status" aria-live="polite"></div>
 
         <section class="inference-progress" data-progress hidden>
           <header class="inference-progress__header">
@@ -46,6 +49,7 @@
         </footer>
       </form>
 
+      <!-- Right-hand column: most recent inference output -->
       <aside class="inference-output" data-output hidden>
         <div class="inference-output__header">
           <h4 class="inference-section__title">Latest result</h4>

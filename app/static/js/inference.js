@@ -1,1005 +1,1042 @@
-/**
- * Inference Modal System
- * 
- * This file manages the interactive inference modal that appears when users click "Run" on a model.
- * 
- * Key Components:
- * - InferenceModal class: Main modal controller
- * - Schema loading: Fetches task-specific form fields from /run endpoint  
- * - Form rendering: Dynamically creates inputs, file uploads, and advanced options
- * - Progress tracking: Shows download/inference/completion status
- * - Result handling: Displays text, JSON, images, audio, video outputs
- * 
- * Flow:
- * 1. User clicks Run button → open(modelId, task) called
- * 2. Load schema from /run?task=<task>
- * 3. Render form fields based on schema
- * 4. User submits → POST /inference with FormData
- * 5. Display results in appropriate format
- */
+(function () {
+  "use strict";
 
-const MODAL_ID = "runDialog";
-const TEMPLATE_ID = "inferenceModalTemplate";
-const SCHEMA_ENDPOINT = "/run";
+  const dialog = document.getElementById("runDialog");
+  const template = document.getElementById("inferenceModalTemplate");
+  const pageContext = window.__HF_MODELS_PAGE_CONTEXT || {};
 
-const DEFAULT_DESCRIPTIONS = {
-  text: "Send a prompt, receive text back. All responses are copied directly from the model.",
-  vision: "Upload an image, run a vision model, and inspect the structured result.",
-  audio: "Upload or generate audio and listen to the result in the browser.",
-  multimodal: "Blend text with images or other media for multimodal reasoning.",
-  video: "Upload a short video clip (mp4) to classify its content.",
-};
+  if (!dialog || !template) {
+    window.runModel = function noop(modelId) { // graceful fallback if markup missing
+      console.warn("Run modal not mounted; cannot open modal for", modelId);
+    };
+    return;
+  }
 
-const KNOWN_TEXT_KEYS = [
-  "generated_text",
-  "generated_texts",
-  "summary_text",
-  "translation_text",
-  "text",
-  "answer",
-  "label",
-  "reason",
-  "message",
-  "note",
-  "detail",
-];
+  const schemaCache = new Map();
+  const objectUrls = new Set();
+  const PROGRESS_STEPS = [
+    { title: "Prepare inputs", desc: "Validating form values." },
+    { title: "Upload & queue", desc: "Sending payload to the runner." },
+    { title: "Inference", desc: "Waiting on model output." },
+    { title: "Complete", desc: "Rendering the latest result." }
+  ];
 
-function getPageContext() {
-  const ctx = window.__HF_MODELS_PAGE_CONTEXT || {};
-  return {
-    selectedTask: ctx.selectedTask || "",
-    tasks: ctx.tasks || [],
+  const state = {
+    initialized: false,
+    submitting: false,
+    task: null,
+    modelId: null,
+    fieldDefs: [],
+    fileDefs: [],
+    fileInputs: new Map(),
+    defaultRunText: "Run inference"
   };
-}
 
-async function fetchJson(url) {
-  const res = await fetch(url, {
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`;
-    try {
-      const data = await res.json();
-      detail = data?.error || data?.reason || detail;
-    } catch (err) {
-      // ignore
+  const refs = {
+    root: null,
+    form: null,
+    inputMount: null,
+    fileSection: null,
+    fileGrid: null,
+    advancedSection: null,
+    advancedGrid: null,
+    status: null,
+    progress: null,
+    progressBar: null,
+    progressSteps: null,
+    cancelButton: null,
+    runButton: null,
+    runLabel: null,
+    output: null,
+    outputMeta: null,
+    outputBody: null,
+    outputEmpty: null,
+    outputText: null,
+    outputJson: null,
+    outputImage: null,
+    outputAudio: null,
+    outputVideo: null,
+    outputFiles: null,
+    chip: null,
+    title: null,
+    subtitle: null,
+    meta: null
+  };
+
+  function init() {
+    if (state.initialized) {
+      return;
     }
-    throw new Error(detail);
-  }
-  return res.json();
-}
 
-function parseChipsValue(raw) {
-  if (!raw) return [];
-  const parts = raw
-    .split(/[\n,]/g)
-    .map((p) => p.trim())
-    .filter(Boolean);
-  return Array.from(new Set(parts));
-}
+    const fragment = template.content.cloneNode(true);
+    const root = fragment.querySelector("[data-root]");
+    if (!root) {
+      return;
+    }
 
-function tryParseJson(raw) {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch (err) {
-    throw new Error("Invalid JSON payload: " + (err?.message || err));
-  }
-}
+    dialog.innerHTML = "";
+    dialog.appendChild(root);
 
-function extractTextCandidate(payload) {
-  if (payload == null) return null;
-  if (typeof payload === "string") {
-    return payload;
+    refs.root = root;
+    refs.form = root.querySelector("[data-run-form]");
+    refs.inputMount = root.querySelector("[data-input-mount]");
+    refs.fileSection = root.querySelector("[data-file-mount]");
+    refs.fileGrid = root.querySelector("[data-file-grid]");
+    refs.advancedSection = root.querySelector("[data-advanced]");
+    refs.advancedGrid = root.querySelector("[data-advanced-grid]");
+    refs.status = root.querySelector("[data-status]");
+    refs.progress = root.querySelector("[data-progress]");
+    refs.progressBar = root.querySelector("[data-progress-bar]");
+    refs.progressSteps = root.querySelector("[data-progress-steps]");
+    refs.cancelButton = root.querySelector("[data-cancel]");
+    refs.runButton = root.querySelector("[data-run]");
+    refs.runLabel = refs.runButton ? refs.runButton.querySelector(".neon-run__label") : null;
+    refs.output = root.querySelector("[data-output]");
+    refs.outputMeta = root.querySelector("[data-output-meta]");
+    refs.outputBody = root.querySelector("[data-output-body]");
+    refs.outputEmpty = root.querySelector("[data-output-empty]");
+    refs.outputText = root.querySelector("[data-output-text]");
+    refs.outputJson = root.querySelector("[data-output-json]");
+    refs.outputImage = root.querySelector("[data-output-image]");
+    refs.outputAudio = root.querySelector("[data-output-audio]");
+    refs.outputVideo = root.querySelector("[data-output-video]");
+    refs.outputFiles = root.querySelector("[data-output-files]");
+    refs.chip = root.querySelector("[data-chip]");
+    refs.title = root.querySelector("[data-model-title]");
+    refs.subtitle = root.querySelector("[data-task-description]");
+    refs.meta = root.querySelector("[data-model-meta]");
+
+    if (refs.runLabel && refs.runLabel.textContent) {
+      state.defaultRunText = refs.runLabel.textContent.trim() || state.defaultRunText;
+    }
+
+    attachListeners();
+    state.initialized = true;
   }
-  if (Array.isArray(payload)) {
-    if (!payload.length) return null;
-    const first = payload[0];
-    if (typeof first === "string") return first;
-    if (first && typeof first === "object") {
-      for (const key of KNOWN_TEXT_KEYS) {
-        if (typeof first[key] === "string" && first[key].trim()) {
-          return first[key];
-        }
+
+  function attachListeners() {
+    if (refs.form) {
+      refs.form.addEventListener("submit", handleSubmit);
+    }
+    if (refs.cancelButton) {
+      refs.cancelButton.addEventListener("click", function () {
+        dialog.hide();
+      });
+    }
+    dialog.addEventListener("sl-after-hide", resetForNextOpen);
+    dialog.addEventListener("sl-request-close", function (event) {
+      if (state.submitting) {
+        event.preventDefault();
       }
-    }
-  }
-  if (typeof payload === "object") {
-    for (const key of KNOWN_TEXT_KEYS) {
-      if (typeof payload[key] === "string" && payload[key].trim()) {
-        return payload[key];
-      }
-    }
-  }
-  return null;
-}
-
-function formatDuration(ms) {
-  if (ms < 1000) {
-    return `${ms.toFixed(0)} ms`;
-  }
-  const sec = ms / 1000;
-  if (sec < 60) {
-    return `${sec.toFixed(2)} s`;
-  }
-  const mins = sec / 60;
-  return `${mins.toFixed(2)} min`;
-}
-
-class InferenceModal {
-  constructor(dialog, template) {
-    this.dialog = dialog;
-    this.template = template;
-    this.schemaCache = new Map();
-    this.inputMap = new Map();
-    this.fileMap = new Map();
-    this.advancedMap = new Map();
-    this.currentTask = "";
-    this.currentModel = "";
-    this.schema = null;
-    this.progressDefinition = [];
-    this.progressElements = [];
-    this.progressIndexById = new Map();
-    this.progressTimers = [];
-    this.progressCurrentIndex = -1;
-    this.root = null;
-    this.panel = null;
-    this.boundWindowResize = () => this.resizeToContent();
-    this.handleAfterHide = () => this.onDialogHide();
-    this.resizeObserver =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => this.resizeToContent())
-        : null;
-
-    if (this.dialog) {
-      this.dialog.addEventListener("sl-after-hide", this.handleAfterHide);
-    }
+    });
   }
 
-  async open(modelId, task) {
-    this.resetState();
-    this.currentModel = modelId;
-    this.currentTask = task;
+  function getSelectedTask() {
+    const selected = typeof pageContext.selectedTask === "string" ? pageContext.selectedTask.trim() : "";
+    return selected || "";
+  }
 
-    if (!task) {
-      this.showMessage("Pick a task first", "Select a task in the dropdown before launching a run.");
-      await this.dialog.show();
+  function open(modelId) {
+    init();
+    state.modelId = modelId;
+    state.task = getSelectedTask();
+
+    resetStatus();
+    resetProgress();
+    resetOutput();
+    resetFormView();
+
+    dialog.label = "Run " + modelId;
+
+    setFormInteractive(false);
+
+    if (!state.task) {
+      setStatus("Pick a task from the toolbar before running a model.", "error");
+      dialog.show();
       return;
     }
 
-    let schema;
-    try {
-      schema = await this.loadSchema(task);
-    } catch (err) {
-      this.showMessage("Schema unavailable", err?.message || String(err));
-      await this.dialog.show();
-      return;
-    }
-    this.schema = schema;
+    setStatus("Loading form…", "info");
+    dialog.show();
 
-    const clone = this.template.content.cloneNode(true);
-    this.root = clone.querySelector("[data-root]");
-    this.form = clone.querySelector("[data-run-form]");
-    this.statusEl = clone.querySelector("[data-status]");
-    this.inputMount = clone.querySelector("[data-input-mount]");
-    this.fileSection = clone.querySelector("[data-file-mount]");
-    this.fileGrid = clone.querySelector("[data-file-grid]");
-    this.advancedSection = clone.querySelector("[data-advanced]");
-    this.advancedGrid = clone.querySelector("[data-advanced-grid]");
-    this.cancelBtn = clone.querySelector("[data-cancel]");
-    this.runBtn = clone.querySelector("[data-run]");
-    this.progressSection = clone.querySelector("[data-progress]");
-    this.progressBar = clone.querySelector("[data-progress-bar]");
-    this.progressStepsList = clone.querySelector("[data-progress-steps]");
-    this.outputSection = clone.querySelector("[data-output]");
-    this.outputMeta = clone.querySelector("[data-output-meta]");
-    this.outputBody = clone.querySelector("[data-output-body]");
-    this.outputEmpty = clone.querySelector("[data-output-empty]");
-    this.outputText = clone.querySelector("[data-output-text]");
-    this.outputJson = clone.querySelector("[data-output-json]");
-    this.outputImage = clone.querySelector("[data-output-image]");
-    this.outputAudio = clone.querySelector("[data-output-audio]");
-    this.outputVideo = clone.querySelector("[data-output-video]");
-    this.outputFiles = clone.querySelector("[data-output-files]");
-
-    const titleEl = clone.querySelector("[data-model-title]");
-    titleEl.textContent = modelId;
-    titleEl.title = modelId;
-
-    const chip = clone.querySelector("[data-chip]");
-    chip.textContent = schema.label || schema.category || "Run";
-
-    const descEl = clone.querySelector("[data-task-description]");
-    descEl.textContent = schema.description || DEFAULT_DESCRIPTIONS[schema.category] || "Live inference run.";
-
-    const metaEl = clone.querySelector("[data-model-meta]");
-    metaEl.innerHTML = `<span class="muted-badge">Task</span> <code>${task}</code>`;
-
-    this.renderInputs(schema.inputs || []);
-    this.renderAdvanced(schema.advanced || []);
-    this.renderFiles(schema.files || []);
-    this.setupProgress();
-
-    this.form.addEventListener("submit", (ev) => this.handleSubmit(ev));
-    this.cancelBtn.addEventListener("click", () => this.dialog.hide());
-
-    this.dialog.innerHTML = "";
-    this.dialog.appendChild(clone);
-    this.dialog.label = `Run • ${modelId}`;
-
-    if (this.resizeObserver && this.root) {
-      this.resizeObserver.observe(this.root);
-    }
-    window.addEventListener("resize", this.boundWindowResize);
-
-    await this.dialog.show();
-    this.panel = this.dialog.shadowRoot?.querySelector('[part="panel"]') || null;
-    requestAnimationFrame(() => this.resizeToContent());
+    fetchSchema(state.task)
+      .then(function (schema) {
+        applySchema(modelId, schema);
+        setStatus("", "info");
+        setFormInteractive(true);
+      })
+      .catch(function (error) {
+        setStatus(error.message || "Failed to load task form.", "error");
+        setFormInteractive(false);
+      });
   }
 
-  resetState() {
-    this.onDialogHide();
-    this.inputMap.clear();
-    this.fileMap.clear();
-    this.advancedMap.clear();
-    this.schema = null;
-    this.clearProgressTimers();
-    this.progressElements = [];
-    this.progressDefinition = [];
-    this.progressIndexById = new Map();
-    this.progressCurrentIndex = -1;
-    if (this.dialog) {
-      this.dialog.innerHTML = "";
+  function fetchSchema(task) {
+    if (schemaCache.has(task)) {
+      return Promise.resolve(schemaCache.get(task));
     }
-    this.root = null;
-  }
 
-  onDialogHide() {
-    if (this.resizeObserver && this.root) {
-      this.resizeObserver.unobserve(this.root);
-    }
-    window.removeEventListener("resize", this.boundWindowResize);
-    if (this.root) {
-      this.root.classList.remove("inference-modal--scrollable");
-    }
-    if (this.dialog) {
-      this.dialog.style.removeProperty("--height");
-      this.dialog.style.removeProperty("--max-height");
-    }
-    if (this.root) {
-      const outputBody = this.root.querySelector("[data-output-body]");
-      if (outputBody) {
-        outputBody.style.removeProperty("max-height");
-        outputBody.style.removeProperty("overflow-y");
-      }
-    }
-    if (this.panel) {
-      this.panel.style.removeProperty("height");
-      this.panel.style.removeProperty("max-height");
-      this.panel.style.removeProperty("overflow-y");
-      this.panel = null;
-    }
-  }
-
-  resizeToContent() {
-    if (!this.dialog || !this.dialog.open || !this.root) {
-      return;
-    }
-    if (!this.panel) {
-      this.panel = this.dialog.shadowRoot?.querySelector('[part="panel"]') || null;
-    }
-    const outputBody = this.root.querySelector("[data-output-body]");
-    this.root.classList.add("inference-modal--scrollable");
-    if (outputBody) {
-      const panelRect = this.panel
-        ? this.panel.getBoundingClientRect()
-        : this.root.getBoundingClientRect();
-      const outputRect = outputBody.getBoundingClientRect();
-      const availableForOutput = Math.max(
-        window.innerHeight - (outputRect.top - panelRect.top) - 96,
-        200
-      );
-      outputBody.style.maxHeight = `${availableForOutput}px`;
-      outputBody.style.overflowY = "auto";
-    }
-  }
-
-  async loadSchema(task) {
-    if (this.schemaCache.has(task)) {
-      return this.schemaCache.get(task);
-    }
-    const data = await fetchJson(`${SCHEMA_ENDPOINT}?task=${encodeURIComponent(task)}`);
-    if (!data || !data.schema) {
-      throw new Error("Missing schema definition for task");
-    }
-    this.schemaCache.set(task, data.schema);
-    return data.schema;
-  }
-
-  showMessage(title, message) {
-    const container = document.createElement("div");
-    container.className = "inference-modal__message";
-    container.innerHTML = `
-      <header class="inference-modal__header">
-        <div class="inference-modal__chip">Heads-up</div>
-        <h3 class="inference-modal__title">${title}</h3>
-        <p class="muted">${message}</p>
-      </header>
-      <footer class="inference-form__actions">
-        <button class="btn-ghost" type="button" data-dismiss>Close</button>
-      </footer>
-    `;
-    this.dialog.innerHTML = "";
-    this.dialog.appendChild(container);
-    const dismiss = container.querySelector("[data-dismiss]");
-    dismiss?.addEventListener("click", () => this.dialog.hide());
-    this.dialog.label = title;
-  }
-
-  renderInputs(fields) {
-    if (!fields.length) {
-      this.inputMount.innerHTML = "<div class=\"muted\">This task has no textual inputs.</div>";
-      return;
-    }
-    this.inputMount.innerHTML = "";
-    fields.forEach((field) => {
-      const wrapper = document.createElement("label");
-      wrapper.className = "inference-field";
-      wrapper.dataset.name = field.name;
-
-      const label = document.createElement("span");
-      label.className = "inference-field__label";
-      label.textContent = field.required ? `${field.label} *` : field.label;
-      wrapper.appendChild(label);
-
-      let control;
-      switch (field.type) {
-        case "textarea": {
-          control = document.createElement("textarea");
-          control.rows = field.rows || 5;
-          break;
-        }
-        case "json": {
-          control = document.createElement("textarea");
-          control.rows = field.rows || 6;
-          control.dataset.role = "json";
-          break;
-        }
-        case "chips": {
-          control = document.createElement("textarea");
-          control.rows = field.rows || 3;
-          control.dataset.role = "chips";
-          break;
-        }
-        case "select": {
-          control = document.createElement("select");
-          (field.options || []).forEach((opt) => {
-            const option = document.createElement("option");
-            option.value = opt.value;
-            option.textContent = opt.label;
-            if (opt.value === field.default) {
-              option.selected = true;
-            }
-            control.appendChild(option);
+    return fetch("/run?task=" + encodeURIComponent(task), { credentials: "same-origin" })
+      .then(function (response) {
+        if (!response.ok) {
+          return response.json().catch(function () { return {}; }).then(function (body) {
+            const detail = body && (body.error || body.reason || body.detail);
+            throw new Error(detail ? String(detail) : "Unable to fetch schema.");
           });
-          break;
         }
-        default: {
-          control = document.createElement("input");
-          control.type = field.type || "text";
-          break;
+        return response.json();
+      })
+      .then(function (payload) {
+        if (!payload || typeof payload !== "object" || !payload.schema) {
+          throw new Error("Malformed schema response.");
         }
+        schemaCache.set(task, payload.schema);
+        return payload.schema;
+      });
+  }
+
+  function applySchema(modelId, schema) {
+    const safeSchema = schema || {};
+    state.fieldDefs = Array.isArray(safeSchema.inputs) ? safeSchema.inputs.slice() : [];
+    state.fileDefs = Array.isArray(safeSchema.files) ? safeSchema.files.slice() : [];
+
+    renderHeader(modelId, safeSchema);
+    renderInputs(state.fieldDefs);
+    renderFiles(state.fileDefs);
+    renderAdvanced(Array.isArray(safeSchema.advanced) ? safeSchema.advanced : []);
+
+    if (refs.runLabel) {
+      refs.runLabel.textContent = state.defaultRunText;
+    }
+
+    const firstInput = refs.form ? refs.form.querySelector("textarea, input, select") : null;
+    if (firstInput && typeof firstInput.focus === "function") {
+      firstInput.focus();
+    }
+  }
+
+  function renderHeader(modelId, schema) {
+    if (refs.title) {
+      refs.title.textContent = modelId;
+      refs.title.setAttribute("title", modelId);
+    }
+    if (refs.chip) {
+      const label = schema.label || (schema.category ? schema.category : "Run");
+      refs.chip.textContent = label;
+    }
+    if (refs.subtitle) {
+      refs.subtitle.textContent = schema.description || "";
+    }
+    if (refs.meta) {
+      var pieces = [];
+      if (schema.category) {
+        pieces.push("Category · " + schema.category);
+      }
+      if (state.task) {
+        pieces.push("Task · " + state.task);
+      }
+      refs.meta.textContent = pieces.join("  •  ");
+    }
+  }
+
+  function renderInputs(defs) {
+    if (!refs.inputMount) {
+      return;
+    }
+    refs.inputMount.innerHTML = "";
+    if (!Array.isArray(defs) || defs.length === 0) {
+      return;
+    }
+
+    defs.forEach(function (field) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "inference-field";
+      if (field && field.inline) {
+        wrapper.classList.add("inference-field--inline");
       }
 
-      control.name = field.name;
-      control.required = Boolean(field.required);
-      control.placeholder = field.placeholder || "";
-      control.autocomplete = "off";
-      if (field.default != null) {
-        control.value = field.default;
-      }
-      if (field.maxLength) {
-        control.maxLength = field.maxLength;
-      }
+      const labelEl = document.createElement("label");
+      labelEl.className = "inference-field__label";
+      labelEl.textContent = field.label || field.name;
+      labelEl.setAttribute("for", field.name);
+      wrapper.appendChild(labelEl);
 
-      wrapper.appendChild(control);
+      const inputEl = createInputControl(field);
+      wrapper.appendChild(inputEl);
 
       if (field.help) {
         const help = document.createElement("div");
         help.className = "inference-field__help muted";
         help.textContent = field.help;
         wrapper.appendChild(help);
+      } else if (field.type === "chips") {
+        const hint = document.createElement("div");
+        hint.className = "inference-field__help muted";
+        hint.textContent = "Comma separated list.";
+        wrapper.appendChild(hint);
       }
 
-      this.inputMount.appendChild(wrapper);
-      this.inputMap.set(field.name, { field, element: control });
+      refs.inputMount.appendChild(wrapper);
     });
   }
 
-  renderAdvanced(fields) {
-    if (!fields.length) {
-      this.advancedSection.hidden = true;
-      return;
-    }
-    this.advancedSection.hidden = false;
-    this.advancedGrid.innerHTML = "";
-    fields.forEach((field) => {
-      const wrapper = document.createElement("label");
-      wrapper.className = "inference-field inference-field--inline";
+  function createInputControl(field) {
+    const type = field.type || "text";
+    const required = field.required !== false;
+    const placeholder = field.placeholder || "";
+    const name = field.name;
+    const rows = field.rows || 4;
 
-      const label = document.createElement("span");
-      label.className = "inference-field__label";
-      label.textContent = field.label;
-      wrapper.appendChild(label);
-
-      const control = document.createElement("input");
-      control.type = field.type || "number";
-      control.name = field.name;
-      control.required = Boolean(field.required);
-      if (field.min != null) control.min = field.min;
-      if (field.max != null) control.max = field.max;
-      if (field.step != null) control.step = field.step;
-      if (field.default != null) control.value = field.default;
-      wrapper.appendChild(control);
-
-      if (field.help) {
-        const help = document.createElement("div");
-        help.className = "inference-field__help muted";
-        help.textContent = field.help;
-        wrapper.appendChild(help);
+    let control;
+    if (type === "textarea" || type === "json") {
+      control = document.createElement("textarea");
+      control.rows = rows;
+      if (type === "json") {
+        control.setAttribute("spellcheck", "false");
       }
+    } else {
+      control = document.createElement("input");
+      control.type = type === "number" ? "number" : "text";
+    }
 
-      this.advancedGrid.appendChild(wrapper);
-      this.advancedMap.set(field.name, { field, element: control });
-    });
+    control.name = name;
+    if (placeholder) {
+      control.placeholder = placeholder;
+    }
+    if (required) {
+      control.required = true;
+    }
+
+    return control;
   }
 
-  renderFiles(files) {
-    if (!files.length) {
-      this.fileSection.hidden = true;
+  function renderFiles(defs) {
+    if (!refs.fileGrid || !refs.fileSection) {
       return;
     }
-    this.fileSection.hidden = false;
-    this.fileGrid.innerHTML = "";
-    files.forEach((fileField) => {
-      const wrapper = document.createElement("label");
+    refs.fileGrid.innerHTML = "";
+    state.fileInputs.forEach(function (entry) {
+      if (entry && entry.url) {
+        revokeObjectUrl(entry.url);
+      }
+    });
+    state.fileInputs = new Map();
+
+    if (!Array.isArray(defs) || defs.length === 0) {
+      refs.fileSection.hidden = true;
+      return;
+    }
+
+    refs.fileSection.hidden = false;
+
+    defs.forEach(function (field) {
+      const required = field.required !== false;
+      const wrapper = document.createElement("div");
       wrapper.className = "inference-field inference-field--file";
 
-      const label = document.createElement("span");
-      label.className = "inference-field__label";
-      label.textContent = fileField.required ? `${fileField.label} *` : fileField.label;
-      wrapper.appendChild(label);
+      const labelEl = document.createElement("label");
+      labelEl.className = "inference-field__label";
+      labelEl.textContent = field.label || field.name;
+      labelEl.setAttribute("for", field.name);
+      wrapper.appendChild(labelEl);
 
       const input = document.createElement("input");
       input.type = "file";
-      input.name = fileField.name;
-      input.accept = fileField.accept || "";
-      input.required = Boolean(fileField.required);
+      input.name = field.name;
+      if (required) {
+        input.required = true;
+      }
+      if (field.accept) {
+        input.accept = field.accept;
+      }
       wrapper.appendChild(input);
 
       const preview = document.createElement("div");
-      preview.className = "inference-file-preview muted";
-      preview.textContent = fileField.help || "";
+      preview.className = "inference-file-preview";
+      const meta = document.createElement("div");
+      meta.className = "inference-file-preview__meta muted";
+      meta.textContent = "No file selected";
+      preview.appendChild(meta);
+
+      let viewer = null;
+      if (field.preview === "image") {
+        viewer = document.createElement("img");
+        viewer.className = "inference-file-preview__image";
+        viewer.hidden = true;
+        preview.appendChild(viewer);
+      } else if (field.preview === "audio") {
+        viewer = document.createElement("audio");
+        viewer.className = "inference-file-preview__audio";
+        viewer.controls = true;
+        viewer.hidden = true;
+        preview.appendChild(viewer);
+      } else if (field.preview === "video") {
+        viewer = document.createElement("video");
+        viewer.className = "inference-file-preview__video";
+        viewer.controls = true;
+        viewer.hidden = true;
+        preview.appendChild(viewer);
+      }
+
       wrapper.appendChild(preview);
+      refs.fileGrid.appendChild(wrapper);
 
-      input.addEventListener("change", () => {
-        preview.innerHTML = "";
-        const file = input.files?.[0];
-        if (!file) {
-          preview.textContent = fileField.help || "";
-          return;
-        }
-        const info = document.createElement("div");
-        info.className = "inference-file-preview__meta";
-        info.textContent = `${file.name} · ${(file.size / (1024 * 1024)).toFixed(2)} MB`;
-        preview.appendChild(info);
-
-        if (fileField.preview === "image") {
-          const img = document.createElement("img");
-          img.className = "inference-file-preview__image";
-          img.alt = "Selected image";
-          img.src = URL.createObjectURL(file);
-          preview.appendChild(img);
-        } else if (fileField.preview === "audio") {
-          const audio = document.createElement("audio");
-          audio.controls = true;
-          audio.src = URL.createObjectURL(file);
-          preview.appendChild(audio);
-        } else if (fileField.preview === "video") {
-          const video = document.createElement("video");
-          video.controls = true;
-          video.src = URL.createObjectURL(file);
-          preview.appendChild(video);
-        }
+      state.fileInputs.set(field.name, {
+        input: input,
+        meta: meta,
+        viewer: viewer,
+        url: null
       });
 
-      this.fileGrid.appendChild(wrapper);
-      this.fileMap.set(fileField.name, { field: fileField, element: input });
+      input.addEventListener("change", function () {
+        updateFilePreview(field.name);
+      });
     });
   }
 
-  setupProgress() {
-    if (!this.progressStepsList) return;
-    this.clearProgressTimers();
-    this.progressDefinition = [
-      {
-        id: "prepare",
-        label: "Prepare request",
-        description: "Validating inputs and packaging payload.",
-      },
-      {
-        id: "download",
-        label: "Load model",
-        description: "Downloading weights or warming cache if needed.",
-      },
-      {
-        id: "inference",
-        label: "Run inference",
-        description: "Executing the pipeline on the selected device.",
-      },
-      {
-        id: "finalize",
-        label: "Finalize",
-        description: "Formatting response and preparing downloads.",
-      },
-    ];
-    this.progressIndexById = new Map();
-    this.progressElements = [];
-    this.progressStepsList.innerHTML = "";
-    this.progressDefinition.forEach((step, idx) => {
-      const li = document.createElement("li");
-      li.className = "inference-progress__step";
+  function renderAdvanced(defs) {
+    if (!refs.advancedSection || !refs.advancedGrid) {
+      return;
+    }
+    refs.advancedGrid.innerHTML = "";
+    if (!Array.isArray(defs) || defs.length === 0) {
+      refs.advancedSection.hidden = true;
+      return;
+    }
+    refs.advancedSection.hidden = false;
 
-      const title = document.createElement("span");
-      title.className = "inference-progress__step-title";
-      title.textContent = step.label;
-      li.appendChild(title);
+    defs.forEach(function (field) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "inference-field";
 
-      const desc = document.createElement("p");
-      desc.className = "inference-progress__step-desc";
-      desc.textContent = step.description;
-      li.appendChild(desc);
+      const labelEl = document.createElement("label");
+      labelEl.className = "inference-field__label";
+      labelEl.textContent = field.label || field.name;
+      labelEl.setAttribute("for", field.name);
+      wrapper.appendChild(labelEl);
 
-      this.progressStepsList.appendChild(li);
-      this.progressElements.push({ root: li, desc, def: step });
-      this.progressIndexById.set(step.id, idx);
+      const control = createInputControl(field);
+      wrapper.appendChild(control);
+      refs.advancedGrid.appendChild(wrapper);
     });
-
-    if (this.progressSection) {
-      this.progressSection.hidden = true;
-    }
-    if (this.progressBar) {
-      this.progressBar.style.width = "0%";
-    }
-    this.progressCurrentIndex = -1;
   }
 
-  startProgress() {
-    if (!this.progressElements.length) {
-      this.setupProgress();
-    }
-    if (!this.progressElements.length) return;
-    this.setProgressById("prepare", "Validating inputs…");
-    this.progressTimers.push(
-      window.setTimeout(() => {
-        this.setProgressById(
-          "download",
-          "Downloading or loading model weights (only first run)."
-        );
-      }, 1200)
-    );
-  }
-
-  setProgressById(id, message) {
-    const idx = this.progressIndexById.get(id);
-    if (idx == null) return;
-    this.setProgress(idx, { message });
-  }
-
-  setProgress(index, { message, complete = false } = {}) {
-    if (!this.progressElements.length) return;
-    const total = this.progressElements.length;
-    const clamped = Math.max(0, Math.min(index, total - 1));
-    this.progressCurrentIndex = clamped;
-
-    if (this.progressSection) {
-      this.progressSection.hidden = false;
+  function updateFilePreview(name) {
+    const entry = state.fileInputs.get(name);
+    if (!entry) {
+      return;
     }
 
-    this.progressElements.forEach((entry, idx) => {
-      const isActive = idx === clamped;
-      const isComplete = idx < clamped || (complete && idx === clamped);
-      if (!entry.root.classList.contains("is-error")) {
-        entry.root.classList.toggle("is-complete", isComplete);
-        entry.root.classList.toggle("is-active", isActive && !complete);
-      }
-      if (isActive && message) {
-        entry.desc.textContent = message;
-      } else if (!isActive && !entry.root.classList.contains("is-error")) {
-        entry.desc.textContent = entry.def.description;
-      }
-    });
-
-    if (this.progressBar) {
-      let pct = total > 1 ? (clamped / (total - 1)) * 100 : 100;
-      if (complete) pct = 100;
-      this.progressBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+    const files = entry.input.files;
+    if (!files || files.length === 0) {
+      entry.meta.textContent = "No file selected";
+      clearViewer(entry);
+      return;
     }
+
+    const file = files[0];
+    entry.meta.textContent = file.name + " · " + formatBytes(file.size);
+
+    if (!entry.viewer) {
+      return;
+    }
+
+    clearViewer(entry);
+    const url = URL.createObjectURL(file);
+    entry.viewer.src = url;
+    entry.viewer.hidden = false;
+    entry.url = url;
+    objectUrls.add(url);
   }
 
-  completeProgress(durationLabel) {
-    if (!this.progressElements.length) return;
-    this.clearProgressTimers();
-    const lastIndex = this.progressElements.length - 1;
-    this.setProgress(lastIndex, {
-      message: durationLabel || "Finished",
-      complete: true,
-    });
-    this.progressElements.forEach((entry) => {
-      entry.root.classList.remove("is-error");
-      entry.root.classList.add("is-complete");
-      entry.root.classList.remove("is-active");
-    });
-    if (this.progressBar) {
-      this.progressBar.style.width = "100%";
+  function clearViewer(entry) {
+    if (!entry || !entry.viewer) {
+      return;
     }
+    if (entry.url) {
+      revokeObjectUrl(entry.url);
+      entry.url = null;
+    }
+    if (entry.viewer.tagName === "AUDIO" || entry.viewer.tagName === "VIDEO") {
+      entry.viewer.pause();
+      entry.viewer.removeAttribute("src");
+      entry.viewer.load();
+    } else {
+      entry.viewer.removeAttribute("src");
+    }
+    entry.viewer.hidden = true;
   }
 
-  failProgress(message) {
-    if (!this.progressElements.length) return;
-    this.clearProgressTimers();
-    const index = this.progressCurrentIndex >= 0 ? this.progressCurrentIndex : 0;
-    this.setProgress(index, { message: message || "Run failed" });
-    const entry = this.progressElements[index];
-    if (entry) {
-      entry.root.classList.add("is-error");
-      entry.root.classList.remove("is-active");
-    }
-    if (this.progressBar) {
-      const total = this.progressElements.length;
-      const pct = total > 1 ? (index / (total - 1)) * 100 : 0;
-      this.progressBar.style.width = `${pct}%`;
-    }
-  }
-
-  clearProgressTimers() {
-    this.progressTimers.forEach((t) => window.clearTimeout(t));
-    this.progressTimers = [];
-  }
-
-  async handleSubmit(event) {
+  function handleSubmit(event) {
     event.preventDefault();
-    if (!this.schema) return;
+    if (state.submitting) {
+      return;
+    }
 
-    const payload = {};
+    resetStatus();
+
+    let payload;
     try {
-      for (const [name, entry] of this.inputMap.entries()) {
-        const { field, element } = entry;
-        const value = element.value.trim();
-        if (!value && field.required) {
-          throw new Error(`${field.label} is required.`);
-        }
-        if (!value) continue;
-        if (element.dataset.role === "chips") {
-          payload[name] = parseChipsValue(value);
-        } else if (element.dataset.role === "json") {
-          payload[name] = tryParseJson(value);
-        } else {
-          payload[name] = value;
-        }
+      payload = collectPayload();
+    } catch (error) {
+      setStatus(error.message || "Form validation failed.", "error");
+      if (error.field && refs.form && refs.form.elements[error.field]) {
+        refs.form.elements[error.field].focus();
       }
-      for (const [name, entry] of this.advancedMap.entries()) {
-        const { element } = entry;
-        if (!element.value) continue;
-        const number = Number(element.value);
-        if (!Number.isFinite(number)) {
-          throw new Error(`Invalid numeric value for ${name}`);
-        }
-        payload[name] = number;
-      }
-    } catch (err) {
-      this.showStatus(err?.message || String(err), true);
       return;
     }
 
     const formData = new FormData();
-    formData.append(
-      "spec",
-      JSON.stringify({
-        model_id: this.currentModel,
-        task: this.currentTask,
-        payload,
-      })
-    );
+    const spec = {
+      model_id: state.modelId,
+      task: state.task,
+      payload: payload
+    };
 
-    // Check if remote inference is enabled
-    const useRemoteCheckbox = this.form?.querySelector('[data-use-remote]');
-    if (useRemoteCheckbox?.checked) {
-      formData.append("use_remote", "true");
-    }
+    formData.append("spec", JSON.stringify(spec));
 
-    for (const [name, entry] of this.fileMap.entries()) {
-      const file = entry.element.files?.[0];
-      if (!file) {
-        if (entry.field.required) {
-          this.showStatus(`${entry.field.label} is required.`, true);
+    for (var i = 0; i < state.fileDefs.length; i += 1) {
+      const field = state.fileDefs[i];
+      const entry = state.fileInputs.get(field.name);
+      if (!entry) {
+        continue;
+      }
+      if (!entry.input.files || entry.input.files.length === 0) {
+        if (field.required !== false) {
+          entry.input.focus();
+          setStatus("File required: " + (field.label || field.name), "error");
           return;
         }
         continue;
       }
-      formData.append(name, file, file.name);
+      formData.append(field.name, entry.input.files[0]);
     }
 
-    this.setRunning(true);
-    const started = performance.now();
-    let response;
-    try {
-      response = await fetch("/inference", {
-        method: "POST",
-        body: formData,
-      });
-    } catch (err) {
-      this.setRunning(false);
-      this.showStatus(err?.message || String(err), true);
-      return;
-    }
+    setSubmitting(true);
+    prepareProgress();
+    setProgressStep(1);
+    setStatus("Uploading payload…", "info");
 
-    const elapsed = performance.now() - started;
-    await this.handleResponse(response, elapsed);
-    this.setRunning(false);
-  }
+    fetch("/inference", {
+      method: "POST",
+      body: formData
+    })
+      .then(function (response) {
+        setProgressStep(2);
+        const contentType = response.headers.get("content-type") || "";
+        if (!response.ok) {
+          return response
+            .json()
+            .catch(function () { return {}; })
+            .then(function (body) {
+              const detail = body && (body.error || body.reason || body.detail);
+              throw new Error(detail ? String(detail) : "Inference failed.");
+            });
+        }
 
-  async handleResponse(response, elapsedMs) {
-    const duration = formatDuration(elapsedMs);
-    const contentType = response.headers.get("content-type") || "";
-    const disposition = response.headers.get("content-disposition") || "";
-
-    if (!response.ok) {
-      let detail = `${response.status} ${response.statusText}`;
-      try {
         if (contentType.includes("application/json")) {
-          const data = await response.json();
-          // Handle nested error objects
-          if (data?.detail && typeof data.detail === 'object') {
-            // If detail is an object, try to extract meaningful message
-            detail = data.detail.reason || data.detail.error || data.detail.message || JSON.stringify(data.detail);
-          } else {
-            detail = data?.detail || data?.reason || data?.error || data?.message || detail;
-          }
-          // If it's still an object, convert to string
-          if (typeof detail === 'object') {
-            detail = JSON.stringify(detail, null, 2);
-          }
-        } else {
-          detail = await response.text();
+          return response.json().then(function (data) {
+            return { kind: "json", data: data };
+          });
         }
-      } catch (err) {
-        // ignore
+
+        const disposition = response.headers.get("content-disposition") || "";
+        const filename = extractFilename(disposition) || "output.bin";
+        return response.blob().then(function (blob) {
+          const resolvedType = blob.type || contentType;
+          return { kind: "blob", data: blob, filename: filename, contentType: resolvedType };
+        });
+      })
+      .then(function (result) {
+        if (!result || typeof result !== "object") {
+          throw new Error("Empty inference response.");
+        }
+        setProgressStep(PROGRESS_STEPS.length - 1);
+        setStatus("Inference complete", "success");
+        if (result.kind === "json") {
+          renderJsonOutput(result.data);
+        } else if (result.kind === "blob") {
+          renderBlobOutput(result.data, result.filename, result.contentType);
+        }
+      })
+      .catch(function (error) {
+        setStatus(error.message || "Inference failed.", "error");
+      })
+      .finally(function () {
+        setSubmitting(false);
+      });
+  }
+
+  function collectPayload() {
+    const payload = {};
+    if (!refs.form) {
+      return payload;
+    }
+
+    for (var i = 0; i < state.fieldDefs.length; i += 1) {
+      const field = state.fieldDefs[i];
+      const element = refs.form.elements[field.name];
+      if (!element) {
+        continue;
       }
-      this.failProgress(String(detail));
-      this.showStatus(String(detail), true);
-      return;
+      const raw = typeof element.value === "string" ? element.value.trim() : "";
+      const required = field.required !== false;
+
+      if (!raw) {
+        if (field.type === "chips") {
+          if (required) {
+            const err = new Error("Enter at least one label for " + (field.label || field.name) + ".");
+            err.field = field.name;
+            throw err;
+          }
+          payload[field.name] = [];
+          continue;
+        }
+        if (field.type === "json") {
+          if (required) {
+            const err = new Error("JSON required for " + (field.label || field.name) + ".");
+            err.field = field.name;
+            throw err;
+          }
+          continue;
+        }
+        if (required) {
+          const err = new Error((field.label || field.name) + " is required.");
+          err.field = field.name;
+          throw err;
+        }
+        continue;
+      }
+
+      if (field.type === "chips") {
+        payload[field.name] = raw.split(",").map(function (part) {
+          return part.trim();
+        }).filter(Boolean);
+        if (required && payload[field.name].length === 0) {
+          const err = new Error("Enter at least one label for " + (field.label || field.name) + ".");
+          err.field = field.name;
+          throw err;
+        }
+        continue;
+      }
+
+      if (field.type === "json") {
+        try {
+          payload[field.name] = JSON.parse(raw);
+        } catch (_) {
+          const err = new Error("Invalid JSON in " + (field.label || field.name) + ".");
+          err.field = field.name;
+          throw err;
+        }
+        continue;
+      }
+
+      payload[field.name] = raw;
     }
 
-    this.setProgressById("inference", "Running inference on server…");
-    this.outputSection.hidden = false;
-    this.outputMeta.textContent = `Finished in ${duration}`;
-    this.outputEmpty.hidden = true;
-    this.resetOutputViews();
-
-    if (contentType.startsWith("image/")) {
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      this.outputImage.src = url;
-      this.outputImage.hidden = false;
-      this.setProgressById("finalize", "Rendering generated image preview.");
-      this.completeProgress(`Finished in ${duration}`);
-      this.showStatus("Image generated", false);
-      this.addDownloadLink(disposition, blob);
-      this.resizeToContent();
-      return;
+    const advanced = refs.advancedGrid ? refs.advancedGrid.querySelectorAll("input, textarea, select") : [];
+    if (advanced && advanced.length) {
+      for (var j = 0; j < advanced.length; j += 1) {
+        const el = advanced[j];
+        if (!el.name) {
+          continue;
+        }
+        const val = typeof el.value === "string" ? el.value.trim() : "";
+        if (!val) {
+          continue;
+        }
+        payload[el.name] = val;
+      }
     }
 
-    if (contentType.startsWith("audio/")) {
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      this.outputAudio.src = url;
-      this.outputAudio.hidden = false;
-      this.setProgressById("finalize", "Audio ready for playback.");
-      this.completeProgress(`Finished in ${duration}`);
-      this.showStatus("Audio generated", false);
-      this.addDownloadLink(disposition, blob);
-      this.resizeToContent();
+    return payload;
+  }
+
+  function setSubmitting(active) {
+    state.submitting = active;
+    setFormInteractive(!active);
+    if (refs.runLabel) {
+      refs.runLabel.textContent = active ? "Running…" : state.defaultRunText;
+    }
+    if (refs.cancelButton) {
+      refs.cancelButton.disabled = active;
+    }
+  }
+
+  function setFormInteractive(interactive) {
+    if (!refs.form) {
       return;
     }
-
-    if (contentType.startsWith("video/")) {
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      this.outputVideo.src = url;
-      this.outputVideo.hidden = false;
-      this.setProgressById("finalize", "Video ready for playback.");
-      this.completeProgress(`Finished in ${duration}`);
-      this.showStatus("Video generated", false);
-      this.addDownloadLink(disposition, blob);
-      this.resizeToContent();
-      return;
-    }
-
-    if (contentType.includes("application/json")) {
-      const data = await response.json();
-      const status = this.statusFromJson(data);
-      this.renderJsonResult(data);
-      if (status.isError) {
-        this.failProgress(status.message);
+    const fields = refs.form.querySelectorAll("input, textarea, select");
+    fields.forEach(function (el) {
+      if (el === refs.cancelButton) {
+        return;
+      }
+      if (interactive) {
+        el.removeAttribute("disabled");
       } else {
-        this.setProgressById(
-          "finalize",
-          status.message || "Finalizing output"
-        );
-        this.completeProgress(`Finished in ${duration}`);
+        el.setAttribute("disabled", "disabled");
       }
-      this.showStatus(status.message, status.isError);
-      this.resizeToContent();
+    });
+    if (refs.runButton) {
+      if (interactive && !state.submitting) {
+        refs.runButton.removeAttribute("disabled");
+      } else {
+        refs.runButton.setAttribute("disabled", "disabled");
+      }
+    }
+  }
+
+  function prepareProgress() {
+    if (!refs.progress || !refs.progressSteps || !refs.progressBar) {
+      return;
+    }
+    refs.progress.hidden = false;
+    refs.progressSteps.innerHTML = "";
+    PROGRESS_STEPS.forEach(function (step, index) {
+      const item = document.createElement("li");
+      item.className = "inference-progress__step";
+      item.dataset.index = String(index);
+
+      const title = document.createElement("div");
+      title.className = "inference-progress__step-title";
+      title.textContent = step.title;
+      item.appendChild(title);
+
+      const desc = document.createElement("div");
+      desc.className = "inference-progress__step-desc";
+      desc.textContent = step.desc;
+      item.appendChild(desc);
+
+      refs.progressSteps.appendChild(item);
+    });
+    setProgressStep(0);
+  }
+
+  function setProgressStep(stepIndex) {
+    if (!refs.progressSteps || !refs.progressBar) {
+      return;
+    }
+    const steps = Array.prototype.slice.call(refs.progressSteps.children || []);
+    const maxIndex = PROGRESS_STEPS.length - 1;
+    const clamped = Math.max(0, Math.min(stepIndex, maxIndex));
+
+    steps.forEach(function (stepEl, idx) {
+      stepEl.classList.toggle("is-active", idx === clamped);
+      stepEl.classList.toggle("is-complete", idx < clamped);
+    });
+
+    const percent = maxIndex === 0 ? 100 : Math.round((clamped / maxIndex) * 100);
+    refs.progressBar.style.width = percent + "%";
+  }
+
+  function resetProgress() {
+    if (refs.progress) {
+      refs.progress.hidden = true;
+    }
+    if (refs.progressSteps) {
+      refs.progressSteps.innerHTML = "";
+    }
+    if (refs.progressBar) {
+      refs.progressBar.style.width = "0%";
+    }
+  }
+
+  function renderJsonOutput(data) {
+    if (!refs.output || !refs.outputBody) {
+      return;
+    }
+    refs.output.hidden = false;
+    refs.outputEmpty.hidden = true;
+
+    const now = new Date();
+    if (refs.outputMeta) {
+      refs.outputMeta.textContent = "Updated " + now.toLocaleTimeString();
+    }
+
+    if (refs.outputText) {
+      const primaryText = extractPrimaryText(data);
+      if (primaryText) {
+        refs.outputText.textContent = primaryText;
+        refs.outputText.hidden = false;
+      } else {
+        refs.outputText.hidden = true;
+      }
+    }
+
+    if (refs.outputJson) {
+      refs.outputJson.textContent = JSON.stringify(data, null, 2);
+      refs.outputJson.hidden = false;
+    }
+
+    if (refs.outputImage) {
+      refs.outputImage.hidden = true;
+      refs.outputImage.removeAttribute("src");
+    }
+    if (refs.outputAudio) {
+      refs.outputAudio.hidden = true;
+      refs.outputAudio.removeAttribute("src");
+    }
+    if (refs.outputVideo) {
+      refs.outputVideo.hidden = true;
+      refs.outputVideo.removeAttribute("src");
+    }
+    if (refs.outputFiles) {
+      refs.outputFiles.hidden = true;
+      refs.outputFiles.innerHTML = "";
+    }
+  }
+
+  function renderBlobOutput(blob, filename, contentType) {
+    if (!refs.output || !refs.outputFiles) {
       return;
     }
 
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    this.outputFiles.hidden = false;
-    this.outputFiles.innerHTML = "";
-    const link = document.createElement("a");
-    link.href = url;
-    link.textContent = disposition || "Download file";
-    link.download = this.extractFilename(disposition) || `${this.currentTask}_output.bin`;
-    link.className = "btn-ghost";
-    this.outputFiles.appendChild(link);
-    this.setProgressById("finalize", "File prepared for download.");
-    this.completeProgress(`Finished in ${duration}`);
-    this.showStatus("File ready", false);
-    this.resizeToContent();
-  }
+    refs.output.hidden = false;
+    refs.outputEmpty.hidden = true;
 
-  renderJsonResult(data) {
-    const textCandidate = extractTextCandidate(data);
-
-    if (textCandidate) {
-      this.outputText.textContent = textCandidate;
-      this.outputText.hidden = false;
-    } else {
-      this.outputText.hidden = true;
+    if (refs.outputMeta) {
+      const now = new Date();
+      refs.outputMeta.textContent = "Downloaded " + now.toLocaleTimeString();
     }
 
-    this.outputJson.textContent = JSON.stringify(data, null, 2);
-    this.outputJson.hidden = false;
-    this.resizeToContent();
-  }
+    if (refs.outputText) {
+      refs.outputText.hidden = true;
+    }
+    if (refs.outputJson) {
+      refs.outputJson.hidden = true;
+      refs.outputJson.textContent = "";
+    }
 
-  statusFromJson(data) {
-    if (data && typeof data === "object") {
-      if (data.error) {
-        const reason = typeof data.reason === "string" ? data.reason : data.error;
-        return { message: `Error: ${reason}`, isError: true };
-      }
-      if (data.skipped) {
-        const reason = typeof data.reason === "string" ? data.reason : "Model skipped";
-        return { message: `Skipped: ${reason}`, isError: false };
-      }
-      if (typeof data.detail === "string") {
-        return { message: data.detail, isError: false };
-      }
-      if (Array.isArray(data.detail) && data.detail.length) {
-        const first = data.detail[0];
-        if (typeof first === "string") {
-          return { message: first, isError: false };
-        }
-        if (first && typeof first === "object") {
-          const msg = first.msg || first.message || first.detail;
-          if (msg) {
-            return { message: String(msg), isError: true };
-          }
-        }
+    const type = (contentType || blob.type || "").toLowerCase();
+    const url = URL.createObjectURL(blob);
+    objectUrls.add(url);
+
+    let previewHandled = false;
+
+    if (refs.outputImage) {
+      if (type.startsWith("image/")) {
+        refs.outputImage.src = url;
+        refs.outputImage.hidden = false;
+        previewHandled = true;
+      } else {
+        refs.outputImage.hidden = true;
+        refs.outputImage.removeAttribute("src");
       }
     }
-    return { message: "JSON result ready", isError: false };
+
+    if (refs.outputAudio) {
+      if (type.startsWith("audio/")) {
+        refs.outputAudio.src = url;
+        refs.outputAudio.hidden = false;
+        refs.outputAudio.load();
+        previewHandled = true;
+      } else {
+        refs.outputAudio.pause();
+        refs.outputAudio.hidden = true;
+        refs.outputAudio.removeAttribute("src");
+        refs.outputAudio.load();
+      }
+    }
+
+    if (refs.outputVideo) {
+      if (type.startsWith("video/")) {
+        refs.outputVideo.src = url;
+        refs.outputVideo.hidden = false;
+        refs.outputVideo.load();
+        previewHandled = true;
+      } else {
+        refs.outputVideo.pause();
+        refs.outputVideo.hidden = true;
+        refs.outputVideo.removeAttribute("src");
+        refs.outputVideo.load();
+      }
+    }
+
+    if (!previewHandled) {
+      if (refs.outputImage) {
+        refs.outputImage.hidden = true;
+        refs.outputImage.removeAttribute("src");
+      }
+      if (refs.outputAudio) {
+        refs.outputAudio.pause();
+        refs.outputAudio.hidden = true;
+        refs.outputAudio.removeAttribute("src");
+        refs.outputAudio.load();
+      }
+      if (refs.outputVideo) {
+        refs.outputVideo.pause();
+        refs.outputVideo.hidden = true;
+        refs.outputVideo.removeAttribute("src");
+        refs.outputVideo.load();
+      }
+    }
+
+    if (refs.outputFiles) {
+      refs.outputFiles.hidden = false;
+      refs.outputFiles.innerHTML = "";
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename || "output.bin";
+      link.className = "btn-ghost";
+      link.textContent = "Download " + (filename || "output");
+      refs.outputFiles.appendChild(link);
+    }
   }
 
-  resetOutputViews() {
-    this.outputText.hidden = true;
-    this.outputJson.hidden = true;
-    this.outputImage.hidden = true;
-    this.outputAudio.hidden = true;
-    this.outputVideo.hidden = true;
-    this.outputFiles.hidden = true;
-    this.outputFiles.innerHTML = "";
-  }
-
-  addDownloadLink(disposition, blob) {
-    const filename = this.extractFilename(disposition) || `${this.currentTask}_output`;
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.textContent = `Download ${filename}`;
-    link.className = "btn-ghost";
-    this.outputFiles.hidden = false;
-    this.outputFiles.innerHTML = "";
-    this.outputFiles.appendChild(link);
-    this.resizeToContent();
-  }
-
-  extractFilename(disposition) {
-    if (!disposition) return "";
-    const match = /filename\*?="?([^";]+)"?/i.exec(disposition);
-    if (match && match[1]) {
-      return decodeURIComponent(match[1]);
+  function extractPrimaryText(data) {
+    if (!data || typeof data !== "object") {
+      return "";
+    }
+    if (typeof data.result === "string") {
+      return data.result;
+    }
+    if (Array.isArray(data) && data.length && typeof data[0] === "string") {
+      return data.join("\n");
+    }
+    if (Array.isArray(data) && data.length && data[0] && typeof data[0].generated_text === "string") {
+      return data.map(function (item) { return item.generated_text; }).join("\n\n");
+    }
+    if (typeof data.generated_text === "string") {
+      return data.generated_text;
     }
     return "";
   }
 
-  showStatus(message, isError) {
-    if (!this.statusEl) return;
-    this.statusEl.hidden = false;
-    this.statusEl.textContent = message;
-    this.statusEl.className = isError
-      ? "inference-form__status inference-form__status--error"
-      : "inference-form__status";
-  }
-
-  setRunning(running) {
-    if (!this.runBtn) return;
-    this.runBtn.disabled = running;
-    this.cancelBtn.disabled = running;
-    if (running) {
-      this.runBtn.dataset.loading = "true";
-      this.showStatus("Running inference…", false);
-      this.startProgress();
-    } else {
-      delete this.runBtn.dataset.loading;
-      this.clearProgressTimers();
+  function renderBlobCleanup() {
+    if (refs.outputFiles) {
+      refs.outputFiles.innerHTML = "";
+      refs.outputFiles.hidden = true;
     }
   }
-}
 
-function setupRunModal() {
-  const dialog = document.getElementById(MODAL_ID);
-  const template = document.getElementById(TEMPLATE_ID);
-  if (!dialog || !template) return;
-
-  if (dialog.parentElement !== document.body) {
-    document.body.appendChild(dialog);
-  }
-  if (window.customElements && typeof customElements.whenDefined === "function") {
-    customElements.whenDefined("sl-dialog").catch(() => {});
-  }
-
-  const modal = new InferenceModal(dialog, template);
-
-  window.runModel = async (modelId) => {
-    const ctx = getPageContext();
-    const task = ctx.selectedTask;
-    await modal.open(modelId, task);
-  };
-
-  window.__HF_UPDATE_SELECTED_TASK = (task) => {
-    if (!window.__HF_MODELS_PAGE_CONTEXT) {
-      window.__HF_MODELS_PAGE_CONTEXT = {};
+  function resetOutput() {
+    if (refs.output) {
+      refs.output.hidden = true;
     }
-    window.__HF_MODELS_PAGE_CONTEXT.selectedTask = task;
-  };
+    if (refs.outputMeta) {
+      refs.outputMeta.textContent = "";
+    }
+    if (refs.outputEmpty) {
+      refs.outputEmpty.hidden = false;
+    }
+    if (refs.outputText) {
+      refs.outputText.hidden = true;
+      refs.outputText.textContent = "";
+    }
+    if (refs.outputJson) {
+      refs.outputJson.hidden = true;
+      refs.outputJson.textContent = "";
+    }
+    if (refs.outputImage) {
+      refs.outputImage.hidden = true;
+      refs.outputImage.removeAttribute("src");
+    }
+    if (refs.outputAudio) {
+      refs.outputAudio.hidden = true;
+      refs.outputAudio.removeAttribute("src");
+    }
+    if (refs.outputVideo) {
+      refs.outputVideo.hidden = true;
+      refs.outputVideo.removeAttribute("src");
+    }
+    renderBlobCleanup();
+  }
 
-  dialog.addEventListener("sl-after-hide", () => {
-    dialog.innerHTML = "";
-  });
+  function resetFormView() {
+    if (refs.form) {
+      refs.form.reset();
+    }
+    if (refs.inputMount) {
+      refs.inputMount.innerHTML = "";
+    }
+    if (refs.advancedGrid) {
+      refs.advancedGrid.innerHTML = "";
+    }
+    if (refs.advancedSection) {
+      refs.advancedSection.hidden = true;
+    }
+    if (refs.fileGrid) {
+      refs.fileGrid.innerHTML = "";
+    }
+    if (refs.fileSection) {
+      refs.fileSection.hidden = true;
+    }
+    state.fieldDefs = [];
+    state.fileDefs = [];
+    state.fileInputs.forEach(function (entry) {
+      clearViewer(entry);
+    });
+    state.fileInputs = new Map();
+  }
 
-  window.__HF_PROGRESS_API = {
-    advance: (id, message) => {
-      modal.setProgressById(id, message);
-    },
-    error: (message) => {
-      modal.failProgress(message);
-    },
-  };
-}
+  function resetStatus() {
+    if (refs.status) {
+      refs.status.hidden = true;
+      refs.status.textContent = "";
+      refs.status.classList.remove("inference-form__status--error");
+    }
+  }
 
-document.addEventListener("DOMContentLoaded", setupRunModal);
+  function setStatus(message, variant) {
+    if (!refs.status) {
+      return;
+    }
+    const text = (message || "").trim();
+    if (!text) {
+      refs.status.hidden = true;
+      refs.status.textContent = "";
+      refs.status.classList.remove("inference-form__status--error");
+      return;
+    }
+    refs.status.hidden = false;
+    refs.status.textContent = text;
+    refs.status.classList.toggle("inference-form__status--error", variant === "error");
+  }
+
+  function resetForNextOpen() {
+    setSubmitting(false);
+    resetStatus();
+    resetProgress();
+    resetOutput();
+    resetFormView();
+    revokeAllObjectUrls();
+  }
+
+  function revokeAllObjectUrls() {
+    objectUrls.forEach(revokeObjectUrl);
+    objectUrls.clear();
+  }
+
+  function revokeObjectUrl(url) {
+    try {
+      URL.revokeObjectURL(url);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function extractFilename(disposition) {
+    if (!disposition) {
+      return "";
+    }
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    return match ? match[1] : "";
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes) {
+      return "0 B";
+    }
+    const units = ["B", "KB", "MB", "GB"];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+    }
+    return value.toFixed(value >= 10 || unit === 0 ? 0 : 1) + " " + units[unit];
+  }
+
+  window.runModel = open;
+})();

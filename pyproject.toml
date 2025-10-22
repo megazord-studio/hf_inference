@@ -1,6 +1,6 @@
 [project]
 name = "hf-inference"
-version = "0.1.0"
+version = "0.2.0"
 description = "A unified FastAPI server for Hugging Face model inference across 31+ tasks"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.12,<3.13"

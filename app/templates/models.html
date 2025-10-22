@@ -98,11 +98,14 @@
 
 {% include "inference_modal.html" %}
 
+<!-- Models page controller: task filters, worker wiring, modal integration -->
+
 <script>
 (async function(){
   const formEl = document.getElementById('panelForm');
   const task = new URLSearchParams(location.search).get('task') || (formEl ? formEl.dataset.selectedTask : '') || '';
 
+  // Share selected task + task list with inference modal
   window.__HF_MODELS_PAGE_CONTEXT = window.__HF_MODELS_PAGE_CONTEXT || {};
   window.__HF_MODELS_PAGE_CONTEXT.selectedTask = task;
   let allTasks = [];
@@ -135,6 +138,7 @@
 
   if(!task || !contentArea) return;
 
+  // Inline worker powers search/sort/filter without blocking UI
   const workerSrc = `
     let ALL = [];
     function safeMax(rows, getter, minVal=1){
@@ -197,6 +201,7 @@
   const blob = new Blob([workerSrc], {type:'application/javascript'});
   const worker = new Worker(URL.createObjectURL(blob));
 
+  // Virtualized table for large model lists
   const clusterize = new Clusterize({
     rows: [],
     scrollElem: scrollArea,
