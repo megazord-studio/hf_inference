@@ -12,6 +12,7 @@ from app.helpers import get_upload_file_image
 from app.types import RunnerSpec
 from app.utilities import _final_caption_fallback
 from app.utilities import _vlm_florence2
+from app.utilities import _vlm_gemma
 from app.utilities import _vlm_llava
 from app.utilities import _vlm_minicpm
 
@@ -46,6 +47,8 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
     mid = str(spec.get("model_id", "")).lower()
 
     # Model-specific helper paths (unchanged)
+    if "gemma" in mid:
+        return _vlm_gemma(spec, img, prompt, dev)
     if "llava" in mid:
         return _vlm_llava(spec, img, prompt, dev)
     if "florence-2" in mid or "florence" in mid:
@@ -55,14 +58,16 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
 
     # Generic path 1: image-text-to-text
     try:
+        # Allow device to be overridden by extra_args to avoid keyword collision
+        extra_args_copy = extra_args.copy()
+        device_kw = extra_args_copy.pop("device", device_arg(dev))
+        
         pl: ImageTextToTextPipeline = pipeline(
             task="image-text-to-text",
             model=spec["model_id"],
             trust_remote_code=True,
-            device=device_arg(dev),
-            device_map=None,  # avoid auto device mapping at load time
-            low_cpu_mem_usage=False,  # avoid init-empty-weights path
-            **extra_args,  # pass through exactly as provided
+            device=device_kw,
+            **extra_args_copy,  # pass through exactly as provided
         )
         out_any: Any = pl(image=img, text=prompt)
         text = _unwrap_text(out_any)
@@ -73,14 +78,16 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
 
     # Generic path 2: image-to-text fallback
     try:
+        # Allow device to be overridden by extra_args to avoid keyword collision
+        extra_args_copy = extra_args.copy()
+        device_kw = extra_args_copy.pop("device", device_arg(dev))
+        
         pl2: ImageToTextPipeline = pipeline(
             task="image-to-text",
             model=spec["model_id"],
             trust_remote_code=True,
-            device=device_arg(dev),
-            device_map=None,  # avoid auto device mapping at load time
-            low_cpu_mem_usage=False,  # avoid init-empty-weights path
-            **extra_args,  # pass through exactly as provided
+            device=device_kw,
+            **extra_args_copy,  # pass through exactly as provided
         )
         out2: Any = pl2(img)
         text = _unwrap_text(out2)

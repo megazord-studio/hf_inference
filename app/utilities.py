@@ -173,8 +173,6 @@ def _final_caption_fallback(img: Image.Image, dev: str) -> Dict[str, Any]:
             "task": "image-to-text",
             "model": "nlpconnect/vit-gpt2-image-captioning",
             "device": device_arg(dev),
-            "device_map": None,  # avoid auto device mapping at load time
-            "low_cpu_mem_usage": False,  # avoid init-empty-weights path
         }
         pl = cast(ImageToTextPipeline, pipeline(**pl_kwargs))
         # Call using positional 'inputs' to satisfy overload (inputs: Image | str)
@@ -209,11 +207,7 @@ def _vlm_minicpm(
             spec["model_id"], trust_remote_code=True
         )
         model = AutoModelForVision2Seq.from_pretrained(
-            spec["model_id"],
-            trust_remote_code=True,
-            torch_dtype=torch.float16,
-            device_map=None,  # avoid auto device mapping at load time
-            low_cpu_mem_usage=False,  # avoid init-empty-weights path
+            spec["model_id"], trust_remote_code=True, torch_dtype=torch.float16
         ).to(torch.device(device_str()))
         text = (
             prompt
@@ -237,8 +231,6 @@ def _vlm_llava(
             "model": spec["model_id"],
             "trust_remote_code": True,
             "device": device_arg(dev),
-            "device_map": None,  # avoid auto device mapping at load time
-            "low_cpu_mem_usage": False,  # avoid init-empty-weights path
         }
         vqa = cast(VisualQuestionAnsweringPipeline, pipeline(**vqa_kwargs))
         ans = vqa(image=img, question=q)
@@ -264,11 +256,7 @@ def _vlm_florence2(
             spec["model_id"], trust_remote_code=True
         )
         model = AutoModelForCausalLM.from_pretrained(
-            spec["model_id"],
-            trust_remote_code=True,
-            torch_dtype=torch.float16,
-            device_map=None,  # avoid auto device mapping at load time
-            low_cpu_mem_usage=False,  # avoid init-empty-weights path
+            spec["model_id"], trust_remote_code=True, torch_dtype=torch.float16
         ).to(torch.device(device_str()))  # type: ignore
         text = prompt or "Describe the image briefly and include one color."
         inputs = _proc_inputs(proc, text, img, model)
@@ -278,6 +266,75 @@ def _vlm_florence2(
             inputs2 = _proc_inputs(proc, text2, img, model)
             txt = _decode_generate(model, proc, **inputs2)
         return {"text": txt}
+    except Exception:
+        return _final_caption_fallback(img, dev)
+
+
+def _vlm_gemma(
+    spec: RunnerSpec, img: Image.Image, prompt: str, dev: str
+) -> Dict[str, Any]:
+    """
+    Handle Gemma multimodal chat models (e.g., google/gemma-3-12b-it).
+    These models use the text-generation pipeline with a chat message format.
+    """
+    try:
+        # Get extra_args from spec, allowing device override
+        extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+        payload: Dict[str, Any] = spec.get("payload", {}) or {}
+        
+        # Allow device to be overridden by extra_args to avoid keyword collision
+        device_kw = extra_args.pop("device", device_arg(dev))
+        
+        # Build message list compatible with Gemma's multimodal chat interface
+        text = prompt or "Describe this image in one sentence."
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": img},
+                    {"type": "text", "text": text},
+                ],
+            }
+        ]
+        
+        # Use text-generation pipeline instead of image-text-to-text
+        pl = pipeline(
+            task="text-generation",
+            model=spec["model_id"],
+            trust_remote_code=True,
+            device=device_kw,
+            **extra_args,
+        )
+        
+        # Get max_new_tokens from payload or use default
+        max_new_tokens = payload.get("max_new_tokens", 200)
+        
+        result = pl(messages, max_new_tokens=max_new_tokens)
+        
+        # Extract text from result
+        if isinstance(result, list) and result:
+            first = result[0]
+            if isinstance(first, dict) and "generated_text" in first:
+                generated = first["generated_text"]
+                # If generated_text is a list of messages, extract the last assistant message
+                if isinstance(generated, list) and generated:
+                    for msg in reversed(generated):
+                        if isinstance(msg, dict) and msg.get("role") == "assistant":
+                            content = msg.get("content", "")
+                            if isinstance(content, str):
+                                return {"text": content}
+                            elif isinstance(content, list):
+                                # Extract text from content list
+                                texts = [
+                                    item.get("text", "")
+                                    for item in content
+                                    if isinstance(item, dict) and "text" in item
+                                ]
+                                return {"text": " ".join(texts)}
+                # Otherwise return as string
+                return {"text": str(generated)}
+        
+        return {"text": str(result)}
     except Exception:
         return _final_caption_fallback(img, dev)
 
@@ -294,6 +351,7 @@ __all__ = [
     "_vlm_minicpm",
     "_vlm_llava",
     "_vlm_florence2",
+    "_vlm_gemma",
     "_proc_inputs",
     "_decode_generate",
     "_cast_inputs_to_model_dtype",
