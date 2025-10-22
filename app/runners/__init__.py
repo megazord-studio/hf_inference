@@ -1,3 +1,5 @@
+"""Runner registry for all supported inference tasks."""
+
 from typing import Any
 from typing import Dict
 
