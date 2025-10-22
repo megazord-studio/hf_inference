@@ -98,6 +98,16 @@ async def inference(
             dev,
             duration,
         )
+        
+        # Handle file outputs (images, audio, video)
+        if isinstance(result, dict):
+            if "file_data" in result and "file_name" in result and "content_type" in result:
+                return StreamingResponse(
+                    io.BytesIO(result["file_data"]),
+                    media_type=result["content_type"],
+                    headers={"Content-Disposition": f"attachment; filename={result['file_name']}"}
+                )
+        
         return JSONResponse(content=result if isinstance(result, dict) else {"result": result})
     except asyncio.CancelledError:
         raise HTTPException(status_code=504, detail="Client disconnected")
