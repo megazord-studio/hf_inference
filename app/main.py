@@ -11,6 +11,7 @@ from app.routes import healthz as healthz_routes
 from app.routes import home as home_routes
 from app.routes import inference as inference_routes
 from app.routes import models
+from app.routes import run_form as run_form_routes
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -28,6 +29,7 @@ app.include_router(home_routes.router)
 app.include_router(healthz_routes.router)
 app.include_router(inference_routes.router)
 app.include_router(models.router)
+app.include_router(run_form_routes.router)
 
 
 def main() -> None:

@@ -1,0 +1,26 @@
+{% macro render_fields(fields, id_prefix='fld') %}
+  {% for f in fields %}
+    {% set row_classes = 'form-row' %}
+    {% if f.type == 'file' %}{% set row_classes = row_classes + ' is-file' %}{% endif %}
+    {% if f.type == 'textarea' %}{% set row_classes = row_classes + ' is-textarea' %}{% endif %}
+    {% if f.type == 'json' %}{% set row_classes = row_classes + ' is-json' %}{% endif %}
+    <div class="{{ row_classes }}">
+      <label class="form-label" for="{{ id_prefix }}_{{ f.name }}">{{ f.label or f.name }}</label>
+      {% if f.type == 'file' %}
+        <input class="form-input" id="{{ id_prefix }}_{{ f.name }}" name="{{ f.name }}" type="file" {% if f.accept %}accept="{{ f.accept }}"{% endif %} {% if f.required %}required{% endif %} />
+        {% if f.accept %}
+          <div class="form-hint muted">
+            {% if f.accept.startswith('image') %}Accepted: Images{% elif f.accept.startswith('audio') %}Accepted: Audio{% elif f.accept.startswith('video') %}Accepted: Video{% else %}Accepted: {{ f.accept }}{% endif %}
+          </div>
+        {% endif %}
+      {% elif f.type == 'textarea' %}
+        <textarea class="form-textarea" id="{{ id_prefix }}_{{ f.name }}" name="{{ f.name }}" rows="4" {% if f.required %}required{% endif %} placeholder="{{ f.placeholder or '' }}"></textarea>
+      {% elif f.type == 'json' %}
+        <textarea class="form-textarea monospace" id="{{ id_prefix }}_{{ f.name }}" name="{{ f.name }}" rows="4" data-type="json" {% if f.required %}required{% endif %} placeholder="{{ f.placeholder or '' }}"></textarea>
+        {% if f.help %}<div class="form-hint muted">{{ f.help }}</div>{% endif %}
+      {% else %}
+        <input class="form-input" id="{{ id_prefix }}_{{ f.name }}" name="{{ f.name }}" type="text" {% if f.required %}required{% endif %} placeholder="{{ f.placeholder or '' }}" />
+      {% endif %}
+    </div>
+  {% endfor %}
+{% endmacro %}

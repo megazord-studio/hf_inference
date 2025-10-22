@@ -1,30 +1,14 @@
 <template id="runModalTemplate">
   <div class="run-modal-body run-amber">
-    <div class="run-modal-header">
-      <div class="run-chip run-chip--amber">🚧 work in progress 🚧</div>
-      <h3 class="run-title" data-model-title title=""></h3>
-      <p class="muted">
-        The in‑app launcher is still baking. We’ll plug this straight into your inference backend soon™. For now, treat this as a pre‑flight checklist.
-      </p>
-    </div>
-
-    <div class="run-soon">
-      <span class="spark">✦</span>
-      <div>
-        <strong>Heads‑up:</strong> direct runs from this modal are on the roadmap. Until then, hop to the model page on Hugging Face for weights, cards, and caveats.
-      </div>
-    </div>
-
-    <ul class="muted" style="margin: 0 0 12px 0; padding-left: 18px; line-height: 1.6;">
-      <li>Task: <code data-task>model</code></li>
-      <li>Tip: check required dtype, device, and any quirky preprocessors</li>
-      <li>Bonus: pin a version tag to dodge “it worked yesterday” bugs</li>
-    </ul>
 
     <div class="run-modal-actions">
       <a class="btn-ghost btn-ghost--amber" data-href="hf" target="_blank" rel="noopener">
         <span class="ico">↗</span> Open on HF
       </a>
     </div>
+
+    <!-- HTMX form host: prerendered by /run-form -->
+    <div class="run-form-host" data-form-host></div>
+
   </div>
 </template>

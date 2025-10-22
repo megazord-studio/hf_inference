@@ -227,7 +227,19 @@
       dlg.label = 'Quick run • ' + id;
       dlg.style.setProperty('--width', '680px');
 
-      // IMPORTANT: only use show() to avoid flicker / double-state
+      // Now that content is in the DOM, configure HTMX on the host and process
+      const host = dlg.querySelector('[data-form-host]');
+      if (host) {
+        const url = '/run-form?task=' + encodeURIComponent(task || '') + '&model_id=' + encodeURIComponent(id);
+        host.setAttribute('hx-get', url);
+        host.setAttribute('hx-trigger', 'load');
+        host.setAttribute('hx-target', 'this');
+        host.setAttribute('hx-swap', 'innerHTML');
+        if (window.htmx && typeof window.htmx.process === 'function') {
+          window.htmx.process(host);
+        }
+      }
+
       await dlg.show();
     } catch (e){
       console.error('Run modal face‑planted', e);
@@ -327,7 +339,14 @@
       return;
     }
     if (spinner) spinner.textContent = 'Loaded ' + data.length.toLocaleString('en-US') + ' models. Your tab survives. Probably.';
-    const rows = data.map(r => ({
+
+    // Optional client-side exclusions per task
+    let filtered = data;
+    if (task === 'image-to-image') {
+      filtered = data.filter(r => (r && r.id) !== 'fal/AuraSR-v2');
+    }
+
+    const rows = filtered.map(r => ({
       id: r.id,
       downloads: Number(r.downloads||0),
       likes: Number(r.likes||0),

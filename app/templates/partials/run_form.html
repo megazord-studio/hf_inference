@@ -1,0 +1,22 @@
+{% import "macros/form_fields.html" as forms %}
+
+<form id="runForm" class="run-form" method="post" enctype="multipart/form-data" novalidate>
+  <div class="form-meta muted" style="margin-bottom:8px;">
+    <span>Task:</span> <code>{{ task }}</code>
+    {% if model_id %}<span style="margin-left:12px;">Model:</span> <code title="{{ model_id }}">{{ model_id }}</code>{% endif %}
+  </div>
+
+  <div class="form-fields">
+    {{ forms.render_fields(fields, id_prefix='rf-' ~ (task or 'task')) }}
+
+    <div class="form-row is-json">
+      <label class="form-label" for="rf-{{ task or 'task' }}-extra_args">Extra args (JSON)</label>
+      <textarea class="form-textarea monospace" id="rf-{{ task or 'task' }}-extra_args" name="extra_args" rows="4" data-type="json" placeholder="{}"></textarea>
+      <div class="form-hint muted">Optional advanced kwargs passed to the pipeline/runner.</div>
+    </div>
+  </div>
+
+  <div class="form-actions" style="display:flex; gap:8px; justify-content:flex-end; margin-top: 12px;">
+    <button type="submit" class="btn-primary" disabled title="Submission not wired yet">Run</button>
+  </div>
+</form>
