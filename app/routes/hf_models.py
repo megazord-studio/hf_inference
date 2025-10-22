@@ -83,9 +83,7 @@ def list_models_minimal(
         hint = None
         if status == 429:
             hint = "Hugging Face rate limit hit. Wait a bit and retry or set HF_TOKEN."
-        payload = {"error": "hf_api_failed", "reason": str(e)}
-        if hint:
-            payload["hint"] = hint
+        payload = {"error": "hf_api_failed", "reason": str(e), **({"hint": hint} if hint else {})}
         return JSONResponse(payload, status_code=status, headers=headers)
     except Exception as e:
         return JSONResponse({"error": "hf_api_failed", "reason": str(e)}, status_code=502)

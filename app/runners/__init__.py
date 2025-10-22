@@ -1,6 +1,7 @@
 """Runner registry for all supported inference tasks."""
 
-from typing import Any, Dict
+from typing import Any
+from typing import Dict
 
 from .audio_classification import run_audio_classification
 from .automatic_speech_recognition import run_asr

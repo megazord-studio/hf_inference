@@ -36,7 +36,14 @@ def file_field(name: str, label: str, accept: str, preview: str | None = None) -
     return field
 
 
-def schema(category: str, label: str, description: str, inputs: list[Dict[str, Any]] | None = None, files: list[Dict[str, Any]] | None = None) -> Dict[str, Any]:
+def schema(
+    category: str,
+    label: str,
+    description: str,
+    *,
+    inputs: list[Dict[str, Any]] | None = None,
+    files: list[Dict[str, Any]] | None = None,
+) -> Dict[str, Any]:
     """Create a complete task schema."""
     return {
         "category": category,
