@@ -1,0 +1,72 @@
+<template id="inferenceModalTemplate">
+  <div class="inference-modal" data-root>
+    <header class="inference-modal__header">
+      <div class="inference-modal__chip" data-chip>Live run</div>
+      <h3 class="inference-modal__title" data-model-title></h3>
+      <p class="inference-modal__subtitle muted" data-task-description></p>
+      <div class="inference-modal__meta" data-model-meta></div>
+    </header>
+
+    <section class="inference-modal__body" data-body>
+      <form class="inference-form" data-run-form autocomplete="off" spellcheck="false">
+        <!-- Textual inputs mount here based on task schema -->
+        <div class="inference-form__grid" data-input-mount></div>
+
+        <div class="inference-form__files" data-file-mount hidden>
+          <h4 class="inference-section__title">Files</h4>
+          <!-- Populated when the task schema requires file uploads -->
+          <div class="inference-form__file-grid" data-file-grid></div>
+        </div>
+
+
+        <div class="inference-form__advanced" data-advanced hidden>
+          <details open>
+            <summary>Advanced options</summary>
+            <div class="inference-form__advanced-grid" data-advanced-grid></div>
+          </details>
+        </div>
+
+        <!-- Inline status banner for validation and runtime feedback -->
+        <div class="inference-form__status" data-status hidden role="status" aria-live="polite"></div>
+
+        <section class="inference-progress" data-progress hidden>
+          <header class="inference-progress__header">
+            <h4>Status timeline</h4>
+            <span class="inference-progress__hint muted">We’ll show download + inference progress here.</span>
+          </header>
+          <div class="inference-progress__bar">
+            <div class="inference-progress__bar-fill" data-progress-bar></div>
+          </div>
+          <ol class="inference-progress__steps" data-progress-steps></ol>
+        </section>
+
+        <footer class="inference-form__actions">
+          <button type="button" class="btn-ghost" data-cancel>Cancel</button>
+          <button type="submit" class="neon-run" data-run>
+            <span class="neon-run__icon">▶</span>
+            <span class="neon-run__label">Run inference</span>
+          </button>
+        </footer>
+      </form>
+
+      <!-- Right-hand column: most recent inference output -->
+      <aside class="inference-output" data-output hidden>
+        <div class="inference-output__header">
+          <h4 class="inference-section__title">Latest result</h4>
+          <div class="inference-output__meta muted" data-output-meta></div>
+        </div>
+        <div class="inference-output__body" data-output-body>
+          <div class="inference-output__empty muted" data-output-empty>
+            Run the model to see results here.
+          </div>
+          <pre class="inference-output__text" data-output-text hidden></pre>
+          <pre class="inference-output__json" data-output-json hidden></pre>
+          <img class="inference-output__image" data-output-image hidden alt="Generated image preview" />
+          <audio class="inference-output__audio" data-output-audio controls hidden></audio>
+          <video class="inference-output__video" data-output-video controls hidden></video>
+          <div class="inference-output__files" data-output-files hidden></div>
+        </div>
+      </aside>
+    </section>
+  </div>
+</template>
