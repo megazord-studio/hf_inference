@@ -60,6 +60,8 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             model=spec["model_id"],
             trust_remote_code=True,
             device=device_arg(dev),
+            device_map=None,  # avoid auto device mapping at load time
+            low_cpu_mem_usage=False,  # avoid init-empty-weights path
             **extra_args,  # pass through exactly as provided
         )
         out_any: Any = pl(image=img, text=prompt)
@@ -76,6 +78,8 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             model=spec["model_id"],
             trust_remote_code=True,
             device=device_arg(dev),
+            device_map=None,  # avoid auto device mapping at load time
+            low_cpu_mem_usage=False,  # avoid init-empty-weights path
             **extra_args,  # pass through exactly as provided
         )
         out2: Any = pl2(img)

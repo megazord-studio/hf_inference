@@ -173,6 +173,8 @@ def _final_caption_fallback(img: Image.Image, dev: str) -> Dict[str, Any]:
             "task": "image-to-text",
             "model": "nlpconnect/vit-gpt2-image-captioning",
             "device": device_arg(dev),
+            "device_map": None,  # avoid auto device mapping at load time
+            "low_cpu_mem_usage": False,  # avoid init-empty-weights path
         }
         pl = cast(ImageToTextPipeline, pipeline(**pl_kwargs))
         # Call using positional 'inputs' to satisfy overload (inputs: Image | str)
@@ -207,7 +209,11 @@ def _vlm_minicpm(
             spec["model_id"], trust_remote_code=True
         )
         model = AutoModelForVision2Seq.from_pretrained(
-            spec["model_id"], trust_remote_code=True, torch_dtype=torch.float16
+            spec["model_id"],
+            trust_remote_code=True,
+            torch_dtype=torch.float16,
+            device_map=None,  # avoid auto device mapping at load time
+            low_cpu_mem_usage=False,  # avoid init-empty-weights path
         ).to(torch.device(device_str()))
         text = (
             prompt
@@ -231,6 +237,8 @@ def _vlm_llava(
             "model": spec["model_id"],
             "trust_remote_code": True,
             "device": device_arg(dev),
+            "device_map": None,  # avoid auto device mapping at load time
+            "low_cpu_mem_usage": False,  # avoid init-empty-weights path
         }
         vqa = cast(VisualQuestionAnsweringPipeline, pipeline(**vqa_kwargs))
         ans = vqa(image=img, question=q)
@@ -256,7 +264,11 @@ def _vlm_florence2(
             spec["model_id"], trust_remote_code=True
         )
         model = AutoModelForCausalLM.from_pretrained(
-            spec["model_id"], trust_remote_code=True, torch_dtype=torch.float16
+            spec["model_id"],
+            trust_remote_code=True,
+            torch_dtype=torch.float16,
+            device_map=None,  # avoid auto device mapping at load time
+            low_cpu_mem_usage=False,  # avoid init-empty-weights path
         ).to(torch.device(device_str()))  # type: ignore
         text = prompt or "Describe the image briefly and include one color."
         inputs = _proc_inputs(proc, text, img, model)
