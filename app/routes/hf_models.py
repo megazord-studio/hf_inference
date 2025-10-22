@@ -1,24 +1,42 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
-from fastapi import APIRouter, Query, Request
+import requests
+from fastapi import APIRouter
+from fastapi import Query
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from app.runners import RUNNERS
-from app.services.hf_models_service import (
-    fetch_all_by_task,
-    gated_to_str,
-    get_cached_min,
-    set_cached_min,
-)
+from app.services.hf_models_service import fetch_all_by_task
+from app.services.hf_models_service import gated_to_str
+from app.services.hf_models_service import get_cached_min
+from app.services.hf_models_service import set_cached_min
+from app.task_schemas import get_schema
 
 _templates_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 templates = Jinja2Templates(directory=_templates_dir)
 
 router = APIRouter(tags=["models"])
+
+
+@router.get("/run", response_class=JSONResponse)
+def get_run_schema(
+    task: str = Query(..., description="Pipeline tag for the inference modal"),
+) -> JSONResponse:
+    """Return the UI schema for a task (defines form fields for the inference modal)."""
+    if task not in RUNNERS:
+        return JSONResponse(
+            {"error": f"unsupported task '{task}'", "supported": sorted(RUNNERS.keys())},
+            status_code=400,
+        )
+    return JSONResponse({"task": task, "schema": get_schema(task)})
 
 
 @router.get("/models", response_class=JSONResponse)
@@ -55,6 +73,20 @@ def list_models_minimal(
 
     try:
         models = fetch_all_by_task(task, page_limit=limit, hard_page_cap=200)
+    except requests.HTTPError as e:
+        # Return stale cache if available when rate limited
+        stale = get_cached_min(task, allow_stale=True)
+        status = e.response.status_code if e.response is not None else 502
+        headers = {"X-HF-Error": str(e)}
+        if stale is not None:
+            headers["X-HF-Cache"] = "stale"
+            return JSONResponse(stale, headers=headers, status_code=200)
+        # No stale cache - return error
+        hint = None
+        if status == 429:
+            hint = "Hugging Face rate limit hit. Wait a bit and retry or set HF_TOKEN."
+        payload = {"error": "hf_api_failed", "reason": str(e), **({"hint": hint} if hint else {})}
+        return JSONResponse(payload, status_code=status, headers=headers)
     except Exception as e:
         return JSONResponse({"error": "hf_api_failed", "reason": str(e)}, status_code=502)
 
