@@ -6,11 +6,25 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 ## [Unreleased] - YYYY-MM-DD
 
+## [0.2.0] - 2025-10-22
+
 ### Added
 
-- Authentication support with bearer tokens and login endpoint
-- Fix docker and build issues
-- Add run modal for models
+- Interactive run modal with schema-driven forms
+- File upload support with image/audio/video previews
+- Progress timeline for inference status
+- Inline media preview for generated outputs (images, audio, video)
+
+### Changed
+
+- Refactored inference modal controller for better readability
+- Improved modal layout with scrollable Shoelace dialog
+- Updated neon run button styling and accessibility
+- Enlarged run column in models table
+
+### Removed
+
+- Legacy placeholder run modal template
 
 ## [0.1.0] - 2025-10-14
 
