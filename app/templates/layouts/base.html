@@ -27,7 +27,9 @@
   {% block extra_head %}{% endblock %}
 </head>
 <body class="min-h-screen">
+<canvas id="net-bg" class="net-bg-canvas"></canvas>
 {% block body %}{% endblock %}
+<script src="/static/js/net-bg.js"></script>
 {% block extra_scripts %}{% endblock %}
 </body>
 </html>

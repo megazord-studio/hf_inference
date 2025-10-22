@@ -18,10 +18,11 @@
     <div class="grid grid-cols-1 gap-3">
       {{ forms.render_fields(fields, id_prefix='rf-' ~ (task or 'task')) }}
 
-      <div>
-        <label class="label" for="rf-{{ task or 'task' }}-extra_args"><span
-            class="label-text">Extra args (JSON)</span></label>
-        <textarea class="textarea textarea-bordered font-mono"
+      <div class="form-control w-full">
+        <label class="label" for="rf-{{ task or 'task' }}-extra_args">
+          <span class="label-text">Extra args (JSON)</span>
+        </label>
+        <textarea class="textarea textarea-bordered w-full font-mono"
                   id="rf-{{ task or 'task' }}-extra_args" name="extra_args"
                   rows="4" placeholder="{}"></textarea>
         <div class="text-xs opacity-70 mt-1">Optional advanced kwargs passed to

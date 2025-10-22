@@ -12,7 +12,7 @@
     // Clear and create modal-box container
     dlg.innerHTML = '';
     const box = document.createElement('div');
-    box.className = 'modal-box p-0 rounded-xl border border-base-300 bg-base-200/95 shadow-2xl';
+    box.className = 'modal-box p-0 rounded-xl border border-base-300 bg-base-200/95 shadow-2xl w-[94vw] md:w-[80vw] lg:max-w-5xl';
     dlg.appendChild(box);
 
     // Close on outside click
@@ -37,7 +37,7 @@
 
       // Close button
       const closeBtn = document.createElement('button');
-      closeBtn.className = 'btn btn-sm btn-circle btn-ghost absolute right-2 top-2';
+      closeBtn.className = 'btn btn-md btn-circle btn-ghost absolute right-3 top-3 text-xl';
       closeBtn.textContent = '✕';
       closeBtn.addEventListener('click', () => dlg.close());
       box.appendChild(closeBtn);

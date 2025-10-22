@@ -4,18 +4,142 @@ body {
   margin: 0;
   font-family: "Orbitron", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   font-weight: 400;
+  /* Subtle gradient background with soft vignette grid (lower alpha) */
+  background: radial-gradient(1100px 520px at 8% -10%, rgba(147, 51, 234, 0.10), transparent 60%),
+  radial-gradient(900px 420px at 110% 10%, rgba(6, 182, 212, 0.08), transparent 55%),
+  linear-gradient(180deg, rgba(2, 6, 23, 0.9), rgba(2, 6, 23, 0.92));
 }
 
-/* Small helper for count chip (optional) */
-#count { display: inline-block; }
-
-/* Ensure dialog uses full DaisyUI modal-box width on small screens */
-@media (max-width: 520px) {
-  dialog.modal > .modal-box { width: 92vw; }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+  linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 28px 28px, 28px 28px;
+  /* fade the grid towards edges */
+  mask-image: radial-gradient(60% 60% at 50% 40%, black, transparent 90%);
+  pointer-events: none;
+  z-index: 1;
+  animation: gridDrift 120s linear infinite alternate;
 }
 
-/* Stronger modal backdrop for better contrast */
-dialog.modal::backdrop {
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(2px);
+/* Thin top accent bar */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, hsl(var(--p)), hsl(var(--a)));
+  opacity: 0.8;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Canvas-based neural net background (behind content) */
+.net-bg-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Subtle grid drift animation and orb glow for background */
+@keyframes gridDrift {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 28px 14px, 14px 28px; }
+}
+
+/* Gradient brand text for the title */
+.brand {
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  background: linear-gradient(92deg, hsl(var(--p)) 0%, hsl(var(--a)) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 18px color-mix(in hsl, hsl(var(--p)) 40%, transparent);
+}
+
+/* Lift cards slightly on hover */
+.card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: rgba(255, 255, 255, 0.015);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px color-mix(in hsl, hsl(var(--a)) 20%, transparent) inset;
+}
+
+/* Buttons: soft glow and snappy hover */
+.btn-primary, .btn-accent {
+  position: relative;
+  transition: transform 0.08s ease, box-shadow 0.2s ease;
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+.btn-primary:hover, .btn-accent:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px color-mix(in hsl, hsl(var(--a)) 35%, transparent);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in hsl, hsl(var(--a)) 50%, transparent);
+}
+
+/* Inputs/selects: clear focus affordance */
+.input.input-bordered:focus,
+.select.select-bordered:focus {
+  outline: none;
+  border-color: hsl(var(--a));
+  box-shadow: 0 0 0 2px color-mix(in hsl, hsl(var(--a)) 60%, transparent);
+}
+
+/* Nicer selection color */
+::selection {
+  background: hsl(var(--a));
+  color: #ffffff;
+}
+
+/* Scrollbar polish (WebKit) */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+
+*::-webkit-scrollbar-track { background: transparent; }
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+}
+
+/* Developer-friendly monospace polish */
+code, kbd, samp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+pre, code {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+}
+
+pre {
+  padding: 0.875rem 1rem;
+  overflow: auto;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  html::before, body::before { animation: none !important; }
+}
+
+/* DaisyUI theme tokens (needed for gradients/accents) */
+html[data-theme="synthwave"] {
+  --a: 265 85% 68%; /* accent: techy violet */
+  --p: 200 90% 58%; /* primary: deep cyan */
 }
