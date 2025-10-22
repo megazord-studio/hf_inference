@@ -1,4 +1,8 @@
-from typing import Any, Dict, Optional, TypedDict
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import TypedDict
+
 from fastapi import UploadFile
 
 

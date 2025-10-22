@@ -73,8 +73,8 @@ curl -X POST http://localhost:8000/inference \
 
 The server can be run open (default) or protected with either:
 
-1. Bearer token(s) via Authorization header
-2. Login form and signed session cookie (/login)
+- Bearer token(s) via Authorization header 
+- Login form and signed session cookie (/login)
 
 If you do NOT configure any auth-related env vars, the middleware fails OPEN (no authentication required). Set at least
 one of the secrets below for any protection.
