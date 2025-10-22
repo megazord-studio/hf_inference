@@ -1,22 +1,48 @@
 {% import "macros/form_fields.html" as forms %}
 
-<form id="runForm" class="run-form" method="post" enctype="multipart/form-data" novalidate>
-  <div class="form-meta muted" style="margin-bottom:8px;">
-    <span>Task:</span> <code>{{ task }}</code>
-    {% if model_id %}<span style="margin-left:12px;">Model:</span> <code title="{{ model_id }}">{{ model_id }}</code>{% endif %}
-  </div>
+<div id="runWrap">
+  <form id="runForm" class="run-form" method="post" enctype="multipart/form-data" novalidate
+        hx-post="/run-form" hx-trigger="submit" hx-encoding="multipart/form-data"
+        hx-target="#runWrap" hx-swap="innerHTML">
+    <input type="hidden" name="task" value="{{ task }}" />
+    <input type="hidden" name="model_id" value="{{ model_id }}" />
 
-  <div class="form-fields">
-    {{ forms.render_fields(fields, id_prefix='rf-' ~ (task or 'task')) }}
-
-    <div class="form-row is-json">
-      <label class="form-label" for="rf-{{ task or 'task' }}-extra_args">Extra args (JSON)</label>
-      <textarea class="form-textarea monospace" id="rf-{{ task or 'task' }}-extra_args" name="extra_args" rows="4" data-type="json" placeholder="{}"></textarea>
-      <div class="form-hint muted">Optional advanced kwargs passed to the pipeline/runner.</div>
+    <div class="form-meta muted" style="margin-bottom:8px;">
+      <span>Task:</span> <code>{{ task }}</code>
+      {% if model_id %}<span style="margin-left:12px;">Model:</span> <code title="{{ model_id }}">{{ model_id }}</code>{% endif %}
     </div>
-  </div>
 
-  <div class="form-actions" style="display:flex; gap:8px; justify-content:flex-end; margin-top: 12px;">
-    <button type="submit" class="btn-primary" disabled title="Submission not wired yet">Run</button>
+    <div class="form-fields">
+      {{ forms.render_fields(fields, id_prefix='rf-' ~ (task or 'task')) }}
+
+      <div class="form-row is-json">
+        <label class="form-label" for="rf-{{ task or 'task' }}-extra_args">Extra args (JSON)</label>
+        <textarea class="form-textarea monospace" id="rf-{{ task or 'task' }}-extra_args" name="extra_args" rows="4" data-type="json" placeholder="{}"></textarea>
+        <div class="form-hint muted">Optional advanced kwargs passed to the pipeline/runner.</div>
+      </div>
+    </div>
+
+    <div class="form-actions" style="display:flex; gap:8px; justify-content:flex-end; margin-top: 12px;">
+      <button type="submit" class="btn-primary" title="Submit to run">Run</button>
+    </div>
+  </form>
+</div>
+
+<template id="runSpinnerTpl">
+  <div class="run-form" style="display:flex; align-items:center; gap:10px; padding: 12px 14px 16px;">
+    <sl-spinner style="font-size:22px;"></sl-spinner>
+    <span class="muted">Running…</span>
   </div>
-</form>
+</template>
+
+<script>
+(function(){
+  const form = document.getElementById('runForm');
+  const wrap = document.getElementById('runWrap');
+  const tpl = document.getElementById('runSpinnerTpl');
+  if(!form || !wrap || !tpl) return;
+  form.addEventListener('htmx:beforeRequest', function(){
+    wrap.innerHTML = tpl.innerHTML;
+  });
+})();
+</script>
