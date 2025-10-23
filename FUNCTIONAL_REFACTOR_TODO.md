@@ -21,27 +21,25 @@
 - [x] Simplify run_form route to delegate to inference
 - [x] Remove mutable operations (.copy(), dict() calls)
 
+### Phase 3: Functional Utilities ✅
+- [x] Create higher-order functions module (compose, pipe, curry, safe_call)
+- [x] Add Result type for functional error handling
+- [x] Create runner utilities with HOFs (with_standard_error_handling, etc.)
+- [x] Document impure functions clearly (cache mutations)
+
 ## In Progress 🔄
 
-### Phase 3: Immutable State Management (Priority: High)
-- [ ] Make cache in hf_models_service immutable (use frozendict or similar)
-- [ ] Review auth middleware for functional approach
-- [ ] Document impure functions clearly (I/O, logging)
-
-### Phase 4: Higher-Order Functions (Priority: Medium)
-- [ ] Create error handling HOFs/decorators
-- [ ] Add function composition utilities
-- [ ] Create pipeline functions for request processing
+### Phase 4: Documentation & Examples
+- [x] Document pure vs impure functions
+- [x] Add docstrings explaining side effects
+- [x] Create example showing functional composition
+- [ ] Update more runners with functional pattern examples
 
 ### Phase 5: Runner Edge Cases (Priority: Medium)
 - [ ] Review each runner for model-specific edge cases
 - [ ] Document assumptions about model inputs/outputs
 - [ ] Add validation for model requirements
-
-### Phase 6: Pure Functions Audit (Priority: Low)
-- [ ] Audit all functions for side effects
-- [ ] Mark impure functions with clear docstrings
-- [ ] Separate I/O from pure logic where possible
+- [ ] Add tests for edge cases
 
 ## Key Improvements Made
 
@@ -55,12 +53,63 @@
    - Pure helper function _parse_spec_from_form (no side effects)
    - Removed .copy() and dict() mutations from runner_spec construction
 
-3. **Improved type safety**:
-   - Registry type is Mapping (immutable interface)
-   - Clear function signatures showing all inputs/outputs
+3. **Functional utilities created**:
+   - `app/infrastructure/functional.py`: compose, pipe, curry, safe_call, etc.
+   - `app/infrastructure/runner_utils.py`: HOFs for runners
+   - Higher-order functions for error handling
+
+4. **Clear documentation of purity**:
+   - Impure functions explicitly documented (I/O, mutations)
+   - Pure functions marked in docstrings
+   - Side effects clearly stated
+
+## Functional Programming Patterns Implemented
+
+1. **Pure Functions** ✅
+   - Registry operations
+   - Form parsing helper
+   - All transformation logic
+
+2. **Immutability** ✅
+   - Registry returns new values
+   - No mutations in core logic
+   - Immutable Mapping types
+
+3. **Higher-Order Functions** ✅
+   - compose, pipe for function composition
+   - with_standard_error_handling for runners
+   - validate_spec_fields decorator
+   - memoize for caching pure functions
+
+4. **Functional Error Handling** ✅
+   - Result type (value, error) tuples
+   - safe_call for exception-free error handling
+   - either for Result processing
+
+5. **First-Class Functions** ✅
+   - Runners passed as values
+   - HOFs accept and return functions
+   - Currying support
+
+## Architecture Summary
+
+```
+Pure Functions (No Side Effects):
+- Registry operations (create, register, get, etc.)
+- Form parsing (_parse_spec_from_form)
+- Data transformations (safe_json, gated_to_str)
+- Composition utilities (compose, pipe)
+
+Impure Functions (Clearly Documented):
+- Runner execution (calls external APIs)
+- Cache operations (module-level state mutations)
+- File I/O (disk reads/writes)
+- Logging (side effect)
+- HTTP requests (network I/O)
+```
 
 ## Next Steps
-1. Make hf_models_service cache immutable
-2. Add higher-order functions for error handling
-3. Review runners for edge cases
-4. Full purity audit
+1. Review runners for edge cases
+2. Add more runner examples with HOFs
+3. Consider more functional patterns where beneficial
+4. Performance testing

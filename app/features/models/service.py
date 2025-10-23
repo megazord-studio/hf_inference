@@ -15,25 +15,56 @@ import requests  # type: ignore[import-untyped]
 
 HF_API = "https://huggingface.co/api/models"
 
-# --- simple in-memory caches (10 min) ----------------------------------------
+# --- Functional cache with explicit state management ------------------------
+# Note: This module-level cache is impure by necessity (I/O boundary).
+# We document it clearly and provide functional operations around it.
+
 _CACHE_TTL = timedelta(minutes=10)
-_cache_min: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
-_cache_full: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
+
+# Immutable cache entry type
+CacheEntry = Tuple[datetime.datetime, List[Dict[str, Any]]]
+
+# Module-level cache (impure, but isolated)
+# This is the only mutable state in this module, clearly documented.
+_cache_min: Dict[str, CacheEntry] = {}
 
 
 def get_cached_min(task: str) -> Optional[List[Dict[str, Any]]]:
-    ent = _cache_min.get(task)
-    if not ent:
+    """
+    Get cached data for task if valid (pure read operation).
+    
+    Note: This function is impure as it reads module-level state,
+    but it has no side effects on the cache itself.
+    
+    Args:
+        task: Task identifier
+    
+    Returns:
+        Cached data if valid, None otherwise
+    """
+    entry = _cache_min.get(task)
+    if entry is None:
         return None
-    ts, data = ent
-    return (
-        data
-        if (datetime.datetime.now(datetime.UTC) - ts) < _CACHE_TTL
-        else None
-    )
+    
+    timestamp, data = entry
+    is_valid = (datetime.datetime.now(datetime.UTC) - timestamp) < _CACHE_TTL
+    return data if is_valid else None
 
 
 def set_cached_min(task: str, data: List[Dict[str, Any]]) -> None:
+    """
+    Cache data for task (impure write operation).
+    
+    Note: This function explicitly mutates module-level state.
+    It's one of the few impure functions in the codebase, clearly marked.
+    
+    Args:
+        task: Task identifier
+        data: Data to cache
+    
+    Side effects:
+        - Mutates _cache_min module-level dict
+    """
     _cache_min[task] = (datetime.datetime.now(datetime.UTC), data)
 
 
