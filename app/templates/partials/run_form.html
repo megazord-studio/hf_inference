@@ -22,6 +22,10 @@
         <textarea class="textarea textarea-bordered w-full font-mono"
                   id="rf-{{ task or 'task' }}-extra_args" name="extra_args"
                   rows="4" placeholder="{}"></textarea>
+        
+        {# --- Validation message placeholder --- #}
+        <div id="extraArgsError" class="text-xs text-error mt-1" aria-live="polite"></div>
+        
         <div class="text-xs opacity-70 mt-1">Optional advanced kwargs passed to
           the pipeline/runner.
         </div>
@@ -40,5 +44,3 @@
     <span class="opacity-70">Running…</span>
   </div>
 </template>
-
-{# Behavior moved to static JS subcomponents #}
