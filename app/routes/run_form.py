@@ -6,11 +6,14 @@ import time
 from pathlib import Path
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 from fastapi import APIRouter
 from fastapi import File
+from fastapi import HTTPException
 from fastapi import Query
 from fastapi import Request
 from fastapi import UploadFile
@@ -184,7 +187,6 @@ async def post_run_form(
 
     # Call inference endpoint directly and wrap response in HTML
     from app.routes.inference import inference as run_inference
-    import time
 
     start = time.time()
     try:
@@ -197,22 +199,37 @@ async def post_run_form(
         duration = time.time() - start
 
         # Check if response is JSON
+        result_data: Any
         if hasattr(response, "body"):
-            result_data = json.loads(response.body.decode("utf-8"))
+            body_bytes = (
+                response.body
+                if isinstance(response.body, bytes)
+                else bytes(response.body)
+            )
+            result_data = json.loads(body_bytes.decode("utf-8"))
         else:
             # Handle other response types
             result_data = {"result": "Success"}
 
         # Determine result type for display
         result_type = "json"
-        formatted_data = json.dumps(result_data, indent=2)
-        
+        formatted_data: Union[str, List[str]] = json.dumps(
+            result_data, indent=2
+        )
+
         if isinstance(result_data, list):
             result_type = "list"
-            formatted_data = [json.dumps(item, indent=2) if isinstance(item, dict) else str(item) for item in result_data]
+            formatted_data = [
+                json.dumps(item, indent=2)
+                if isinstance(item, dict)
+                else str(item)
+                for item in result_data
+            ]
         elif isinstance(result_data, dict):
             # Check if it's a simple text result
-            if "result" in result_data and isinstance(result_data["result"], str):
+            if "result" in result_data and isinstance(
+                result_data["result"], str
+            ):
                 result_type = "text"
                 formatted_data = result_data["result"]
             else:
@@ -230,19 +247,37 @@ async def post_run_form(
                 "duration": duration,
             },
         )
+    except HTTPException as e:
+        duration = time.time() - start
+        error_msg = str(e.detail)
+
+        # Extract more detailed error message if available
+        if isinstance(e.detail, dict):
+            error_msg = json.dumps(e.detail, indent=2)
+
+        logger.warning(
+            "Inference HTTPException in run_form: status=%s detail=%s",
+            e.status_code,
+            error_msg,
+        )
+
+        return templates.TemplateResponse(
+            "partials/result_display.html",
+            {
+                "request": request,
+                "error": True,
+                "error_message": error_msg,
+                "task": task,
+                "model_id": model_id,
+                "duration": duration,
+            },
+        )
     except Exception as e:
         duration = time.time() - start
         error_msg = str(e)
-        
-        # Extract more detailed error message if available
-        if hasattr(e, "detail"):
-            if isinstance(e.detail, dict):
-                error_msg = json.dumps(e.detail, indent=2)
-            else:
-                error_msg = str(e.detail)
-        
+
         logger.exception("Inference failed in run_form")
-        
+
         return templates.TemplateResponse(
             "partials/result_display.html",
             {
