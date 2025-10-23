@@ -1,111 +1,111 @@
-"""Unit tests for the core registry module.
+"""Unit tests for the functional core registry module.
 
-Scenario: Task runner registry manages task-to-function mappings with validation.
+Scenario: Functional task runner registry provides immutable operations for
+managing task-to-function mappings with validation.
 
 Test coverage:
-- Registration of new tasks
-- Duplicate registration prevention
+- Registry creation
+- Registration of new tasks (returns new registry)
+- Duplicate registration detection
 - Task lookup (supported and unsupported)
 - Bulk registration
 - Registry listing
+- Immutability verification
 """
 
 import pytest
 
-from app.core.registry import RunnerRegistry
+from app.core.registry import bulk_register
+from app.core.registry import create_registry
+from app.core.registry import get_runner
+from app.core.registry import get_supported_tasks
+from app.core.registry import is_task_supported
+from app.core.registry import register_runner
 from app.types import RunnerSpec
 
 
 def dummy_runner(spec: RunnerSpec, dev: str) -> dict:
-    """Dummy runner for testing."""
+    """Dummy runner for testing (pure function)."""
     return {"result": "ok", "task": spec.get("task"), "device": dev}
 
 
 def another_runner(spec: RunnerSpec, dev: str) -> dict:
-    """Another dummy runner for testing."""
+    """Another dummy runner for testing (pure function)."""
     return {"result": "ok", "task": spec.get("task"), "different": True}
 
 
-class TestRunnerRegistry:
-    """Test scenarios for RunnerRegistry."""
+class TestFunctionalRegistry:
+    """Test scenarios for functional registry (immutable operations)."""
 
-    def test_given_empty_registry_when_registering_task_then_task_is_added(
+    def test_given_empty_mappings_when_creating_registry_then_empty_registry_created(
+        self,
+    ) -> None:
+        """Given: No initial mappings
+        When: Creating a new registry
+        Then: Empty registry is created
+        """
+        registry = create_registry()
+        assert len(registry) == 0
+        assert get_supported_tasks(registry) == []
+
+    def test_given_empty_registry_when_registering_task_then_new_registry_returned(
         self,
     ) -> None:
         """Given: Empty registry
         When: Registering a new task
-        Then: Task is successfully added and retrievable
+        Then: New registry is returned with task added, original unchanged
         """
-        registry = RunnerRegistry()
-        registry.register("text-generation", dummy_runner)
+        original = create_registry()
+        new_registry, error = register_runner(original, "text-generation", dummy_runner)
+        
+        assert error is None
+        assert len(original) == 0  # Original unchanged (immutable)
+        assert len(new_registry) == 1
+        assert get_runner(new_registry, "text-generation") == dummy_runner
 
-        runner = registry.get("text-generation")
-        assert runner is not None
-        assert runner == dummy_runner
-
-    def test_given_registry_when_registering_duplicate_task_then_raises_error(
+    def test_given_registry_when_registering_duplicate_task_then_returns_error(
         self,
     ) -> None:
         """Given: Registry with existing task
         When: Attempting to register same task again
-        Then: ValueError is raised
+        Then: Returns error message and original registry
         """
-        registry = RunnerRegistry()
-        registry.register("text-generation", dummy_runner)
-
-        with pytest.raises(ValueError, match="already registered"):
-            registry.register("text-generation", another_runner)
-
-    def test_given_registry_when_updating_task_then_runner_is_replaced(
-        self,
-    ) -> None:
-        """Given: Registry with existing task
-        When: Updating the task with new runner
-        Then: New runner replaces old one
-        """
-        registry = RunnerRegistry()
-        registry.register("text-generation", dummy_runner)
-        registry.update("text-generation", another_runner)
-
-        runner = registry.get("text-generation")
-        assert runner is not None
-        assert runner == another_runner
+        registry = create_registry({"text-generation": dummy_runner})
+        new_registry, error = register_runner(registry, "text-generation", another_runner)
+        
+        assert error is not None
+        assert "already registered" in error
+        assert new_registry == registry  # Registry unchanged
 
     def test_given_registry_when_checking_supported_task_then_returns_true(
         self,
     ) -> None:
         """Given: Registry with registered task
         When: Checking if task is supported
-        Then: Returns True
+        Then: Returns True (pure function, no mutation)
         """
-        registry = RunnerRegistry()
-        registry.register("text-generation", dummy_runner)
-
-        assert registry.is_supported("text-generation") is True
+        registry = create_registry({"text-generation": dummy_runner})
+        assert is_task_supported(registry, "text-generation") is True
 
     def test_given_registry_when_checking_unsupported_task_then_returns_false(
         self,
     ) -> None:
         """Given: Registry without a specific task
         When: Checking if unknown task is supported
-        Then: Returns False
+        Then: Returns False (pure function)
         """
-        registry = RunnerRegistry()
-        registry.register("text-generation", dummy_runner)
-
-        assert registry.is_supported("image-classification") is False
+        registry = create_registry({"text-generation": dummy_runner})
+        assert is_task_supported(registry, "image-classification") is False
 
     def test_given_registry_when_getting_unknown_task_then_returns_none(
         self,
     ) -> None:
         """Given: Registry without a specific task
         When: Getting runner for unknown task
-        Then: Returns None
+        Then: Returns None (pure function)
         """
-        registry = RunnerRegistry()
-        registry.register("text-generation", dummy_runner)
-
-        runner = registry.get("unknown-task")
+        registry = create_registry({"text-generation": dummy_runner})
+        runner = get_runner(registry, "unknown-task")
         assert runner is None
 
     def test_given_registry_when_listing_tasks_then_returns_sorted_list(
@@ -113,14 +113,15 @@ class TestRunnerRegistry:
     ) -> None:
         """Given: Registry with multiple tasks
         When: Requesting supported tasks list
-        Then: Returns alphabetically sorted task names
+        Then: Returns alphabetically sorted task names (pure function)
         """
-        registry = RunnerRegistry()
-        registry.register("text-generation", dummy_runner)
-        registry.register("image-classification", another_runner)
-        registry.register("audio-classification", dummy_runner)
-
-        tasks = registry.supported_tasks()
+        registry = create_registry({
+            "text-generation": dummy_runner,
+            "image-classification": another_runner,
+            "audio-classification": dummy_runner,
+        })
+        
+        tasks = get_supported_tasks(registry)
         assert tasks == [
             "audio-classification",
             "image-classification",
@@ -132,59 +133,85 @@ class TestRunnerRegistry:
     ) -> None:
         """Given: Empty registry
         When: Bulk registering multiple tasks
-        Then: All tasks are successfully added
+        Then: New registry with all tasks is returned
         """
-        registry = RunnerRegistry()
+        original = create_registry()
         mappings = {
             "text-generation": dummy_runner,
             "image-classification": another_runner,
         }
-        registry.bulk_register(mappings)
+        new_registry, errors = bulk_register(original, mappings)
+        
+        assert errors == []
+        assert len(original) == 0  # Original unchanged
+        assert len(new_registry) == 2
+        assert is_task_supported(new_registry, "text-generation")
+        assert is_task_supported(new_registry, "image-classification")
+        assert get_runner(new_registry, "text-generation") == dummy_runner
+        assert get_runner(new_registry, "image-classification") == another_runner
 
-        assert registry.is_supported("text-generation")
-        assert registry.is_supported("image-classification")
-        assert registry.get("text-generation") == dummy_runner
-        assert registry.get("image-classification") == another_runner
-
-    def test_given_registry_with_task_when_bulk_registering_duplicate_then_raises_error(
+    def test_given_registry_with_task_when_bulk_registering_duplicate_then_returns_errors(
         self,
     ) -> None:
         """Given: Registry with existing task
         When: Bulk registering with duplicate task
-        Then: ValueError is raised and registry remains unchanged
+        Then: Returns list of errors
         """
-        registry = RunnerRegistry()
-        registry.register("text-generation", dummy_runner)
-
+        registry = create_registry({"text-generation": dummy_runner})
         mappings = {
             "text-generation": another_runner,
             "image-classification": another_runner,
         }
-
-        with pytest.raises(ValueError, match="already registered"):
-            registry.bulk_register(mappings)
-
-        # Original runner should still be there
-        assert registry.get("text-generation") == dummy_runner
-        # New task should not be added if bulk fails partway
-        # (but this depends on implementation - currently it would add before failing)
+        
+        new_registry, errors = bulk_register(registry, mappings)
+        
+        assert len(errors) > 0
+        assert any("text-generation" in err for err in errors)
 
     def test_given_registered_runner_when_calling_it_then_returns_expected_result(
         self,
     ) -> None:
-        """Given: Registry with a functional runner
+        """Given: Registry with a pure runner function
         When: Retrieving and calling the runner
-        Then: Runner executes correctly
+        Then: Runner executes correctly (pure function behavior)
         """
-        registry = RunnerRegistry()
-        registry.register("text-generation", dummy_runner)
-
-        runner = registry.get("text-generation")
+        registry = create_registry({"text-generation": dummy_runner})
+        runner = get_runner(registry, "text-generation")
         assert runner is not None
-
-        spec: RunnerSpec = {"model_id": "gpt2", "task": "text-generation", "payload": {}}
+        
+        spec: RunnerSpec = {
+            "model_id": "gpt2",
+            "task": "text-generation",
+            "payload": {}
+        }
         result = runner(spec, "cpu")
-
+        
         assert result["result"] == "ok"
         assert result["task"] == "text-generation"
         assert result["device"] == "cpu"
+    
+    def test_given_registry_when_multiple_operations_then_original_never_mutated(
+        self,
+    ) -> None:
+        """Given: A registry
+        When: Performing multiple operations
+        Then: Original registry is never mutated (immutability test)
+        """
+        original = create_registry({"text-generation": dummy_runner})
+        
+        # Perform various operations
+        reg1, _ = register_runner(original, "new-task", another_runner)
+        reg2, _ = bulk_register(original, {"another-task": dummy_runner})
+        _ = get_runner(original, "text-generation")
+        _ = is_task_supported(original, "new-task")
+        _ = get_supported_tasks(original)
+        
+        # Original should be unchanged
+        assert len(original) == 1
+        assert "text-generation" in original
+        assert "new-task" not in original
+        assert "another-task" not in original
+        
+        # New registries have their own state
+        assert "new-task" in reg1
+        assert "another-task" in reg2

@@ -1,7 +1,12 @@
+"""Task runner registry using functional, immutable approach.
+
+All runners are pure functions that take (RunnerSpec, device_str) and return Dict.
+The registry is immutable and operations return new registries.
+"""
 from typing import Any
 from typing import Dict
 
-from app.core.registry import RunnerRegistry
+from app.core.registry import create_registry
 
 from .audio_classification import run_audio_classification
 from .automatic_speech_recognition import run_asr
@@ -35,8 +40,9 @@ from .zero_shot_classification import run_zero_shot_classification
 from .zero_shot_image_classification import run_zero_shot_image_classification
 from .zero_shot_object_detection import run_zero_shot_object_detection
 
-# Legacy static mapping for backward compatibility
-RUNNERS_STATIC: Dict[str, Any] = {
+# Immutable mapping of tasks to runner functions
+# This is the source of truth for all available runners
+_RUNNER_MAPPINGS: Dict[str, Any] = {
     "text-generation": run_text_generation,
     "text2text-generation": run_text2text,
     "zero-shot-classification": run_zero_shot_classification,
@@ -70,9 +76,9 @@ RUNNERS_STATIC: Dict[str, Any] = {
     "image-to-image": run_image_to_image,
 }
 
-# Create and populate the registry
-_registry = RunnerRegistry()
-_registry.bulk_register(RUNNERS_STATIC)
+# Create immutable registry (functional approach)
+_REGISTRY = create_registry(_RUNNER_MAPPINGS)
 
 # Backward-compatible dict-like interface
-RUNNERS = RUNNERS_STATIC
+# This allows existing code to use RUNNERS.get(task) etc.
+RUNNERS = _RUNNER_MAPPINGS
