@@ -1,5 +1,14 @@
 (function () {
+  // --------- DOM helpers ---------
+  const SELECTORS = {
+    runForm: '[data-run-form]',
+    runWrap: '[data-run-wrap]',
+    spinner: '[data-run-spinner]'
+  };
   function $(sel, ctx = document) { return ctx.querySelector(sel); }
+  function $all(sel, ctx = document) { return Array.from(ctx.querySelectorAll(sel)); }
+
+  // --------- Utilities ---------
   function escapeHtml(s) {
     return String(s)
       .replaceAll('&', '&amp;')
@@ -9,16 +18,26 @@
       .replaceAll("'", '&#39;');
   }
 
+  function preBlock(text, extraClasses = 'text-sm') {
+    return `\n<pre class="p-3 bg-base-300/40 rounded-lg overflow-auto ${extraClasses}"><code>${escapeHtml(text)}</code></pre>`;
+  }
+
+  function findWrap(start) {
+    return start.closest(SELECTORS.runWrap) || $('#runWrap');
+  }
+  function findSpinner() {
+    return document.querySelector(SELECTORS.spinner);
+  }
+
+  // --------- Response rendering ---------
   function renderJSONPretty(wrap, text) {
     let formatted = text;
     try { formatted = JSON.stringify(JSON.parse(text), null, 2); } catch {}
     wrap.innerHTML = (
-      '<div class="space-y-2">' +
-        '<div class="text-sm opacity-70">Response (JSON)</div>' +
-        '<pre class="p-3 bg-base-300/40 rounded-lg overflow-auto text-xs max-h-[70vh]"><code>' +
-          escapeHtml(formatted) +
-        '</code></pre>' +
-      '</div>'
+      `<div class="space-y-2">
+        <div class="text-sm opacity-70">Response (JSON)</div>
+        ${preBlock(formatted, 'text-xs max-h-[70vh]')}
+      </div>`
     );
   }
 
@@ -26,18 +45,20 @@
     const url = URL.createObjectURL(blob);
     let content;
     if (ct.startsWith('image/')) {
-      content = '<img src="' + url + '" alt="Result image" class="max-w-full rounded-lg border border-base-300"/>';
+      content = `<img src="${url}" alt="Result image" class="max-w-full rounded-lg border border-base-300"/>`;
     } else if (ct.startsWith('audio/')) {
-      content = '<audio controls class="w-full"><source src="' + url + '" type="' + ct + '">Your browser does not support the audio element.</audio>';
+      content = `<audio controls class="w-full"><source src="${url}" type="${ct}">Your browser does not support the audio element.</audio>`;
     } else if (ct.startsWith('video/')) {
-      content = '<video controls class="w-full max-h-[70vh] rounded-lg border border-base-300"><source src="' + url + '" type="' + ct + '">Your browser does not support the video tag.</video>';
+      content = `<video controls class="w-full max-h-[70vh] rounded-lg border border-base-300"><source src="${url}" type="${ct}">Your browser does not support the video tag.</video>`;
     } else {
-      content = '<a class="btn btn-sm btn-primary" href="' + url + '" download>Download file</a>';
+      content = `<a class="btn btn-sm btn-primary" href="${url}" download>Download file</a>`;
     }
-    wrap.innerHTML = '<div class="space-y-2">' +
-      '<div class="text-sm opacity-70">Response (' + ct + ')</div>' +
-      '<div class="p-2">' + content + '</div>' +
-      '</div>';
+    wrap.innerHTML = (
+      `<div class="space-y-2">
+        <div class="text-sm opacity-70">Response (${escapeHtml(ct)})</div>
+        <div class="p-2">${content}</div>
+      </div>`
+    );
     setTimeout(() => URL.revokeObjectURL(url), 120000);
   }
 
@@ -60,56 +81,135 @@
     return 'application/octet-stream';
   }
 
+  function isJSONType(ctHeader) {
+    return ctHeader.includes('application/json') || ctHeader.endsWith('+json');
+  }
+  function isTextType(ctHeader) {
+    return ctHeader.startsWith('text/plain');
+  }
+  function isMediaType(ct) {
+    return ['image/', 'audio/', 'video/'].some((p) => ct.startsWith(p));
+  }
+
   async function handleResponse(wrap, res) {
     const ctHeader = (res.headers.get('content-type') || '').toLowerCase();
+
     if (ctHeader.includes('text/html')) {
       wrap.innerHTML = await res.text();
       return;
     }
-    if (ctHeader.includes('application/json') || ctHeader.endsWith('+json')) {
+
+    if (isJSONType(ctHeader)) {
       const text = await res.text();
       renderJSONPretty(wrap, text || '{}');
       return;
     }
-    if (ctHeader.startsWith('text/plain')) {
+
+    if (isTextType(ctHeader)) {
       const text = await res.text();
-      wrap.innerHTML = '<pre class="p-3 bg-base-300/40 rounded-lg overflow-auto text-sm">' + escapeHtml(text) + '</pre>';
+      wrap.innerHTML = preBlock(text, 'text-sm');
       return;
     }
+
     const blob = await res.blob();
     let ct = ctHeader;
     if (!ct || ct === 'application/octet-stream') {
       ct = await sniffContentType(blob);
     }
-    const mediaTypes = ['image/', 'audio/', 'video/'];
-    if (mediaTypes.some(p => ct.startsWith(p)) || ct === 'application/octet-stream') {
+
+    if (isMediaType(ct) || ct === 'application/octet-stream') {
       renderBlob(wrap, ct, blob);
       return;
     }
+
     try {
       const text = await blob.text();
-      wrap.innerHTML = '<pre class="p-3 bg-base-300/40 rounded-lg overflow-auto text-sm">' + escapeHtml(text) + '</pre>';
+      wrap.innerHTML = preBlock(text, 'text-sm');
     } catch {
       renderBlob(wrap, ct || 'binary', blob);
     }
   }
 
-  function findWrap(start) {
-    return start.closest('[data-run-wrap]') || $('#runWrap');
+  // --------- Extra args JSON validation & formatting ---------
+  function getExtraArgsElements(form) {
+    const textarea = form.querySelector('[name="extra_args"]');
+    const errorDiv = form.querySelector('#extraArgsError');
+    return { textarea, errorDiv };
   }
 
-  function findSpinner() {
-    return document.querySelector('[data-run-spinner]');
+  function validateAndFormatExtraArgs(textarea, errorDiv) {
+    if (!textarea || !errorDiv) return true; // nothing to validate
+    const text = textarea.value.trim();
+    errorDiv.textContent = '';
+    textarea.classList.remove('textarea-error', 'input-error');
+
+    if (!text || text === '{}') {
+      if (text === '') textarea.value = '{}';
+      return true;
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        errorDiv.textContent = 'Invalid JSON: Input must be a JSON object (e.g., {"key": "value"}).';
+        textarea.classList.add('textarea-error', 'input-error');
+        return false;
+      }
+      textarea.value = JSON.stringify(parsed, null, 2);
+      return true;
+    } catch (e) {
+      errorDiv.textContent = 'Invalid JSON: ' + (e && e.message ? e.message : String(e));
+      textarea.classList.add('textarea-error', 'input-error');
+      return false;
+    }
   }
 
-  // Event delegation for any dynamically inserted run form
+  function attachExtraArgsValidation(form) {
+    if (!(form instanceof HTMLFormElement)) return;
+    const { textarea, errorDiv } = getExtraArgsElements(form);
+    if (!textarea || !errorDiv) return;
+
+    textarea.addEventListener('blur', function () {
+      validateAndFormatExtraArgs(textarea, errorDiv);
+    });
+
+    if (!textarea.value.trim()) {
+      textarea.value = '{}';
+    }
+  }
+
+  function initExtraArgs() {
+    $all(SELECTORS.runForm).forEach(attachExtraArgsValidation);
+  }
+
+  // Also validate on delegated blur for dynamically inserted forms
+  document.addEventListener('focusout', function (e) {
+    const el = e.target;
+    if (!(el instanceof HTMLElement)) return;
+    if (!el.matches('[name="extra_args"]')) return;
+    const form = el.closest(SELECTORS.runForm);
+    if (!form) return;
+    const { textarea, errorDiv } = getExtraArgsElements(form);
+    validateAndFormatExtraArgs(textarea, errorDiv);
+  }, true);
+
+  // --------- Submit handling ---------
   document.addEventListener('submit', async function (e) {
     const form = e.target;
     if (!(form instanceof HTMLFormElement)) return;
-    if (!form.matches('[data-run-form]')) return;
+    if (!form.matches(SELECTORS.runForm)) return;
     e.preventDefault();
 
     const wrap = findWrap(form);
+
+    // Pre-validate extra_args before sending
+    const { textarea, errorDiv } = getExtraArgsElements(form);
+    const ok = validateAndFormatExtraArgs(textarea, errorDiv);
+    if (!ok) {
+      // Do not submit if invalid JSON
+      return;
+    }
+
     const spinner = findSpinner();
     if (wrap && spinner) wrap.innerHTML = spinner.innerHTML;
 
@@ -123,5 +223,11 @@
       console.error('Run request error', err);
     }
   });
-})();
 
+  // --------- Init ---------
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initExtraArgs);
+  } else {
+    initExtraArgs();
+  }
+})();
