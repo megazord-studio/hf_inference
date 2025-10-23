@@ -12,6 +12,7 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 - Fix docker and build issues
 - Add run modal for models
 - Implement run modal and routes
+- Add code snippet examples in the run modal
 
 ### Changed
 
