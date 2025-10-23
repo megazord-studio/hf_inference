@@ -1,35 +1,51 @@
-{% extends "base.html" %}
+{% extends "layouts/base.html" %}
 {% block title %}Login · HF Model Arcade{% endblock %}
 {% block body %}
-<div class="page-grid"></div>
+<div class="min-h-screen flex items-center justify-center p-4">
+  <div class="card bg-base-200 w-full max-w-md shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title text-2xl">HF Inference</h2>
+      <p class="text-sm opacity-70">Developer login</p>
 
-<div class="wrap">
-  <h1 class="glitch" data-text="HF Inference">HF Inference</h1>
-  <p class="subtitle">Developer login: grab a session, tickle some transformers, ship results.</p>
+      {% if not login_password_enabled %}
+      <div class="alert alert-info text-sm">
+        <span>Password login is disabled. Use your bearer token.</span>
+      </div>
+      {% endif %}
 
-  {% if not login_password_enabled %}
-  <div class="info">Password login is disabled. No INFERENCE_LOGIN_PASSWORD detected; your bearer token is your VIP pass. Proceed accordingly.</div>
-  {% endif %}
+      {% if error %}
+      <div class="alert alert-error text-sm">
+        <span>{{ error }}</span>
+      </div>
+      {% endif %}
 
-  {% if error %}
-  <div class="error">{{ error }}</div>
-  {% endif %}
+      <form method="post" action="/login" autocomplete="on" spellcheck="false"
+            class="space-y-3">
+        <input type="hidden" name="next" value="{{ next_path }}"/>
+        <div class="form-control">
+          <label for="username" class="label"><span
+              class="label-text">Username</span></label>
+          <input id="username" name="username" class="input input-bordered"
+                 placeholder="({{ login_user }} if you press Enter)"
+                 value="{{ login_user }}" autocomplete="username"/>
+        </div>
+        <div class="form-control">
+          <label for="password" class="label"><span
+              class="label-text">Password</span></label>
+          <input id="password" name="password" type="password"
+                 class="input input-bordered" placeholder="env var secret"
+                 autocomplete="current-password"/>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Authenticate
+        </button>
+      </form>
 
-  <form method="post" action="/login" autocomplete="on" spellcheck="false">
-    <input type="hidden" name="next" value="{{ next_path }}" />
-    <div class="input-group">
-      <label for="username">Username</label>
-      <input id="username" name="username" placeholder="({{ login_user }} if you smash Enter)" value="{{ login_user }}" autocomplete="username" />
+      <div class="text-xs opacity-70 text-center mt-2">
+        <span>Source: <a class="link"
+                         href="https://github.com/megazord-studio/hf_inference"
+                         target="_blank" rel="noopener">github</a></span>
+      </div>
     </div>
-    <div class="input-group">
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" placeholder="env var secret goes here" autocomplete="current-password" />
-    </div>
-    <button type="submit">AUTHENTICATE</button>
-  </form>
-
-  <div class="footer">
-    <span>PSA: creds come from env vars; don’t paste them in chat. · <a href="https://github.com/megazord-studio/hf_inference" target="_blank" rel="noopener">source</a></span>
   </div>
 </div>
 {% endblock %}

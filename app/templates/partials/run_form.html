@@ -1,0 +1,57 @@
+{% import "macros/form_fields.html" as forms %}
+
+<div id="runWrap">
+  <form id="runForm" class="space-y-3" method="post"
+        enctype="multipart/form-data" novalidate
+        hx-post="/run-form" hx-trigger="submit"
+        hx-encoding="multipart/form-data"
+        hx-target="#runWrap" hx-swap="innerHTML">
+    <input type="hidden" name="task" value="{{ task }}"/>
+    <input type="hidden" name="model_id" value="{{ model_id }}"/>
+
+    <div class="text-sm opacity-70 mb-2">
+      <span>Task:</span> <code>{{ task }}</code>
+      {% if model_id %}<span class="ml-3">Model:</span> <code
+        title="{{ model_id }}">{{ model_id }}</code>{% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 gap-3">
+      {{ forms.render_fields(fields, id_prefix='rf-' ~ (task or 'task')) }}
+
+      <div class="form-control w-full">
+        <label class="label" for="rf-{{ task or 'task' }}-extra_args">
+          <span class="label-text">Extra args (JSON)</span>
+        </label>
+        <textarea class="textarea textarea-bordered w-full font-mono"
+                  id="rf-{{ task or 'task' }}-extra_args" name="extra_args"
+                  rows="4" placeholder="{}"></textarea>
+        <div class="text-xs opacity-70 mt-1">Optional advanced kwargs passed to
+          the pipeline/runner.
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 mt-2">
+      <button type="submit" class="btn btn-primary">Run</button>
+    </div>
+  </form>
+</div>
+
+<template id="runSpinnerTpl">
+  <div class="p-4 flex items-center gap-3">
+    <span class="loading loading-spinner loading-md"></span>
+    <span class="opacity-70">Running…</span>
+  </div>
+</template>
+
+<script>
+(function () {
+  const form = document.getElementById('runForm');
+  const wrap = document.getElementById('runWrap');
+  const tpl = document.getElementById('runSpinnerTpl');
+  if (!form || !wrap || !tpl) return;
+  form.addEventListener('htmx:beforeRequest', function () {
+    wrap.innerHTML = tpl.innerHTML;
+  });
+})();
+</script>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-theme="synthwave" class="min-h-screen">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}HF Model Playground{% endblock %}</title>
+
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico"/>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap"
+      rel="stylesheet">
+
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet"
+        type="text/css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css"
+        rel="stylesheet" type="text/css"/>
+
+  <script
+      src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.7/dist/htmx.min.js"></script>
+
+  <link rel="stylesheet" href="/static/css/app.css"/>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen">
+<canvas id="net-bg" class="net-bg-canvas"></canvas>
+{% block body %}{% endblock %}
+<script src="/static/js/net-bg.js"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

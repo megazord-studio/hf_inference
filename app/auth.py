@@ -1,7 +1,6 @@
 import hmac
 import os
 import time
-from typing import Callable
 from typing import Iterable
 from typing import Optional
 from typing import Set
@@ -9,23 +8,27 @@ from typing import Tuple
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import PlainTextResponse
 from starlette.responses import RedirectResponse
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-
 # Module-level session signing key so middleware and endpoints share it
-SESSION_SIGNING_KEY = os.getenv("INFERENCE_SESSION_SECRET", "").strip() or os.urandom(32).hex()
+SESSION_SIGNING_KEY = (
+    os.getenv("INFERENCE_SESSION_SECRET", "").strip() or os.urandom(32).hex()
+)
 SESSION_COOKIE_NAME = "session"
 SESSION_TTL_SECONDS = 60 * 60 * 12  # 12h
-LOGIN_USER = (os.getenv("INFERENCE_LOGIN_USER", "admin").strip() or "admin")
+LOGIN_USER = os.getenv("INFERENCE_LOGIN_USER", "admin").strip() or "admin"
 LOGIN_PASSWORD = os.getenv("INFERENCE_LOGIN_PASSWORD", "").strip()
 
 
 def _sign_session(user: str, ts: Optional[int] = None) -> str:
     ts = ts or int(time.time())
-    sig = hmac.new(SESSION_SIGNING_KEY.encode(), f"{user}:{ts}".encode(), "sha256").hexdigest()
+    sig = hmac.new(
+        SESSION_SIGNING_KEY.encode(), f"{user}:{ts}".encode(), "sha256"
+    ).hexdigest()
     return f"{user}:{ts}:{sig}"
 
 
@@ -37,7 +40,9 @@ def parse_session_cookie(val: str) -> Tuple[bool, Optional[str]]:
         return False, None
     if (time.time() - ts) > SESSION_TTL_SECONDS:
         return False, None
-    want = hmac.new(SESSION_SIGNING_KEY.encode(), f"{user}:{ts}".encode(), "sha256").hexdigest()
+    want = hmac.new(
+        SESSION_SIGNING_KEY.encode(), f"{user}:{ts}".encode(), "sha256"
+    ).hexdigest()
     if hmac.compare_digest(sig, want):
         return True, user
     return False, None
@@ -116,7 +121,7 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
             return False
         ok, user = self._parse_session(cookie_val)
         if ok:
-            request.state.user = user  # type: ignore[attr-defined]
+            request.state.user = user
             return True
         return False
 
@@ -132,7 +137,9 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
                 return True
         return False
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:  # type: ignore[override]
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         path = request.url.path
 
         if self._is_path_exempt(path):
@@ -140,12 +147,12 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
 
         # Bearer auth first (fast path)
         if self._has_valid_bearer(request):
-            request.state.authenticated = True  # type: ignore[attr-defined]
+            request.state.authenticated = True
             return await call_next(request)
 
         # Session cookie
         if self._has_valid_session(request):
-            request.state.authenticated = True  # type: ignore[attr-defined]
+            request.state.authenticated = True
             return await call_next(request)
 
         # If neither configured (no secrets & no login password) => fail-open (original behaviour when no secret)
@@ -156,7 +163,11 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
         accept = request.headers.get("accept", "")
         if "text/html" in accept:
             # Preserve original target in next parameter
-            dest = f"{self.login_path}?next={path}" if path != self.login_path else self.login_path
+            dest = (
+                f"{self.login_path}?next={path}"
+                if path != self.login_path
+                else self.login_path
+            )
             return RedirectResponse(dest, status_code=302)
         return self._unauthorized()
 
