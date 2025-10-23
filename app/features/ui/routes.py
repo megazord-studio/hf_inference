@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
 
-from app.form_schemas import get_fields_for_task
+from app.features.ui.form_schemas import get_fields_for_task
 
 _templates_dir = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_templates_dir))

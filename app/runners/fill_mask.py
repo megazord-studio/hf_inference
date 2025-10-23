@@ -5,11 +5,11 @@ from typing import Tuple
 from transformers import AutoTokenizer
 from transformers import pipeline
 
-from app.helpers import device_arg
-from app.helpers import safe_json
+from app.infrastructure.device import device_arg
+from app.infrastructure.response import safe_json
 from app.types import RunnerSpec
-from app.utilities import is_gated_repo_error
-from app.utilities import is_missing_model_error
+from app.infrastructure.errors import is_gated_repo_error
+from app.infrastructure.errors import is_missing_model_error
 
 
 def _normalize_mask_sentence(model_id: str, sentence: str) -> Tuple[str, str]:

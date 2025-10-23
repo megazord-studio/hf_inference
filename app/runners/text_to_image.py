@@ -7,12 +7,12 @@ from typing import Type
 import torch
 from diffusers import StableDiffusionPipeline
 
-from app.helpers import device_str
-from app.helpers import image_to_bytes
+from app.infrastructure.device import device_str
+from app.infrastructure.file_io import image_to_bytes
 from app.runners.patches.patch_offline_kwarg import _patch_offload_kwarg
 from app.types import RunnerSpec
-from app.utilities import is_gated_repo_error
-from app.utilities import is_missing_model_error
+from app.infrastructure.errors import is_gated_repo_error
+from app.infrastructure.errors import is_missing_model_error
 
 # Safe runtime lookup; avoids assigning to an imported type
 AutoT2I: Optional[Type[Any]]

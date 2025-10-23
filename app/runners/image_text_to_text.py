@@ -6,9 +6,9 @@ from transformers import pipeline
 from transformers.pipelines import ImageTextToTextPipeline
 from transformers.pipelines import ImageToTextPipeline
 
-from app.helpers import device_arg
-from app.helpers import ensure_image
-from app.helpers import get_upload_file_image
+from app.infrastructure.device import device_arg
+from app.infrastructure.file_io import ensure_image
+from app.infrastructure.file_io import get_upload_file_image
 from app.types import RunnerSpec
 from app.utilities import _final_caption_fallback
 from app.utilities import _vlm_florence2

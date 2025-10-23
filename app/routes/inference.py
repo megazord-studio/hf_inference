@@ -24,7 +24,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from pydantic import ValidationError
 
-from app.helpers import device_str
+from app.infrastructure.device import device_str
 from app.runners import RUNNERS
 
 logger = logging.getLogger("uvicorn.error")
@@ -92,7 +92,7 @@ def _parse_spec_from_form(form_data: Any) -> tuple[Optional[Dict[str, Any]], Opt
     Returns tuple of (spec_dict, error_message).
     If error_message is not None, spec_dict will be None.
     """
-    from app.form_schemas import get_fields_for_task
+    from app.features.ui.form_schemas import get_fields_for_task
     
     def _get_text(key: str) -> str:
         v = form_data.get(key)
@@ -256,7 +256,7 @@ async def get_run_form(
     
     This endpoint returns the form UI for the inference modal.
     """
-    from app.form_schemas import get_fields_for_task
+    from app.features.ui.form_schemas import get_fields_for_task
     
     fields = get_fields_for_task(task)
     return _templates.TemplateResponse(

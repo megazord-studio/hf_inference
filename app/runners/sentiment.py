@@ -24,11 +24,11 @@ from typing import Dict
 from transformers import pipeline
 from transformers.pipelines import TextClassificationPipeline
 
-from app.helpers import device_arg
-from app.helpers import safe_json
+from app.infrastructure.device import device_arg
+from app.infrastructure.response import safe_json
 from app.types import RunnerSpec
-from app.utilities import is_gated_repo_error
-from app.utilities import is_missing_model_error
+from app.infrastructure.errors import is_gated_repo_error
+from app.infrastructure.errors import is_missing_model_error
 
 
 def run_sentiment(spec: RunnerSpec, dev: str) -> Dict[str, Any]:

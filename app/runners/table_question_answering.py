@@ -6,11 +6,11 @@ from transformers import AutoTokenizer
 from transformers import pipeline
 from transformers.pipelines import TableQuestionAnsweringPipeline
 
-from app.helpers import device_arg
-from app.helpers import safe_json
+from app.infrastructure.device import device_arg
+from app.infrastructure.response import safe_json
 from app.types import RunnerSpec
-from app.utilities import is_gated_repo_error
-from app.utilities import is_missing_model_error
+from app.infrastructure.errors import is_gated_repo_error
+from app.infrastructure.errors import is_missing_model_error
 
 
 def _build_tapas_dataframe(table: Any) -> Any:
@@ -23,7 +23,7 @@ def _build_tapas_dataframe(table: Any) -> Any:
             rows = [[""] * len(headers)]
         df = pd.DataFrame(rows, columns=headers)
     else:
-        from app.helpers import to_dataframe  # lazy import to avoid cycles
+        from app.infrastructure.data import to_dataframe  # lazy import to avoid cycles
 
         df = to_dataframe(table)
 

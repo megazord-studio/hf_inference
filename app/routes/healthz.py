@@ -5,7 +5,7 @@ from typing import Dict
 
 from fastapi import APIRouter
 
-from app.helpers import device_str
+from app.infrastructure.device import device_str
 
 router = APIRouter()
 

@@ -3,12 +3,12 @@ from typing import Dict
 
 from transformers import pipeline
 
-from app.helpers import audio_to_bytes
-from app.helpers import device_arg
+from app.infrastructure.file_io import audio_to_bytes
+from app.infrastructure.device import device_arg
 from app.types import RunnerSpec
-from app.utilities import is_gated_repo_error
-from app.utilities import is_missing_model_error
-from app.utilities import is_no_weight_files_error
+from app.infrastructure.errors import is_gated_repo_error
+from app.infrastructure.errors import is_missing_model_error
+from app.infrastructure.errors import is_no_weight_files_error
 
 
 def run_text_to_audio(spec: RunnerSpec, dev: str) -> Dict[str, Any]:

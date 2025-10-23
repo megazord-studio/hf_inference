@@ -6,12 +6,12 @@ from numpy.typing import NDArray
 from transformers import pipeline
 from transformers.pipelines import TextToAudioPipeline
 
-from app.helpers import audio_to_bytes
-from app.helpers import device_arg
+from app.infrastructure.file_io import audio_to_bytes
+from app.infrastructure.device import device_arg
 from app.types import RunnerSpec
-from app.utilities import is_gated_repo_error
-from app.utilities import is_missing_model_error
-from app.utilities import is_no_weight_files_error
+from app.infrastructure.errors import is_gated_repo_error
+from app.infrastructure.errors import is_missing_model_error
+from app.infrastructure.errors import is_no_weight_files_error
 
 
 def run_tts(spec: RunnerSpec, dev: str) -> Dict[str, Any]:

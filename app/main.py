@@ -5,8 +5,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 
-import app.routes.auth_routes as auth_routes
-from app.auth import SharedSecretAuthMiddleware
+from app.features.auth.routes import router as auth_router
+from app.features.auth.middleware import SharedSecretAuthMiddleware
 from app.routes import healthz as healthz_routes
 from app.routes import home as home_routes
 from app.routes import inference as inference_routes
@@ -23,7 +23,7 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Routers
-app.include_router(auth_routes.router)
+app.include_router(auth_router)
 app.include_router(home_routes.router)
 app.include_router(healthz_routes.router)
 app.include_router(inference_routes.router)

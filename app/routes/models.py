@@ -10,10 +10,10 @@ from fastapi import Query
 from fastapi.responses import JSONResponse
 
 from app.runners import RUNNERS
-from app.services.hf_models_service import fetch_all_by_task
-from app.services.hf_models_service import gated_to_str
-from app.services.hf_models_service import get_cached_min
-from app.services.hf_models_service import set_cached_min
+from app.features.models.service import fetch_all_by_task
+from app.features.models.service import gated_to_str
+from app.features.models.service import get_cached_min
+from app.features.models.service import set_cached_min
 
 router = APIRouter(tags=["models"])
 

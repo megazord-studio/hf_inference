@@ -5,13 +5,13 @@ import torch
 from PIL import Image as PILImage
 from transformers import pipeline
 
-from app.helpers import device_arg
-from app.helpers import ensure_image
-from app.helpers import get_upload_file_image
-from app.helpers import image_to_bytes
+from app.infrastructure.device import device_arg
+from app.infrastructure.file_io import ensure_image
+from app.infrastructure.file_io import get_upload_file_image
+from app.infrastructure.file_io import image_to_bytes
 from app.types import RunnerSpec
-from app.utilities import is_gated_repo_error
-from app.utilities import is_missing_model_error
+from app.infrastructure.errors import is_gated_repo_error
+from app.infrastructure.errors import is_missing_model_error
 
 
 def run_depth_estimation(spec: RunnerSpec, dev: str) -> Dict[str, Any]:

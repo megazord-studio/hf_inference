@@ -6,14 +6,14 @@ from diffusers import StableDiffusionImg2ImgPipeline
 from diffusers import StableDiffusionInpaintPipeline
 from PIL import Image
 
-from app.helpers import device_str
-from app.helpers import ensure_image
-from app.helpers import get_upload_file_image
-from app.helpers import image_to_bytes
+from app.infrastructure.device import device_str
+from app.infrastructure.file_io import ensure_image
+from app.infrastructure.file_io import get_upload_file_image
+from app.infrastructure.file_io import image_to_bytes
 from app.runners.patches.patch_offline_kwarg import _patch_offload_kwarg
 from app.types import RunnerSpec
-from app.utilities import is_gated_repo_error
-from app.utilities import is_missing_model_error
+from app.infrastructure.errors import is_gated_repo_error
+from app.infrastructure.errors import is_missing_model_error
 
 _patch_offload_kwarg()
 
