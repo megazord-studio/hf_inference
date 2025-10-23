@@ -14,10 +14,16 @@ from transformers import pipeline
 from transformers.pipelines import ImageToTextPipeline
 from transformers.pipelines import VisualQuestionAnsweringPipeline
 
-from .helpers import device_arg
-from .helpers import device_str
-from .helpers import safe_print_output
-from .types import RunnerSpec
+from app.infrastructure.device import device_arg
+from app.infrastructure.device import device_str
+from app.infrastructure.errors import is_cuda_oom
+from app.infrastructure.errors import is_gated_repo_error
+from app.infrastructure.errors import is_missing_model_error
+from app.infrastructure.errors import is_no_weight_files_error
+from app.infrastructure.response import safe_print_output
+from app.infrastructure.response import soft_hint_error
+from app.infrastructure.response import soft_skip
+from app.types import RunnerSpec
 
 # ---------- Protocol definitions for type hints ----------
 
@@ -53,53 +59,8 @@ class ProcessorProtocol(Protocol):
         ...
 
 
-# ---------- error detectors & friendly outputs ----------
-
-
-def is_cuda_oom(e: Exception) -> bool:
-    msg = repr(e).lower()
-    return "cuda out of memory" in msg or "cuda oom" in msg
-
-
-def is_missing_model_error(e: Exception) -> bool:
-    msg = repr(e)
-    return (
-        "is not a local folder and is not a valid model identifier listed on"
-        in msg
-    )
-
-
-def is_no_weight_files_error(e: Exception) -> bool:
-    msg = repr(e)
-    return (
-        "does not appear to have a file named pytorch_model.bin" in msg
-        or "model.safetensors" in msg
-    )
-
-
-def is_gated_repo_error(e: Exception) -> bool:
-    msg = repr(e).lower()
-    return (
-        ("gated repo" in msg)
-        or ("401 client error" in msg)
-        or ("access to model" in msg and "restricted" in msg)
-    )
-
-
-def soft_skip(reason: str, hint: Optional[str] = None) -> None:
-    out = {"skipped": True, "reason": reason}
-    if hint:
-        out["hint"] = hint
-    safe_print_output(out)
-
-
-def soft_hint_error(
-    title: str, reason: str, hint: Optional[str] = None
-) -> None:
-    out = {"error": title, "reason": reason}
-    if hint:
-        out["hint"] = hint
-    safe_print_output(out)
+# Error detection and output utilities are now imported from infrastructure modules
+# (kept here for backward compatibility, but imported from infrastructure layer above)
 
 
 # ---------- VLM helpers ----------

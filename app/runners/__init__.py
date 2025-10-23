@@ -1,6 +1,8 @@
 from typing import Any
 from typing import Dict
 
+from app.core.registry import RunnerRegistry
+
 from .audio_classification import run_audio_classification
 from .automatic_speech_recognition import run_asr
 from .depth_estimation import run_depth_estimation
@@ -33,7 +35,8 @@ from .zero_shot_classification import run_zero_shot_classification
 from .zero_shot_image_classification import run_zero_shot_image_classification
 from .zero_shot_object_detection import run_zero_shot_object_detection
 
-RUNNERS: Dict[str, Any] = {
+# Legacy static mapping for backward compatibility
+RUNNERS_STATIC: Dict[str, Any] = {
     "text-generation": run_text_generation,
     "text2text-generation": run_text2text,
     "zero-shot-classification": run_zero_shot_classification,
@@ -66,3 +69,10 @@ RUNNERS: Dict[str, Any] = {
     "mask-generation": run_mask_generation,
     "image-to-image": run_image_to_image,
 }
+
+# Create and populate the registry
+_registry = RunnerRegistry()
+_registry.bulk_register(RUNNERS_STATIC)
+
+# Backward-compatible dict-like interface
+RUNNERS = RUNNERS_STATIC
