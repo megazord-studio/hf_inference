@@ -40,6 +40,8 @@ def test_text_to_audio(client, model_id, payload):
         ):
             # Binary response - verify it's not empty
             assert len(resp.content) > 0
+            # Verify Content-Disposition header is set for file download
+            assert "content-disposition" in resp.headers
         else:
             # JSON response
             data = resp.json()

@@ -6,6 +6,7 @@ import logging
 import time
 from typing import Any
 from typing import Dict
+from typing import Iterator
 from typing import Optional
 
 from fastapi import APIRouter
@@ -15,6 +16,7 @@ from fastapi import HTTPException
 from fastapi import UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pydantic import ValidationError
 
@@ -31,6 +33,47 @@ class InferenceSpec(BaseModel):
     task: str
     payload: Dict[str, Any] = {}
     extra_args: Dict[str, Any] = {}  # no max_tokens anymore
+
+
+def _is_binary_response(result: Any) -> bool:
+    """Check if the result is a binary file response."""
+    return isinstance(result, dict) and "file_data" in result
+
+
+def _create_binary_stream(
+    file_data: bytes, chunk_size: int = 8192
+) -> Iterator[bytes]:
+    """
+    Generate chunks from binary data for streaming.
+
+    This implements true streaming by yielding chunks instead of buffering
+    the entire file in memory (as suggested in the review comment).
+    """
+    offset = 0
+    data_length = len(file_data)
+    while offset < data_length:
+        chunk = file_data[offset : offset + chunk_size]
+        yield chunk
+        offset += chunk_size
+
+
+def _create_streaming_response(result: Dict[str, Any]) -> StreamingResponse:
+    """
+    Create a StreamingResponse for binary file data.
+
+    This handles the conversion of binary responses (images, audio)
+    from runners into proper HTTP streaming responses with appropriate
+    headers and content-type.
+    """
+    file_data = result["file_data"]
+    file_name = result.get("file_name", "output.bin")
+    content_type = result.get("content_type", "application/octet-stream")
+
+    return StreamingResponse(
+        _create_binary_stream(file_data),
+        media_type=content_type,
+        headers={"Content-Disposition": f'inline; filename="{file_name}"'},
+    )
 
 
 @router.post("/inference")
@@ -88,6 +131,12 @@ async def inference(
             dev,
             duration,
         )
+
+        # Check if result is a binary file response
+        if _is_binary_response(result):
+            return _create_streaming_response(result)
+
+        # Otherwise return JSON response
         return JSONResponse(
             content=result if isinstance(result, dict) else {"result": result}
         )
