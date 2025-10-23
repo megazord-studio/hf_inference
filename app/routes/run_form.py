@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 from typing import Dict
@@ -181,12 +182,75 @@ async def post_run_form(
         ",".join([k for k, v in files.items() if v is not None]) or "none",
     )
 
-    # Call inference endpoint directly (default)
+    # Call inference endpoint directly and wrap response in HTML
     from app.routes.inference import inference as run_inference
+    import time
 
-    return await run_inference(
-        spec=json.dumps(spec),
-        image=files["image"],
-        audio=files["audio"],
-        video=files["video"],
-    )
+    start = time.time()
+    try:
+        response = await run_inference(
+            spec=json.dumps(spec),
+            image=files["image"],
+            audio=files["audio"],
+            video=files["video"],
+        )
+        duration = time.time() - start
+
+        # Check if response is JSON
+        if hasattr(response, "body"):
+            result_data = json.loads(response.body.decode("utf-8"))
+        else:
+            # Handle other response types
+            result_data = {"result": "Success"}
+
+        # Determine result type for display
+        result_type = "json"
+        formatted_data = json.dumps(result_data, indent=2)
+        
+        if isinstance(result_data, list):
+            result_type = "list"
+            formatted_data = [json.dumps(item, indent=2) if isinstance(item, dict) else str(item) for item in result_data]
+        elif isinstance(result_data, dict):
+            # Check if it's a simple text result
+            if "result" in result_data and isinstance(result_data["result"], str):
+                result_type = "text"
+                formatted_data = result_data["result"]
+            else:
+                formatted_data = json.dumps(result_data, indent=2)
+
+        return templates.TemplateResponse(
+            "partials/result_display.html",
+            {
+                "request": request,
+                "error": False,
+                "result_data": formatted_data,
+                "result_type": result_type,
+                "task": task,
+                "model_id": model_id,
+                "duration": duration,
+            },
+        )
+    except Exception as e:
+        duration = time.time() - start
+        error_msg = str(e)
+        
+        # Extract more detailed error message if available
+        if hasattr(e, "detail"):
+            if isinstance(e.detail, dict):
+                error_msg = json.dumps(e.detail, indent=2)
+            else:
+                error_msg = str(e.detail)
+        
+        logger.exception("Inference failed in run_form")
+        
+        return templates.TemplateResponse(
+            "partials/result_display.html",
+            {
+                "request": request,
+                "error": True,
+                "error_message": error_msg,
+                "task": task,
+                "model_id": model_id,
+                "duration": duration,
+            },
+        )

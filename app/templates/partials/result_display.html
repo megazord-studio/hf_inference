@@ -1,0 +1,79 @@
+{% if error %}
+<!-- Error Display -->
+<div id="runWrap">
+  <div class="alert alert-error shadow-lg">
+    <div class="flex items-start gap-3 w-full">
+      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6 mt-0.5" fill="none" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div class="flex-1 min-w-0">
+        <h3 class="font-bold mb-1">Inference Error</h3>
+        <div class="text-sm">
+          <p class="mb-2">An error occurred during model inference:</p>
+          <div class="bg-base-300 rounded-lg p-3 overflow-auto max-h-64 font-mono text-xs break-words">
+            {{ error_message }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="flex justify-end gap-2 mt-4">
+    <button type="button" class="btn btn-ghost" onclick="location.reload()">Try Again</button>
+    <button type="button" class="btn btn-primary" onclick="document.getElementById('runDialog').close()">Close</button>
+  </div>
+</div>
+{% else %}
+<!-- Success Display -->
+<div id="runWrap">
+  <div class="alert alert-success shadow-lg mb-4">
+    <div class="flex items-center gap-3">
+      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span class="font-semibold">Inference completed successfully</span>
+    </div>
+  </div>
+
+  <div class="card bg-base-200 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-3">
+        <span class="text-primary">📊</span> Result
+      </h2>
+      
+      <div class="result-content bg-base-300 rounded-lg p-4 overflow-auto max-h-96">
+        {% if result_type == 'json' %}
+          <pre class="text-sm font-mono whitespace-pre-wrap break-words"><code>{{ result_data }}</code></pre>
+        {% elif result_type == 'text' %}
+          <div class="prose prose-sm max-w-none">
+            <p class="whitespace-pre-wrap break-words">{{ result_data }}</p>
+          </div>
+        {% elif result_type == 'list' %}
+          <div class="space-y-2">
+            {% for item in result_data %}
+              <div class="bg-base-100 rounded p-3 border border-base-content/10">
+                <pre class="text-sm font-mono whitespace-pre-wrap break-words"><code>{{ item }}</code></pre>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <pre class="text-sm font-mono whitespace-pre-wrap break-words"><code>{{ result_data }}</code></pre>
+        {% endif %}
+      </div>
+
+      <div class="text-xs opacity-60 mt-2">
+        <span>Task:</span> <code class="bg-base-100 px-1.5 py-0.5 rounded">{{ task }}</code>
+        <span class="ml-3">Model:</span> <code class="bg-base-100 px-1.5 py-0.5 rounded" title="{{ model_id }}">{{ model_id }}</code>
+        {% if duration %}
+        <span class="ml-3">Duration:</span> <code class="bg-base-100 px-1.5 py-0.5 rounded">{{ "%.2f"|format(duration) }}s</code>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="flex justify-end gap-2 mt-4">
+    <button type="button" class="btn btn-ghost" onclick="location.reload()">Run Again</button>
+    <button type="button" class="btn btn-primary" onclick="document.getElementById('runDialog').close()">Close</button>
+  </div>
+</div>
+{% endif %}
