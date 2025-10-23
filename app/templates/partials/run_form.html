@@ -1,11 +1,8 @@
 {% import "macros/form_fields.html" as forms %}
 
-<div id="runWrap">
+<div id="runWrap" data-run-wrap>
   <form id="runForm" class="space-y-3" method="post"
-        enctype="multipart/form-data" novalidate
-        hx-post="/run-form" hx-trigger="submit"
-        hx-encoding="multipart/form-data"
-        hx-target="#runWrap" hx-swap="innerHTML">
+        enctype="multipart/form-data" novalidate data-run-form>
     <input type="hidden" name="task" value="{{ task }}"/>
     <input type="hidden" name="model_id" value="{{ model_id }}"/>
 
@@ -37,21 +34,11 @@
   </form>
 </div>
 
-<template id="runSpinnerTpl">
+<template id="runSpinnerTpl" data-run-spinner>
   <div class="p-4 flex items-center gap-3">
     <span class="loading loading-spinner loading-md"></span>
     <span class="opacity-70">Running…</span>
   </div>
 </template>
 
-<script>
-(function () {
-  const form = document.getElementById('runForm');
-  const wrap = document.getElementById('runWrap');
-  const tpl = document.getElementById('runSpinnerTpl');
-  if (!form || !wrap || !tpl) return;
-  form.addEventListener('htmx:beforeRequest', function () {
-    wrap.innerHTML = tpl.innerHTML;
-  });
-})();
-</script>
+{# Behavior moved to static JS subcomponents #}
