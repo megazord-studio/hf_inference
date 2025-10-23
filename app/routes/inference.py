@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Iterator
@@ -13,11 +14,13 @@ from fastapi import APIRouter
 from fastapi import File
 from fastapi import Form
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi import Request
 from fastapi import UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
 from fastapi.responses import StreamingResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from pydantic import ValidationError
 
@@ -27,6 +30,10 @@ from app.runners import RUNNERS
 logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter()
+
+# Templates for run-form UI
+_templates_dir = Path(__file__).resolve().parent.parent / "templates"
+_templates = Jinja2Templates(directory=str(_templates_dir))
 
 
 class InferenceSpec(BaseModel):
@@ -236,3 +243,28 @@ async def inference(
     except Exception as e:
         logger.exception("Inference failed")
         raise HTTPException(status_code=500, detail={"error": str(e)})
+
+
+@router.get("/run-form")
+async def get_run_form(
+    request: Request,
+    task: Optional[str] = Query(None, description="Pipeline task key"),
+    model_id: Optional[str] = Query(None, description="Selected model id"),
+) -> Response:
+    """
+    Render the run form partial (HTMX target) for a given task/model.
+    
+    This endpoint returns the form UI for the inference modal.
+    """
+    from app.form_schemas import get_fields_for_task
+    
+    fields = get_fields_for_task(task)
+    return _templates.TemplateResponse(
+        "partials/run_form.html",
+        {
+            "request": request,
+            "task": task or "",
+            "model_id": model_id or "",
+            "fields": fields,
+        },
+    )

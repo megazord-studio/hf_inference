@@ -3,6 +3,7 @@
 All runners are pure functions that take (RunnerSpec, device_str) and return Dict.
 The registry is immutable and operations return new registries.
 """
+from types import MappingProxyType
 from typing import Any
 from typing import Dict
 
@@ -40,9 +41,9 @@ from .zero_shot_classification import run_zero_shot_classification
 from .zero_shot_image_classification import run_zero_shot_image_classification
 from .zero_shot_object_detection import run_zero_shot_object_detection
 
-# Immutable mapping of tasks to runner functions
+# Truly immutable mapping of tasks to runner functions (frozen)
 # This is the source of truth for all available runners
-_RUNNER_MAPPINGS: Dict[str, Any] = {
+_RUNNER_MAPPINGS: MappingProxyType[str, Any] = MappingProxyType({
     "text-generation": run_text_generation,
     "text2text-generation": run_text2text,
     "zero-shot-classification": run_zero_shot_classification,
@@ -74,11 +75,11 @@ _RUNNER_MAPPINGS: Dict[str, Any] = {
     "video-classification": run_video_classification,
     "mask-generation": run_mask_generation,
     "image-to-image": run_image_to_image,
-}
+})
 
 # Create immutable registry (functional approach)
-_REGISTRY = create_registry(_RUNNER_MAPPINGS)
+_REGISTRY = create_registry(dict(_RUNNER_MAPPINGS))
 
 # Backward-compatible dict-like interface
-# This allows existing code to use RUNNERS.get(task) etc.
-RUNNERS = _RUNNER_MAPPINGS
+# Use dict() to convert from MappingProxyType for compatibility
+RUNNERS: Dict[str, Any] = dict(_RUNNER_MAPPINGS)

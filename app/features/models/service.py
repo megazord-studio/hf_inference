@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import datetime
+import json
+import os
+import tempfile
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import List
@@ -15,48 +19,133 @@ import requests  # type: ignore[import-untyped]
 
 HF_API = "https://huggingface.co/api/models"
 
-# --- Functional cache with explicit state management ------------------------
-# Note: This module-level cache is impure by necessity (I/O boundary).
-# We document it clearly and provide functional operations around it.
+# --- Enhanced cache with file persistence (4h TTL) ---------------------------
+# Impure by necessity (I/O boundary), but clearly documented and isolated.
 
-_CACHE_TTL = timedelta(minutes=10)
+_CACHE_TTL = timedelta(hours=4)  # Increased from 10min to 4h
+_CACHE_DIR = Path(tempfile.gettempdir()) / "hf_inference_cache"
 
 # Immutable cache entry type
 CacheEntry = Tuple[datetime.datetime, List[Dict[str, Any]]]
 
-# Module-level cache (impure, but isolated)
-# This is the only mutable state in this module, clearly documented.
+# In-memory cache (fast path)
 _cache_min: Dict[str, CacheEntry] = {}
+
+
+def _get_cache_file_path(task: str) -> Path:
+    """Get cache file path for a task (pure function)."""
+    # Use task name and timestamp-based key for cache file
+    safe_task = task.replace("/", "_").replace(":", "_")
+    return _CACHE_DIR / f"models_{safe_task}.json"
+
+
+def _load_from_file_cache(task: str) -> Optional[List[Dict[str, Any]]]:
+    """
+    Load cache from file if valid (impure I/O operation).
+    
+    Side effects:
+        - Reads from filesystem
+    """
+    try:
+        cache_file = _get_cache_file_path(task)
+        if not cache_file.exists():
+            return None
+        
+        # Read cache file
+        with open(cache_file, "r") as f:
+            cache_data = json.load(f)
+        
+        timestamp_str = cache_data.get("timestamp")
+        data = cache_data.get("data")
+        
+        if not timestamp_str or data is None:
+            return None
+        
+        # Parse timestamp
+        timestamp = datetime.datetime.fromisoformat(timestamp_str)
+        
+        # Check if still valid
+        if (datetime.datetime.now(datetime.UTC) - timestamp) < _CACHE_TTL:
+            return data
+        
+        return None
+    except Exception:
+        # If any error, just return None (cache miss)
+        return None
+
+
+def _save_to_file_cache(task: str, data: List[Dict[str, Any]]) -> None:
+    """
+    Save cache to file (impure I/O operation).
+    
+    Side effects:
+        - Writes to filesystem
+        - Creates directory if needed
+    """
+    try:
+        # Ensure cache directory exists
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        
+        cache_file = _get_cache_file_path(task)
+        cache_data = {
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+            "data": data,
+        }
+        
+        # Write atomically (write to temp, then rename)
+        temp_file = cache_file.with_suffix(".tmp")
+        with open(temp_file, "w") as f:
+            json.dump(cache_data, f)
+        
+        # Atomic rename
+        temp_file.replace(cache_file)
+    except Exception:
+        # If save fails, just log and continue (cache is optional)
+        pass
 
 
 def get_cached_min(task: str) -> Optional[List[Dict[str, Any]]]:
     """
-    Get cached data for task if valid (pure read operation).
+    Get cached data for task if valid (impure read operation).
     
-    Note: This function is impure as it reads module-level state,
-    but it has no side effects on the cache itself.
+    Tries in-memory cache first (fast), then file cache (persistent).
+    
+    Note: This function is impure as it reads module-level state and filesystem.
     
     Args:
         task: Task identifier
     
     Returns:
         Cached data if valid, None otherwise
-    """
-    entry = _cache_min.get(task)
-    if entry is None:
-        return None
     
-    timestamp, data = entry
-    is_valid = (datetime.datetime.now(datetime.UTC) - timestamp) < _CACHE_TTL
-    return data if is_valid else None
+    Side effects:
+        - Reads module-level state
+        - Reads from filesystem
+    """
+    # Fast path: check in-memory cache
+    entry = _cache_min.get(task)
+    if entry is not None:
+        timestamp, data = entry
+        if (datetime.datetime.now(datetime.UTC) - timestamp) < _CACHE_TTL:
+            return data
+    
+    # Slow path: check file cache
+    file_data = _load_from_file_cache(task)
+    if file_data is not None:
+        # Update in-memory cache for next time
+        _cache_min[task] = (datetime.datetime.now(datetime.UTC), file_data)
+        return file_data
+    
+    return None
 
 
 def set_cached_min(task: str, data: List[Dict[str, Any]]) -> None:
     """
     Cache data for task (impure write operation).
     
-    Note: This function explicitly mutates module-level state.
-    It's one of the few impure functions in the codebase, clearly marked.
+    Saves to both in-memory cache (fast) and file cache (persistent).
+    
+    Note: This function explicitly mutates module-level state and filesystem.
     
     Args:
         task: Task identifier
@@ -64,8 +153,11 @@ def set_cached_min(task: str, data: List[Dict[str, Any]]) -> None:
     
     Side effects:
         - Mutates _cache_min module-level dict
+        - Writes to filesystem
     """
-    _cache_min[task] = (datetime.datetime.now(datetime.UTC), data)
+    timestamp = datetime.datetime.now(datetime.UTC)
+    _cache_min[task] = (timestamp, data)
+    _save_to_file_cache(task, data)
 
 
 # ----------------------------- helpers ---------------------------------------
