@@ -6,7 +6,7 @@ ENV UV_LOCK_HASH=${UV_LOCK_HASH}
 
 # ---- base OS deps --------------------------------------------------------
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl \
+ && apt-get install -y --no-install-recommends ca-certificates curl ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
 # ---- non-root user -------------------------------------------------------
