@@ -7,6 +7,7 @@ from typing import cast
 
 import torch
 from diffusers import StableDiffusionPipeline
+from huggingface_hub import HfApi
 
 from app.helpers import device_str
 from app.helpers import image_to_bytes
@@ -33,6 +34,64 @@ def _choose_dtype() -> torch.dtype:
     ):
         return torch.float16
     return torch.float32
+
+
+def _repo_has_diffusers_index(model_id: str) -> bool:
+    """Check if the repo exposes a Diffusers pipeline (model_index.json)."""
+    try:
+        api = HfApi()
+        return api.file_exists(model_id, "model_index.json", repo_type="model")
+    except Exception:
+        # If we can't check, default to True so we try Diffusers first
+        return True
+
+
+def _run_via_transformers(
+    model_id: str,
+    prompt: str,
+    dev: str,
+    extra_args: Dict[str, Any],
+) -> Any:
+    """Run text-to-image via Transformers pipeline with trust_remote_code."""
+    from transformers import pipeline as hf_pipeline
+    from app.helpers import device_arg
+    from PIL import Image as _Image
+
+    hf_pipe_any = cast(Any, hf_pipeline)
+    pl = hf_pipe_any(
+        "text-to-image",
+        model=model_id,
+        device=device_arg(dev),
+        trust_remote_code=True,
+        **extra_args,
+    )
+
+    with torch.inference_mode():
+        out = pl(prompt=prompt)
+
+    # Normalize output to a PIL Image
+    if isinstance(out, _Image.Image):
+        return out
+    if isinstance(out, dict):
+        if out.get("images"):
+            return out["images"][0]
+        if "image" in out:
+            return out["image"]
+        raise RuntimeError(
+            "Transformers text-to-image returned unsupported dict format"
+        )
+    if isinstance(out, list) and out:
+        first = out[0]
+        if isinstance(first, _Image.Image):
+            return first
+        if isinstance(first, dict) and "image" in first:
+            return first["image"]
+        raise RuntimeError(
+            "Transformers text-to-image returned unsupported list format"
+        )
+    raise RuntimeError(
+        f"Unexpected transformers text-to-image output type: {type(out)}"
+    )
 
 
 _patch_offload_kwarg()
@@ -64,82 +123,49 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
 
         img: Any = None
 
-        # Try loading with Diffusers first
-        try:
-            if AutoT2I_t is not None:
-                try:
-                    pipe = AutoT2I_t.from_pretrained(
+        # If repo clearly isn't Diffusers, go straight to Transformers
+        if not _repo_has_diffusers_index(model_id):
+            img = _run_via_transformers(model_id, prompt, dev, extra_args)
+        else:
+            # Try loading with Diffusers first
+            try:
+                if AutoT2I_t is not None:
+                    try:
+                        pipe = AutoT2I_t.from_pretrained(
+                            model_id,
+                            safety_checker=None,
+                            feature_extractor=None,
+                            **common_kwargs,
+                        )
+                    except Exception:
+                        pipe = AutoT2I_t.from_pretrained(
+                            model_id,
+                            **common_kwargs,
+                        )
+                else:
+                    pipe = StableDiffusionPipeline.from_pretrained(
                         model_id,
                         safety_checker=None,
                         feature_extractor=None,
                         **common_kwargs,
                     )
-                except Exception:
-                    pipe = AutoT2I_t.from_pretrained(
-                        model_id,
-                        **common_kwargs,
-                    )
-            else:
-                pipe = StableDiffusionPipeline.from_pretrained(
-                    model_id,
-                    safety_checker=None,
-                    feature_extractor=None,
-                    **common_kwargs,
-                )
 
-            pipe = pipe.to(device_str())
-
-            with torch.inference_mode():
-                result = pipe(prompt=prompt, num_inference_steps=20)
-                img = result.images[0]
-        except Exception as diffusers_err:
-            # Fallback: try Transformers pipeline with trust_remote_code
-            try:
-                from transformers import pipeline as hf_pipeline
-                from app.helpers import device_arg
-                from PIL import Image as _Image
-
-                hf_pipe_any = cast(Any, hf_pipeline)
-                pl = hf_pipe_any(
-                    "text-to-image",
-                    model=model_id,
-                    device=device_arg(dev),
-                    trust_remote_code=True,
-                    **extra_args,
-                )
+                pipe = pipe.to(device_str())
 
                 with torch.inference_mode():
-                    out = pl(prompt)
-
-                # Normalize output to a PIL Image
-                if isinstance(out, _Image.Image):
-                    img = out
-                elif isinstance(out, dict):
-                    if "images" in out and out["images"]:
-                        img = out["images"][0]
-                    elif "image" in out:
-                        img = out["image"]
-                    else:
-                        raise RuntimeError(
-                            "Transformers text-to-image returned unsupported dict format"
-                        )
-                elif isinstance(out, list) and out:
-                    first = out[0]
-                    if isinstance(first, _Image.Image):
-                        img = first
-                    elif isinstance(first, dict) and "image" in first:
-                        img = first["image"]
-                    else:
-                        raise RuntimeError(
-                            "Transformers text-to-image returned unsupported list format"
-                        )
-                else:
-                    raise RuntimeError(
-                        f"Unexpected transformers text-to-image output type: {type(out)}"
+                    result = pipe(prompt=prompt, num_inference_steps=20)
+                    img = result.images[0]
+            except Exception as diffusers_err:
+                # Fallback: try Transformers pipeline with trust_remote_code
+                try:
+                    img = _run_via_transformers(
+                        model_id, prompt, dev, extra_args
                     )
-            except Exception:
-                # Re-raise the original diffusers error if transformers also fails
-                raise diffusers_err
+                except Exception as transformers_err:
+                    # Report both errors to aid debugging instead of hiding the fallback error
+                    raise RuntimeError(
+                        f"Diffusers load failed: {diffusers_err}; Transformers fallback failed: {transformers_err}"
+                    )
 
         img_bytes = image_to_bytes(img, img_format="PNG")
         return {
@@ -160,4 +186,13 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
                 "skipped": True,
                 "reason": "model not found on Hugging Face",
             }
-        return {"error": "text-to-image failed", "reason": repr(e)}
+        # Include a hint if the error mentions model_index.json (non-Diffusers repo)
+        hint = None
+        if "model_index.json" in str(e):
+            hint = (
+                "Repo is not a Diffusers model; ensure transformers fallback is allowed (trust_remote_code) and token has access."
+            )
+        out: Dict[str, Any] = {"error": "text-to-image failed", "reason": repr(e)}
+        if hint:
+            out["hint"] = hint
+        return out
