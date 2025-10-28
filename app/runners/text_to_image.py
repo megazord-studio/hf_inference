@@ -52,14 +52,18 @@ def _run_via_transformers(
     dev: str,
     extra_args: Dict[str, Any],
 ) -> Any:
-    """Run text-to-image via Transformers pipeline with trust_remote_code."""
+    """Run text-to-image via Transformers pipeline with trust_remote_code.
+
+    Do not pass a task string; let Transformers infer from the repo config
+    (pipeline_tag) to avoid KeyError for unknown tasks like 'text-to-image'.
+    """
     from transformers import pipeline as hf_pipeline
     from app.helpers import device_arg
     from PIL import Image as _Image
 
     hf_pipe_any = cast(Any, hf_pipeline)
+    # Let transformers infer the task from the repo (requires trust_remote_code)
     pl = hf_pipe_any(
-        "text-to-image",
         model=model_id,
         device=device_arg(dev),
         trust_remote_code=True,
