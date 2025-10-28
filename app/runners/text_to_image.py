@@ -46,6 +46,21 @@ def _repo_has_diffusers_index(model_id: str) -> bool:
         return True
 
 
+def _repo_has_safetensors(model_id: str) -> bool:
+    """Return True if the repo contains any .safetensors weights.
+
+    Some Diffusers repos only ship .bin weights. Forcing use_safetensors=True
+    will fail to load those. Detect presence and only enable safetensors when available.
+    """
+    try:
+        api = HfApi()
+        files = api.list_repo_files(model_id, repo_type="model")
+        return any(f.endswith(".safetensors") for f in files)
+    except Exception:
+        # Be conservative: prefer allowing .bin weights
+        return False
+
+
 def _run_via_transformers(
     model_id: str,
     prompt: str,
@@ -113,9 +128,14 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
 
     try:
         dtype = _choose_dtype()
+
+        # Enable safetensors only when the repo actually provides them
+        diffusers_repo = _repo_has_diffusers_index(model_id)
+        has_safetensors = _repo_has_safetensors(model_id) if diffusers_repo else False
+
         common_kwargs = dict(
             torch_dtype=dtype,
-            use_safetensors=True,
+            use_safetensors=has_safetensors,
             low_cpu_mem_usage=False,  # avoid init-empty-weights path
             device_map=None,  # avoid auto device mapping at load time
             trust_remote_code=False,
@@ -128,7 +148,7 @@ def run_text_to_image(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
         img: Any = None
 
         # If repo clearly isn't Diffusers, go straight to Transformers
-        if not _repo_has_diffusers_index(model_id):
+        if not diffusers_repo:
             img = _run_via_transformers(model_id, prompt, dev, extra_args)
         else:
             # Try loading with Diffusers first
