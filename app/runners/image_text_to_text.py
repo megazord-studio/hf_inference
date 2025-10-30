@@ -62,7 +62,21 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             device=device_arg(dev),
             **extra_args,  # pass through exactly as provided
         )
-        out_any: Any = pl(image=img, text=prompt)
+
+        messages = [
+            {
+                "role": "system",
+                "content": [{"type": "text", "text": "You are a helpful assistant."}]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": img},
+                    {"type": "text", "text": prompt}
+                ]
+            }
+        ]
+        out_any: Any = pl(text=messages)  # type: ignore
         text = _unwrap_text(out_any)
         if text:
             return {"text": text}
