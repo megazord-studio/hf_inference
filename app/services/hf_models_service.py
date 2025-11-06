@@ -15,8 +15,8 @@ import requests  # type: ignore[import-untyped]
 
 HF_API = "https://huggingface.co/api/models"
 
-# --- simple in-memory caches (10 min) ----------------------------------------
-_CACHE_TTL = timedelta(minutes=10)
+# --- simple in-memory caches (1 day) ----------------------------------------
+_CACHE_TTL = timedelta(days=1)
 _cache_min: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
 _cache_full: Dict[str, Tuple[datetime.datetime, List[Dict[str, Any]]]] = {}
 

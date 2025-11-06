@@ -12,11 +12,13 @@ from app.routes import home as home_routes
 from app.routes import inference as inference_routes
 from app.routes import models
 from app.routes import run_form as run_form_routes
+from app.throttle import ThrottleMiddleware  # added
 
 logger = logging.getLogger("uvicorn.error")
 
 middleware = [
-    Middleware(SharedSecretAuthMiddleware, env_var="INFERENCE_SHARED_SECRET")
+    Middleware(SharedSecretAuthMiddleware, env_var="INFERENCE_SHARED_SECRET"),
+    Middleware(ThrottleMiddleware),  # added
 ]
 
 app = FastAPI(title="HF Inference API", version="0.1.0", middleware=middleware)
