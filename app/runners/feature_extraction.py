@@ -33,7 +33,9 @@ def run_feature_extraction(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             )
             with torch.inference_mode():
                 out = model.get_text_features(**inputs)
-            return {"embedding_shape": tuple(out.shape)}
+            # Return full vector as JSON-serializable list (squeezed to 1D if batch size is 1)
+            emb = out.squeeze(0).detach().cpu().numpy().tolist()
+            return {"embedding": emb}
         pl = pipeline(
             "feature-extraction",
             model=spec["model_id"],
@@ -41,7 +43,8 @@ def run_feature_extraction(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
             **extra_args,
         )
         vec = pl(text)
-        return {"embedding_shape": np.array(vec).shape}
+        # Ensure JSON-serializable embedding
+        return {"embedding": np.array(vec).tolist()}
     except Exception as e:
         if is_gated_repo_error(e):
             return {"skipped": True, "reason": "gated model (no access/auth)"}
