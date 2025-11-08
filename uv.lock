@@ -270,6 +270,7 @@ dependencies = [
     { name = "torchvision" },
     { name = "transformers" },
     { name = "uvicorn" },
+    { name = "whisper" },
 ]
 
 [package.optional-dependencies]
@@ -325,6 +326,7 @@ requires-dist = [
     { name = "transformers", specifier = "~=4.57" },
     { name = "uvicorn", specifier = "~=0.37" },
     { name = "vulture", marker = "extra == 'dev'" },
+    { name = "whisper", specifier = ">=1.1.10" },
 ]
 provides-extras = ["dev"]
 
@@ -1517,6 +1519,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/8e/25/925f35db758a0f919
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/56/0cc15b8ff2613c1d5c3dc1f3f576ede1c43868c1bc2e5ccaa2d4bcd7974d/vulture-2.14-py2.py3-none-any.whl", hash = "sha256:d9a90dba89607489548a49d557f8bac8112bd25d3cbc8aeef23e860811bd5ed9", size = 28915, upload-time = "2024-12-08T17:39:40.573Z" },
 ]
+
+[[package]]
+name = "whisper"
+version = "1.1.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b4/c3/913cdd13ef3d882fa483981378a08cd0f018fd8dd95b6bf006b9bf1cfbc9/whisper-1.1.10.tar.gz", hash = "sha256:435b4fb843c4c752719bdf0511a652d5be710e9bb35ad9ebe3b133268ee31c44", size = 42835, upload-time = "2022-05-22T18:19:54.839Z" }
 
 [[package]]
 name = "zipp"
