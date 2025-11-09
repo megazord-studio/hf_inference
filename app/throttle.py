@@ -30,7 +30,7 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
         app,
         *,
         path_prefixes: Optional[Iterable[str]] = None,
-        max_concurrent: int = 5,
+        max_concurrent: int = 1,
         min_free_mb: int = 0,
         max_wait_sec: float = 120.0,
         sleep_sec: float = 0.25,
