@@ -1,40 +1,47 @@
 import logging
 import os
-
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from starlette.middleware import Middleware
+from fastapi.responses import FileResponse
+from app.routers.models import router as models_router
+from app.routers.intents import router as intents_router
 
-import app.routes.auth_routes as auth_routes
-from app.auth import SharedSecretAuthMiddleware
-from app.routes import healthz as healthz_routes
-from app.routes import home as home_routes
-from app.routes import inference as inference_routes
-from app.routes import models
-from app.routes import run_form as run_form_routes
-from app.throttle import ThrottleMiddleware  # added
 
 logger = logging.getLogger("uvicorn.error")
 
-middleware = [
-    Middleware(SharedSecretAuthMiddleware, env_var="INFERENCE_SHARED_SECRET"),
-    Middleware(ThrottleMiddleware),  # added
-]
+BASE_DIR = os.path.dirname(__file__)
 
-app = FastAPI(title="HF Inference API", version="0.1.0", middleware=middleware)
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app = FastAPI(title="HF Inference API", version="0.1.0")
 
-# Routers
-app.include_router(auth_routes.router)
-app.include_router(home_routes.router)
-app.include_router(healthz_routes.router)
-app.include_router(inference_routes.router)
-app.include_router(models.router)
-app.include_router(run_form_routes.router)
+# Include API routers
+app.include_router(models_router)
+app.include_router(intents_router)
+
+# SPA catch-all (only if path not starting with /api)
+@app.get("/{full_path:path}")
+async def spa_catch_all(full_path: str):  # type: ignore[unused-argument]
+    if full_path.startswith("api"):
+        return {"detail": "Not found"}
+    index_path = os.path.join(BASE_DIR, "static", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"detail": "Frontend not built"}
 
 
 def main() -> None:
-    import uvicorn
+    """CLI entry: run uvicorn with graceful KeyboardInterrupt handling.
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)
+    Using lifespan="off" avoids Starlette lifespan cancellation noise on Ctrl+C.
+    If you later add startup/shutdown events, remove lifespan="off".
+    """
+    import uvicorn
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, lifespan="off")
+    server = uvicorn.Server(config)
+    try:
+        server.run()
+    except KeyboardInterrupt:  # clean shutdown without extra traceback
+        logger.info("Received interrupt, shutting down cleanly.")
+    finally:
+        # Add any global cleanup here (release model handles, close pools, etc.)
+        pass
+
+__all__ = ["app", "main"]
