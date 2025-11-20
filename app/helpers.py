@@ -17,8 +17,21 @@ from PIL import ImageDraw
 
 
 def device_str() -> str:
-    """Return the device string for PyTorch ('cuda:0' or 'cpu')."""
-    return "cuda:0" if torch.cuda.is_available() else "cpu"
+    """Return the device string for PyTorch ('cuda:0', 'mps', or 'cpu')."""
+    # Prefer CUDA if available
+    if torch.cuda.is_available():
+        return "cuda:0"
+
+    # macOS (Apple Silicon) uses the MPS backend. Detect it when available.
+    try:
+        mps_backend = getattr(torch.backends, "mps", None)
+        if mps_backend is not None and getattr(mps_backend, "is_available", lambda: False)():
+            return "mps"
+    except Exception:
+        # Be conservative: if MPS checks fail for any reason, ignore and fall back to CPU
+        pass
+
+    return "cpu"
 
 
 def device_arg(dev: str) -> str:
