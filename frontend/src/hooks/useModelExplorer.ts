@@ -241,7 +241,7 @@ export function useModelExplorer() {
     const body: InferenceRequest = { model_id: selectedModel.id, intent_id: runIntent.id, input_type: primaryInputType, inputs };
     inference.mutate(body, { onSuccess: (data) => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-      const newRun: RunRecord = { id, createdAt: new Date().toISOString(), inputType: primaryInputType, intent: runIntent, model: selectedModel, inputText: textInput, result: data.result, runtime_ms: data.runtime_ms, requestInputs: inputs };
+      const newRun: RunRecord = { id, createdAt: new Date().toISOString(), inputType: primaryInputType, intent: runIntent, model: selectedModel, inputText: textInput, result: data.result, runtime_ms: data.runtime_ms, requestInputs: inputs, model_meta: data.model_meta };
       setRuns(prev => [...prev, newRun]); setSelectedRunId(id);
     }});
   };

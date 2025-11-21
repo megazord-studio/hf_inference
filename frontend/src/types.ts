@@ -31,6 +31,7 @@ export interface InferenceResponse {
   result: unknown;
   runtime_ms?: number;
   model_id?: string;
+  model_meta?: Record<string, unknown>;
 }
 
 export interface CurlExampleResponse {
@@ -48,6 +49,7 @@ export interface RunRecord {
   curl?: string;
   requestInputs?: Record<string, unknown>; // debug: inputs sent to backend
   runtime_ms?: number;
+  model_meta?: Record<string, unknown>; // enriched model metadata from backend
 }
 
 // Goal-oriented taxonomy additions (non-breaking)

@@ -18,6 +18,11 @@ class ModelSummary(BaseModel):
     downloads: Optional[int] = None
     cardData: Optional[dict] = None
 
+class ModelEnriched(ModelSummary):
+    config: Optional[dict] = None
+    siblings: Optional[List[dict]] = None
+    cardData: Optional[dict] = None  # override type for clarity
+
 class TaskStats(BaseModel):
     task: str
     model_count: int

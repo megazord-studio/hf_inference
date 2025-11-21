@@ -4,9 +4,29 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from app.routers.models import router as models_router
 from app.routers.intents import router as intents_router
+import app.routers.inference as inference_module
 
 
-logger = logging.getLogger("uvicorn.error")
+def configure_logging() -> None:
+    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    # Adjust third-party verbosity
+    logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.error").setLevel(level)
+    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+    # Application namespace
+    logging.getLogger("app").setLevel(level)
+
+
+# Configure logging early
+configure_logging()
+
+logger = logging.getLogger("app")
 
 BASE_DIR = os.path.dirname(__file__)
 
@@ -15,6 +35,7 @@ app = FastAPI(title="HF Inference API", version="0.1.0")
 # Include API routers
 app.include_router(models_router)
 app.include_router(intents_router)
+app.include_router(inference_module.router)
 
 # SPA catch-all (only if path not starting with /api)
 @app.get("/{full_path:path}")

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Image as ImageIcon, Type as TextIcon, Code, Play, Loader2, Clipboard, CheckCircle2, ChevronDown, ChevronRight, HelpCircle } from 'lucide-react';
+import { Image as ImageIcon, Type as TextIcon, Code, Play, Loader2, Clipboard, CheckCircle2, ChevronRight, HelpCircle } from 'lucide-react';
 import { tasksInfo } from '../../constants/tasksCatalog';
 import type { UseModelExplorerReturn } from '../../hooks/useModelExplorer';
 
@@ -18,7 +18,7 @@ export function RunPanel({ m }: RunPanelProps) {
   }, [m.selectedRunId]);
   const [copied, setCopied] = useState(false);
   const copyOutput = () => { if (!run?.result) return; navigator.clipboard.writeText(typeof run.result==='string'?run.result:JSON.stringify(run.result, null, 2)); setCopied(true); setTimeout(()=>setCopied(false),1500); };
-  const [showRaw, setShowRaw] = useState(false);
+  // const [showRaw, setShowRaw] = useState(false); // removed raw toggle
 
   // Derive capabilities from modelTasks (descriptions & IO hints)
   const capabilityTasks = m.modelTasks.length ? m.modelTasks : (m.selectedModel?.pipeline_tag ? [m.selectedModel.pipeline_tag] : []);
@@ -50,6 +50,8 @@ export function RunPanel({ m }: RunPanelProps) {
       {m.requiresText && <TextIcon className="w-3 h-3 text-success"/>}
     </span>
   );
+
+  const modelMeta: any = run ? (run as any).model_meta || (run.result as any)?.model_meta : undefined;
 
   return (
     <div className="card bg-base-100 shadow-sm border border-base-300">
@@ -178,27 +180,48 @@ export function RunPanel({ m }: RunPanelProps) {
             )}
             {tab==='output' && run && (
               <div className="space-y-3">
-                <div className="alert alert-success overflow-auto relative">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold text-xs mb-1 flex items-center gap-2">Model output <span className="badge badge-xs badge-outline" title="Latency">{run.runtime_ms ?? '—'} ms</span></div>
-                    <div className="flex gap-2 items-center">
-                      <button className="btn btn-xxs btn-outline" onClick={copyOutput}>{copied? <CheckCircle2 className="w-3 h-3" /> : <Clipboard className="w-3 h-3" />}</button>
-                      <button className="btn btn-xxs btn-outline" onClick={()=>setShowRaw(r=>!r)}>{showRaw?'Pretty':'Raw'}</button>
-                    </div>
+                {/* Output header with actions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-xs">Model output</span>
+                    <span className="badge badge-xs badge-outline" title="Latency">{run.runtime_ms ?? '—'} ms</span>
                   </div>
-                  <pre className="text-xs whitespace-pre-wrap leading-relaxed">
-{showRaw ? (typeof run.result==='string'? run.result : JSON.stringify(run.result)) : JSON.stringify(run.result, null, 2)}
-                  </pre>
+                  <div className="flex gap-2">
+                    <button className="btn btn-xxs btn-outline" onClick={copyOutput}>{copied? <CheckCircle2 className="w-3 h-3" /> : <Clipboard className="w-3 h-3" />}</button>
+                  </div>
+                </div>
+                {/* Unified pretty response */}
+                <div className="rounded-md border border-base-300 bg-base-200 p-3">
+                  <div className="text-[11px] font-semibold mb-1">Response</div>
+                  <pre className="text-[11px] whitespace-pre-wrap leading-relaxed max-h-96 overflow-auto">{JSON.stringify(run.result, null, 2)}</pre>
+                </div>
+                {/* Collapsible meta */}
+                {modelMeta && (
+                  <details className="rounded-md border border-base-300 bg-base-100 p-3">
+                    <summary className="cursor-pointer text-[11px] font-semibold flex items-center gap-1"><ChevronRight className="w-3 h-3" /> Model meta</summary>
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap gap-2 text-[10px]">
+                        {modelMeta.likes !== undefined && <span className="badge badge-outline" title="Likes">❤ {modelMeta.likes}</span>}
+                        {modelMeta.downloads !== undefined && <span className="badge badge-outline" title="Downloads">⬇ {modelMeta.downloads}</span>}
+                        {modelMeta.trendingScore !== undefined && <span className="badge badge-outline" title="Trending score">🔥 {modelMeta.trendingScore}</span>}
+                        {modelMeta.pipeline_tag && <span className="badge badge-outline" title="Pipeline">{modelMeta.pipeline_tag}</span>}
+                      </div>
+                      <pre className="text-[10px] whitespace-pre-wrap leading-relaxed max-h-72 overflow-auto">{JSON.stringify(modelMeta, null, 2)}</pre>
+                    </div>
+                  </details>
+                )}
+                {/* Request inputs & curl (secondary) */}
+                <div className="flex flex-col gap-2">
                   {run.requestInputs && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-[10px] opacity-70 flex items-center gap-1"><ChevronRight className="w-3 h-3" /> Request inputs</summary>
-                      <pre className="text-[10px] whitespace-pre-wrap">{JSON.stringify(run.requestInputs, null, 2)}</pre>
+                    <details className="rounded-md border border-base-300 bg-base-100 p-3">
+                      <summary className="cursor-pointer text-[11px] font-semibold flex items-center gap-1"><ChevronRight className="w-3 h-3" /> Request payload</summary>
+                      <pre className="mt-2 text-[10px] whitespace-pre-wrap">{JSON.stringify(run.requestInputs, null, 2)}</pre>
                     </details>
                   )}
                   {run.curl && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-[10px] opacity-70 flex items-center gap-1"><ChevronDown className="w-3 h-3" /> curl</summary>
-                      <pre className="text-[10px] whitespace-pre-wrap">{run.curl}</pre>
+                    <details className="rounded-md border border-base-300 bg-base-100 p-3">
+                      <summary className="cursor-pointer text-[11px] font-semibold flex items-center gap-1"><ChevronRight className="w-3 h-3" /> curl example</summary>
+                      <pre className="mt-2 text-[10px] whitespace-pre-wrap">{run.curl}</pre>
                     </details>
                   )}
                 </div>
