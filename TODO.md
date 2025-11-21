@@ -20,8 +20,10 @@ try/except around imports. Add necessary libraries using uv.
 Use the `./frontend` as reference for what needs to be working in general.
 
 Do not use environment variables to enable or disable capabilities; implement
-capabilities as either always-on (hardcoded) or automatically discovered at
-runtime (e.g. via hardware/library presence) without manual env gating.
+capabilities as either always-on (hardcoded).
+
+Do not add any fallbacks if a model does not run. It should be obvious that
+something is not working as expected. Fallback would hide that fact.
 
 ## Specific Tasks
 
@@ -35,13 +37,16 @@ runtime (e.g. via hardware/library presence) without manual env gating.
 - [x] Update `PIPELINE_TO_TASK` mapping for newly added HF pipeline tags (e.g. super-resolution, image-restoration, zero-shot-image-classification, zero-shot-object-detection, keypoint-detection, image-to-image, text-to-image).
 
 ### Phase B: Vision Generation Runners
-- [ ] Implement `TextToImageRunner` using diffusers StableDiffusion (baseline) with prompt, negative_prompt, guidance_scale, num_inference_steps.
-- [ ] Implement `ImageToImageRunner` (img2img) supporting strength parameter and resizing of input image_base64.
-- [ ] Implement `ImageSuperResolutionRunner` (e.g. using RealESRGAN or SD upscale pipeline) returning enhanced image_base64.
-- [ ] Implement `ImageRestorationRunner` (denoise / inpainting minimal) supporting mask_base64 optionally.
-- [ ] Add shared utility for encoding/decoding image base64 (DRY across new runners).
-- [ ] Extend registry to recognize new vision generation tasks.
-- [ ] Integration tests: text-to-image minimal prompt returns base64; image-to-image transforms image; super-resolution returns larger shape; restoration returns output image.
+- [x] Implement `TextToImageRunner` using diffusers StableDiffusion (baseline) with prompt, negative_prompt, guidance_scale, num_inference_steps.
+- [x] Implement `ImageToImageRunner` (img2img) supporting strength parameter and resizing of input image_base64.
+- [x] Implement `ImageSuperResolutionRunner` (e.g. using RealESRGAN or SD upscale pipeline) returning enhanced image_base64.
+- [x] Implement `ImageRestorationRunner` (denoise / inpainting minimal) supporting mask_base64 optionally.
+- [x] Add shared utility for encoding/decoding image base64 (DRY across new runners).
+- [x] Extend registry to recognize new vision generation tasks.
+- [x] Integration tests: text-to-image minimal prompt returns base64; image-to-image transforms image; super-resolution returns larger shape; restoration returns output image.
+
+### Phase B Follow-up:
+- [ ] Re-enable vision generation tests (text-to-image, image-to-image, super-resolution, restoration) after validating full diffusers pipeline loads without stubbing and returns non-empty images.
 
 ### Phase C: Advanced Vision Understanding
 - [ ] Implement `ZeroShotImageClassificationRunner` using CLIP or ViT + text class names (input: image + optional candidate_labels list).

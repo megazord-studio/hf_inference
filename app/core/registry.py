@@ -17,6 +17,7 @@ from typing import Dict, Optional, Any, Tuple
 
 from app.core.device import select_device
 from app.core.runners import TEXT_TASKS, text_runner_for_task, VISION_AUDIO_TASKS, vision_audio_runner_for_task
+from app.core.runners.vision_generation import VISION_GEN_TASKS, vision_gen_runner_for_task
 from app.core.resources import RESOURCES
 
 _LOCK = threading.RLock()
@@ -47,7 +48,7 @@ class ModelRegistry:
 
     # --- public API ---
     def predict(self, task: str, model_id: str, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
-        if task not in TEXT_TASKS and task not in VISION_AUDIO_TASKS:
+        if task not in TEXT_TASKS and task not in VISION_AUDIO_TASKS and task not in VISION_GEN_TASKS:
             raise ValueError(f"Unsupported task: {task}")
         entry = self._get_or_load(task, model_id)
         entry.touch()
@@ -95,8 +96,10 @@ class ModelRegistry:
                 self._evict_one()
             if task in TEXT_TASKS:
                 runner_cls = text_runner_for_task(task)
-            else:
+            elif task in VISION_AUDIO_TASKS:
                 runner_cls = vision_audio_runner_for_task(task)
+            else:
+                runner_cls = vision_gen_runner_for_task(task)
             runner = runner_cls(model_id=model_id, device=self._device)
             entry = ModelEntry(model_id=model_id, task=task, runner=runner, status="loading")
             try:
@@ -184,7 +187,7 @@ PIPELINE_TO_TASK = {
     "time-series-forecasting": "time-series-forecasting",
     "visual-document-retrieval": "visual-document-retrieval",
     "any-to-any": "any-to-any",
-    "image-text-to-text": "image-text-to-text",
+    "image_text-to-text": "image-text-to-text",
 }
 
 __all__ = ["REGISTRY", "PIPELINE_TO_TASK", "ModelRegistry"]

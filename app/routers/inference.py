@@ -4,20 +4,13 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from huggingface_hub import HfApi
-# Correct public import for hub HTTP error; keep fallback stub if unavailable
-try:
-    from huggingface_hub import HfHubHTTPError  # preferred public import
-except ImportError:  # pragma: no cover
-    try:
-        from huggingface_hub.utils import HfHubHTTPError  # legacy location
-    except ImportError:  # pragma: no cover
-        class HfHubHTTPError(Exception):  # type: ignore
-            pass
+from huggingface_hub.utils import HfHubHTTPError
 import socket
 from app.core.device import ensure_task_supported
 from app.core.registry import REGISTRY, PIPELINE_TO_TASK
 from app.core.runners import VISION_AUDIO_TASKS  # removed multimodal import
 from app.core.runners.text import TEXT_TASKS
+from app.core.runners.vision_generation import VISION_GEN_TASKS  # new vision gen tasks
 from fastapi.responses import StreamingResponse
 import uuid
 import time
@@ -141,7 +134,7 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
     if not task and meta and meta.get("pipeline_tag") in PIPELINE_TO_TASK:
         task = PIPELINE_TO_TASK[meta.get("pipeline_tag")]
 
-    if task and (task in TEXT_TASKS or task in VISION_AUDIO_TASKS):
+    if task and (task in TEXT_TASKS or task in VISION_AUDIO_TASKS or task in VISION_GEN_TASKS):
         try:
             pred = REGISTRY.predict(task=task, model_id=req.model_id, inputs=req.inputs, options=req.options or {})
             result["task_output"] = pred["output"]
@@ -152,24 +145,23 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
             result.setdefault("task_output", {})
             result["task"] = task
             result["error"] = {"message": f"inference_failed: {e}"}
-            # Provide structural empty outputs for vision/audio tasks to satisfy schema expectations
-            if task == "object-detection" and "detections" not in result["task_output"]:
-                result["task_output"]["detections"] = []
-            elif task == "depth-estimation" and "depth_summary" not in result["task_output"]:
-                result["task_output"]["depth_summary"] = {"mean":0.0,"min":0.0,"max":0.0,"shape":[],"len":0}
-            elif task == "text-to-speech" and "audio_base64" not in result["task_output"]:
-                result["task_output"]["audio_base64"] = ""
-            elif task == "image-segmentation" and ("labels" not in result["task_output"] or "shape" not in result["task_output"]):
-                result["task_output"].setdefault("labels", {})
-                result["task_output"].setdefault("shape", [])
-            elif task == "image-classification" and "predictions" not in result["task_output"]:
-                result["task_output"]["predictions"] = []
-            elif task == "image-captioning" and "text" not in result["task_output"]:
-                result["task_output"]["text"] = ""
-            elif task == "automatic-speech-recognition" and "text" not in result["task_output"]:
-                result["task_output"]["text"] = ""
-            elif task == "audio-classification" and "predictions" not in result["task_output"]:
-                result["task_output"]["predictions"] = []
+            # Structured empty outputs per task
+            empty = result["task_output"]
+            if task in ("image-classification", "audio-classification") and "predictions" not in empty:
+                empty["predictions"] = []
+            elif task in ("image-captioning", "automatic-speech-recognition") and "text" not in empty:
+                empty["text"] = ""
+            elif task == "object-detection" and "detections" not in empty:
+                empty["detections"] = []
+            elif task == "depth-estimation" and "depth_summary" not in empty:
+                empty["depth_summary"] = {"mean":0.0,"min":0.0,"max":0.0,"shape":[],"len":0}
+            elif task == "text-to-speech" and "audio_base64" not in empty:
+                empty["audio_base64"] = ""
+            elif task == "image-segmentation":
+                empty.setdefault("labels", {})
+                empty.setdefault("shape", [])
+            elif task in ("text-to-image", "image-to-image", "image-super-resolution", "image-restoration") and "image_base64" not in empty:
+                empty["image_base64"] = ""
     else:
         result["task_output"] = {}
         if task:
