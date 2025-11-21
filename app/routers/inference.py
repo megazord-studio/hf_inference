@@ -7,6 +7,10 @@ from huggingface_hub import HfApi
 from app.core.device import ensure_task_supported
 from app.core.registry import REGISTRY, PIPELINE_TO_TASK
 from app.core.runners.text import TEXT_TASKS
+from fastapi.responses import StreamingResponse
+import uuid
+import time
+import json
 
 router = APIRouter(prefix="/api", tags=["inference"])
 log = logging.getLogger("app.inference")
@@ -133,3 +137,46 @@ async def unload_model(task: str, model_id: str):
     if not ok:
         raise HTTPException(status_code=404, detail="Model not loaded")
     return {"unloaded": f"{model_id}:{task}"}
+
+@router.get("/inference/stream")
+async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50, temperature: float = 1.0, top_p: float = 1.0):
+    """Server-Sent Events streaming for text generation (manual SSE implementation).
+
+    Emits events: token, done (and optionally error). Uses a simple synchronous generation
+    followed by incremental emission to keep implementation deterministic for tests.
+    """
+    corr_id = str(uuid.uuid4())
+    task = "text-generation"
+    start_time = time.time()
+    try:
+        pred_init = REGISTRY.predict(
+            task=task,
+            model_id=model_id,
+            inputs={"text": prompt},
+            options={"max_new_tokens": max_new_tokens, "temperature": temperature, "top_p": top_p, "_stream": True},
+        )
+        tokens = pred_init["output"].get("tokens", [])
+    except Exception as e:
+        async def error_iter():
+            yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': str(e)})}\n\n"
+        return StreamingResponse(error_iter(), media_type="text/event-stream")
+
+    async def event_iter():
+        first_token_latency_ms: Optional[int] = None
+        # Start event (optional; aids debugging)
+        yield f"event: start\nid: {corr_id}\ndata: {json.dumps({'model_id': model_id, 'token_count_planned': len(tokens)})}\n\n"
+        for i, tok in enumerate(tokens):
+            if first_token_latency_ms is None:
+                first_token_latency_ms = int((time.time() - start_time) * 1000)
+            payload = {"index": i, "text": tok}
+            yield f"event: token\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
+        total_ms = int((time.time() - start_time) * 1000)
+        tps = round(len(tokens) / (max(total_ms, 1) / 1000.0), 2) if tokens else 0.0
+        done_payload = {
+            "tokens": len(tokens),
+            "runtime_ms": total_ms,
+            "first_token_latency_ms": first_token_latency_ms,
+            "tokens_per_second": tps,
+        }
+        yield f"event: done\nid: {corr_id}\ndata: {json.dumps(done_payload)}\n\n"
+    return StreamingResponse(event_iter(), media_type="text/event-stream")

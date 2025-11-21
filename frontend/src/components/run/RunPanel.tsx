@@ -53,6 +53,8 @@ export function RunPanel({ m }: RunPanelProps) {
 
   const modelMeta: any = run ? (run as any).model_meta || (run.result as any)?.model_meta : undefined;
 
+  const streamingActive = m.streamEnabled && m.selectedTask === 'text-generation';
+
   return (
     <div className="card bg-base-100 shadow-sm border border-base-300">
       <div className="card-body space-y-4">
@@ -159,13 +161,19 @@ export function RunPanel({ m }: RunPanelProps) {
                     className="btn btn-sm btn-primary gap-1"
                     onClick={m.runModel}
                     disabled={!m.canRun || m.inferencePending}
-                  >{m.inferencePending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} Run</button>
+                  >{m.inferencePending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {streamingActive ? 'Stream' : 'Run'}</button>
                   <button
                     type="button"
                     className="btn btn-sm btn-outline gap-1"
                     onClick={m.showCurl}
                     disabled={!m.canRun || m.curlPending}
                   >{m.curlPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Code className="w-4 h-4" />} Curl</button>
+                  {m.selectedTask === 'text-generation' && (
+                    <label className="label cursor-pointer gap-1 text-xs">
+                      <span className="opacity-70">Streaming</span>
+                      <input type="checkbox" className="toggle toggle-xs" checked={m.streamEnabled} onChange={e=>m.setStreamEnabled(e.target.checked)} />
+                    </label>
+                  )}
                 </div>
                 {run && (
                   <div className="mt-2 alert alert-info overflow-auto">
@@ -193,7 +201,24 @@ export function RunPanel({ m }: RunPanelProps) {
                 {/* Unified pretty response */}
                 <div className="rounded-md border border-base-300 bg-base-200 p-3">
                   <div className="text-[11px] font-semibold mb-1">Response</div>
-                  <pre className="text-[11px] whitespace-pre-wrap leading-relaxed max-h-96 overflow-auto">{JSON.stringify(run.result, null, 2)}</pre>
+                  {run.streaming ? (
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-mono whitespace-pre-wrap leading-relaxed max-h-72 overflow-auto">
+                        {run.streamingTokens?.join('') || ''}
+                      </div>
+                      {run.streamingMetrics && (
+                        <div className="flex flex-wrap gap-2 text-[10px]">
+                          <span className="badge badge-outline">tokens: {run.streamingMetrics.tokens}</span>
+                          <span className="badge badge-outline">runtime: {run.streamingMetrics.runtime_ms} ms</span>
+                          <span className="badge badge-outline">first token: {run.streamingMetrics.first_token_latency_ms} ms</span>
+                          <span className="badge badge-outline">t/s: {run.streamingMetrics.tokens_per_second}</span>
+                        </div>
+                      )}
+                      {run.streamingError && <p className="text-error text-[11px]">Streaming error: {run.streamingError}</p>}
+                    </div>
+                  ) : (
+                    <pre className="text-[11px] whitespace-pre-wrap leading-relaxed max-h-96 overflow-auto">{JSON.stringify(run.result, null, 2)}</pre>
+                  )}
                 </div>
                 {/* Collapsible meta */}
                 {modelMeta && (

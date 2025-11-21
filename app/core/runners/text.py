@@ -17,6 +17,7 @@ try:
         AutoTokenizer,
         AutoModelForSequenceClassification,
         pipeline,
+        TextIteratorStreamer,
     )
     from sentence_transformers import SentenceTransformer
 except Exception as e:  # pragma: no cover
@@ -42,6 +43,7 @@ class TextGenerationRunner(BaseRunner):
         max_new = int(options.get("max_new_tokens", 50))
         temperature = float(options.get("temperature", 1.0))
         top_p = float(options.get("top_p", 1.0))
+        stream = bool(options.get("_stream", False))
         if not prompt:
             return {"text": ""}
         gen_kwargs = {
@@ -50,13 +52,26 @@ class TextGenerationRunner(BaseRunner):
             "temperature": temperature,
             "top_p": top_p,
         }
+        input_ids = self.tokenizer.encode(prompt, return_tensors="pt").to(self.model.device)
+        if stream and 'TextIteratorStreamer' in globals():  # streaming path
+            streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
+            import threading
+            def _generate():
+                with torch.no_grad():
+                    self.model.generate(input_ids, streamer=streamer, **gen_kwargs)
+            t = threading.Thread(target=_generate)
+            t.start()
+            # Collect all tokens (blocking) for non-SSE call fallback
+            collected = []
+            for piece in streamer:
+                collected.append(piece)
+            text = (prompt + ''.join(collected)).strip()
+            return {"text": text, "generation_kwargs": gen_kwargs, "streamed": True, "tokens": collected}
+        # Non-streaming path
         with torch.no_grad():
-            out_ids = self.model.generate(
-                self.tokenizer.encode(prompt, return_tensors="pt").to(self.model.device),
-                **gen_kwargs,
-            )
+            out_ids = self.model.generate(input_ids, **gen_kwargs)
         text = self.tokenizer.decode(out_ids[0], skip_special_tokens=True)
-        return {"text": text, "generation_kwargs": gen_kwargs}
+        return {"text": text, "generation_kwargs": gen_kwargs, "streamed": False}
 
 class TextClassificationRunner(BaseRunner):
     def load(self) -> int:

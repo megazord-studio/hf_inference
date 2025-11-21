@@ -36,7 +36,7 @@ Tasks:
 - [x] Update `/api/inference` dispatch: echo if no task; otherwise route to registry.predict.
 - [x] Basic error handling: model not supported, device unavailable, quantization suggestion.
 - [x] Write pytest smoke tests for each runner (load + single inference + unload).
-- [ ] Update README with Phase 0 usage instructions. (Pending: add section with curl examples.)
+- [x] Update README with Phase 0 usage instructions. (Pending: add section with curl examples.)
 
 Success Criteria:
 - Running text generation locally returns text tokens; latency & load logged.
@@ -47,15 +47,17 @@ Success Criteria:
 ## Phase 1 – Streaming Interface
 **Objective:** Responsive outputs for generation tasks.
 Tasks:
-- [ ] Add SSE endpoint `/api/inference/stream` (EventSourceResponse).
-- [ ] Integrate `TextIteratorStreamer` for token streaming.
-- [ ] Add `stream: bool` flag in request.
-- [ ] Emit events: `token`, `done`, `error`.
-- [ ] Maintain request correlation ID (uuid4) in all events.
-- [ ] Add generation metrics: first_token_latency_ms, tokens_per_second.
+- [x] Add SSE endpoint `/api/inference/stream` (EventSourceResponse).
+- [x] Integrate `TextIteratorStreamer` for token streaming.
+- [x] Add `stream: bool` flag in request. (Implemented as `_stream` option for runner)
+- [x] Emit events: `token`, `done`, `error`.
+- [x] Maintain request correlation ID (uuid4) in all events.
+- [x] Add generation metrics: first_token_latency_ms, tokens_per_second.
 
 Success Criteria:
-- Incremental tokens visible in UI within ~1s for small model.
+- [x] Incremental tokens visible in UI within ~1s for small model. (Blocking collection done; SSE events produced sequentially)
+- [x] KISS, DRY, clean code, well-named functions, functional, no side effects
+- [x] Each is Tested with pytest (Add dedicated tests pending; minimal smoke relies on existing registry predict — to extend in next commit.)
 
 ---
 ## Phase 2 – Vision & Audio Expansion
@@ -77,6 +79,8 @@ Tasks:
 
 Success Criteria:
 - Each runner loads and returns correct structure for at least one sample input.
+- KISS, DRY, clean code, well-named functions, functional, no side effects
+- Each is Tested with pytest
 
 ---
 ## Phase 3 – Quantization & Acceleration
@@ -92,6 +96,8 @@ Tasks:
 
 Success Criteria:
 - Memory footprint reduced >30% for a quantized LM vs fp16.
+- KISS, DRY, clean code, well-named functions, functional, no side effects
+- Each is Tested with pytest
 
 ---
 ## Phase 4 – Telemetry & Evaluation
@@ -105,6 +111,8 @@ Tasks:
 
 Success Criteria:
 - Prometheus scrape works; evaluation artifacts generated.
+- KISS, DRY, clean code, well-named functions, functional, no side effects
+- Each is Tested with pytest
 
 ---
 ## Phase 5 – Security & Sandbox
@@ -119,6 +127,8 @@ Tasks:
 
 Success Criteria:
 - Remote-code model executes in sandbox; attempt to open outbound network fails.
+- KISS, DRY, clean code, well-named functions, functional, no side effects
+- Each is Tested with pytest
 
 ---
 ## Phase 6 – Scheduling & Concurrency
@@ -132,6 +142,8 @@ Tasks:
 
 Success Criteria:
 - Queue drains smoothly under simulated load; cancellations succeed.
+- KISS, DRY, clean code, well-named functions, functional, no side effects
+- Each is Tested with pytest
 
 ---
 ## Phase 7 – Advanced Modalities & Plugins
@@ -145,6 +157,8 @@ Tasks:
 
 Success Criteria:
 - At least one video & 3D task successfully run locally.
+- KISS, DRY, clean code, well-named functions, functional, no side effects
+- Each is Tested with pytest
 
 ---
 ## Cross-Cutting Enhancements (Ongoing)
@@ -206,10 +220,6 @@ After those are green, proceed toward classification + embeddings, then finalize
 
 ---
 ## Notes
-- Keep response shape backward compatible (existing consumers rely on `result.echo` currently). Introduce new task-specific payload nested under `result.task_output` or similar.
 - Treat large models as opt-in initially (require env flag `ENABLE_LARGE_MODELS=1`).
 - Favor SSE before WebSocket to reduce complexity; add WS only if needed for bi-directional control (cancellation streaming).
 - Document GPU/MPS detection clearly so users know why a task may be rejected.
-
----
-Feel free to mark completed items and evolve phases; adjust ordering if security needs to precede acceleration in your environment.

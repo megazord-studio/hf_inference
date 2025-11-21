@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useInference, useCurlExample } from '../api/hooks';
+import { useTextGenerationStream } from '../api/hooks';
 import type { InputType, OutputType, ModelSummary, Intent, RunRecord, InferenceRequest } from '../types';
 import { taskModalities } from '../constants/taskModalities';
 import { tasksInfo } from '../constants/tasksCatalog';
@@ -196,8 +197,8 @@ export function useModelExplorer() {
   // Inference hooks
   const inference = useInference();
   const curlExample = useCurlExample();
-  const inferencePending = inference.isPending;
-  const curlPending = curlExample.isPending;
+  const streamGen = useTextGenerationStream();
+  const [streamEnabled, setStreamEnabled] = useState<boolean>(true);
 
   // Determine primary input_type for request (fallback to text)
   const primaryInputType: InputType = requiresImage ? 'image' : requiresAudio ? 'audio' : requiresVideo ? 'video' : requiresDocument ? 'document' : 'text';
@@ -238,6 +239,17 @@ export function useModelExplorer() {
   const runModel = () => {
     if (!canRun || !selectedModel) return;
     const inputs = buildInputs();
+    const isTextGen = selectedTask === 'text-generation' && !requiresImage && !requiresAudio && !requiresVideo && !requiresDocument;
+    if (isTextGen && streamEnabled && textInput.trim()) {
+      streamGen.mutate({ model_id: selectedModel.id, prompt: textInput.trim(), params: { max_new_tokens: (inputs.extra_args as any)?.max_new_tokens || 50, temperature: (inputs.extra_args as any)?.temperature || 1.0, top_p: (inputs.extra_args as any)?.top_p || 1.0 } }, {
+        onSuccess: (data) => {
+          const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+          const newRun: RunRecord = { id, createdAt: new Date().toISOString(), inputType: primaryInputType, intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] }, model: selectedModel, inputText: textInput, streaming: true, streamingTokens: data.tokens, streamingMetrics: data.metrics, streamingError: data.error };
+          setRuns(prev => [...prev, newRun]); setSelectedRunId(id);
+        }
+      });
+      return;
+    }
     const body: InferenceRequest = { model_id: selectedModel.id, intent_id: runIntent?.id || '', input_type: primaryInputType, inputs, task: selectedTask || undefined } as any;
     inference.mutate(body, { onSuccess: (data) => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
@@ -294,7 +306,9 @@ export function useModelExplorer() {
     documentB64, handleDocumentFile,
     extraArgsJson, setExtraArgsJson, extraArgsError,
     // Execution
-    canRun, runModel, showCurl, inferencePending, curlPending,
+    canRun, runModel, showCurl,
+    inferencePending: inference.isPending || streamGen.isPending,
+    curlPending: curlExample.isPending,
     // Runs history
     runs, selectedRunId, selectRun,
     // Misc
@@ -303,6 +317,7 @@ export function useModelExplorer() {
     sortBy, setSortBy,
     isLoadingModels: modelsQuery.isLoading, isLoadingIntents: intentsQuery.isLoading,
     searchQuery, setSearchQuery,
+    streamEnabled, setStreamEnabled,
   };
 }
 

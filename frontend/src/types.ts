@@ -50,6 +50,15 @@ export interface RunRecord {
   requestInputs?: Record<string, unknown>; // debug: inputs sent to backend
   runtime_ms?: number;
   model_meta?: Record<string, unknown>; // enriched model metadata from backend
+  streaming?: boolean;
+  streamingTokens?: string[]; // incremental tokens for streaming runs
+  streamingMetrics?: {
+    tokens?: number;
+    runtime_ms?: number;
+    first_token_latency_ms?: number;
+    tokens_per_second?: number;
+  };
+  streamingError?: string;
 }
 
 // Goal-oriented taxonomy additions (non-breaking)
