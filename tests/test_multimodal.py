@@ -1,0 +1,44 @@
+"""Phase D multimodal integration test (skipped until model selection finalized).
+"""
+from __future__ import annotations
+from fastapi.testclient import TestClient
+from app.main import app
+import base64, io
+from PIL import Image
+import pytest
+
+client = TestClient(app)
+MM_MODELS = [
+    "Salesforce/blip-vqa-base",
+    "llava-hf/llava-1.5-7b-hf",
+    "qwen-vl-chat",
+    "google/paligemma-3b-mix-448",
+    "HuggingFaceM4/idefics2-8b",
+    "openbmb/MiniCPM-V-2",
+]
+
+
+def _mk_image_b64(color=(200, 180, 50)):
+    img = Image.new("RGB", (64, 64), color=color)
+    buf = io.BytesIO(); img.save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _post(task: str, model_id: str, inputs: dict, options: dict):
+    resp = client.post('/api/inference', json={
+        'model_id': model_id,
+        'intent_id': '',
+        'input_type': 'image',
+        'inputs': inputs,
+        'task': task,
+        'options': options,
+    })
+    assert resp.status_code == 200, resp.text
+    return resp.json()['result']['task_output']
+
+@pytest.mark.parametrize("model_id", MM_MODELS)
+@pytest.mark.skip(reason="Multimodal large models; enable selectively after resource validation")
+def test_image_text_to_text_basic(model_id: str):
+    out = _post('image-text-to-text', model_id, {'image_base64': _mk_image_b64(), 'text': 'What color is the square?'}, {'max_length': 10})
+    assert 'answer' in out and isinstance(out['answer'], str)
+    assert out.get('arch') in ('blip','llava','qwen','paligemma','idefics','minicpm','phi','generic')

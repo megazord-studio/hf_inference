@@ -57,6 +57,7 @@ dependencies = [
   "sse-starlette~=1.6",
   "torchaudio~=2.8.0",
   "librosa~=0.10",
+  "ultralytics~=8.3",
 ]
 
 [project.urls]
