@@ -214,7 +214,7 @@ export function useModelExplorer() {
   const allowedModalities = Array.from(requiredInputsSet);
   const hasAtLeastOne = allowedModalities.some(m => provided[m]);
   const allComboSatisfied = combinationRequired ? (provided['text'] && provided['image']) : true;
-  const canRun = !!(selectedModel && runIntent && allComboSatisfied && (combinationRequired ? true : hasAtLeastOne));
+  const canRun = !!(selectedModel && (runIntent || selectedTask) && allComboSatisfied && (combinationRequired ? true : hasAtLeastOne));
 
   const buildInputs = () => {
     const inputs: Record<string, unknown> = {};
@@ -236,20 +236,20 @@ export function useModelExplorer() {
   };
 
   const runModel = () => {
-    if (!canRun || !selectedModel || !runIntent) return;
+    if (!canRun || !selectedModel) return;
     const inputs = buildInputs();
-    const body: InferenceRequest = { model_id: selectedModel.id, intent_id: runIntent.id, input_type: primaryInputType, inputs };
+    const body: InferenceRequest = { model_id: selectedModel.id, intent_id: runIntent?.id || '', input_type: primaryInputType, inputs, task: selectedTask || undefined } as any;
     inference.mutate(body, { onSuccess: (data) => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-      const newRun: RunRecord = { id, createdAt: new Date().toISOString(), inputType: primaryInputType, intent: runIntent, model: selectedModel, inputText: textInput, result: data.result, runtime_ms: data.runtime_ms, requestInputs: inputs, model_meta: data.model_meta };
+      const newRun: RunRecord = { id, createdAt: new Date().toISOString(), inputType: primaryInputType, intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] }, model: selectedModel, inputText: textInput, result: data.result, runtime_ms: data.runtime_ms, requestInputs: inputs, model_meta: data.model_meta };
       setRuns(prev => [...prev, newRun]); setSelectedRunId(id);
     }});
   };
 
   const showCurl = () => {
-    if (!canRun || !selectedModel || !runIntent) return;
+    if (!canRun || !selectedModel) return;
     const inputs = buildInputs();
-    const body: InferenceRequest = { model_id: selectedModel.id, intent_id: runIntent.id, input_type: primaryInputType, inputs };
+    const body: InferenceRequest = { model_id: selectedModel.id, intent_id: runIntent?.id || '', input_type: primaryInputType, inputs, task: selectedTask || undefined } as any;
     curlExample.mutate(body, { onSuccess: (data) => {
       setRuns(prev => prev.map(r => r.id === selectedRunId ? { ...r, curl: data.command } : r));
     }});

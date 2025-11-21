@@ -53,6 +53,7 @@ dependencies = [
   "hf-transfer>=0.1.9",
   "Jinja2~=3.1",
   "whisper>=1.1.10",
+  "onnxruntime~=1.18",
 ]
 
 [project.urls]

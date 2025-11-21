@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from app.routers.models import router as models_router
 from app.routers.intents import router as intents_router
 import app.routers.inference as inference_module
+from app.core.device import startup_log
 
 
 def configure_logging() -> None:
@@ -25,6 +26,7 @@ def configure_logging() -> None:
 
 # Configure logging early
 configure_logging()
+startup_log()
 
 logger = logging.getLogger("app")
 

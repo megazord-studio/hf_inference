@@ -4,6 +4,9 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from huggingface_hub import HfApi
+from app.core.device import ensure_task_supported
+from app.core.registry import REGISTRY, PIPELINE_TO_TASK
+from app.core.runners.text import TEXT_TASKS
 
 router = APIRouter(prefix="/api", tags=["inference"])
 log = logging.getLogger("app.inference")
@@ -14,6 +17,8 @@ class InferenceRequest(BaseModel):
     intent_id: Optional[str] = Field(None, description="Frontend intent id (semantic grouping)")
     input_type: str = Field(..., description="Primary input modality selected (text, image, audio, video, document)")
     inputs: Dict[str, Any] = Field(..., description="Payload of inputs (text, image_base64, audio_base64, etc.)")
+    task: Optional[str] = Field(None, description="Explicit HF task/pipeline tag (optional) for future runner dispatch")
+    options: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Task-specific generation / inference options")
 
 class InferenceResponse(BaseModel):
     result: Any
@@ -79,18 +84,28 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
     }
     meta: dict | None = None
     if include_model_meta:
-        import time as _t
-        t0 = _t.time()
         meta = _fetch_full_model_meta(req.model_id)
-        dt_ms = int((_t.time() - t0) * 1000)
         if meta is None:
-            meta = {"error": "enrichment_failed", "model_id": req.model_id, "elapsed_ms": dt_ms}
-            log.warning(f"Model meta unavailable for {req.model_id}; enrichment_failed elapsed={dt_ms}ms")
-        else:
-            meta["enrichment_elapsed_ms"] = dt_ms
-            log.info(f"Enriched model meta for {req.model_id} in {dt_ms}ms")
-    else:
-        meta = {"disabled": True}
+            log.warning(f"Model meta unavailable for {req.model_id}; proceeding without enrichment")
+    # New: enforce device availability for GPU-required tasks
+    try:
+        ensure_task_supported(req.task or meta.get("pipeline_tag") if meta else None)
+    except RuntimeError as e:
+        return InferenceResponse(result={"error": "device_unavailable", "detail": str(e), "suggestion": "Try smaller model or enable GPU/MPS."}, runtime_ms=0, model_id=req.model_id, model_meta=meta)
+
+    # Phase 0 dispatch for text tasks with pipeline fallback
+    task = req.task
+    if not task and meta and meta.get("pipeline_tag") in PIPELINE_TO_TASK:
+        task = PIPELINE_TO_TASK[meta.get("pipeline_tag")]
+    if task in TEXT_TASKS:
+        try:
+            pred = REGISTRY.predict(task=task, model_id=req.model_id, inputs=req.inputs, options=req.options or {})
+            result["task_output"] = pred["output"]
+            result["task"] = task
+            result["runtime_ms_model"] = pred["runtime_ms"]
+            result["resolved_model_id"] = pred.get("resolved_model_id")
+        except Exception as e:
+            result["error"] = {"message": f"inference_failed: {e}"}
     return InferenceResponse(result=result, runtime_ms=0, model_id=req.model_id, model_meta=meta)
 
 @router.post("/curl-example", response_model=CurlExampleResponse)
@@ -107,3 +122,14 @@ async def curl_example(req: InferenceRequest) -> CurlExampleResponse:
         f"-d '{body}'"
     )
     return CurlExampleResponse(command=command)
+
+@router.get("/models/status")
+async def models_status():
+    return {"loaded": REGISTRY.list_loaded()}
+
+@router.delete("/models/{task}/{model_id}")
+async def unload_model(task: str, model_id: str):
+    ok = REGISTRY.unload(task, model_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Model not loaded")
+    return {"unloaded": f"{model_id}:{task}"}
