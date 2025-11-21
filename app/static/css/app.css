@@ -143,3 +143,55 @@ html[data-theme="synthwave"] {
   --a: 265 85% 68%; /* accent: techy violet */
   --p: 200 90% 58%; /* primary: deep cyan */
 }
+
+/* Result display enhancements */
+.result-content {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.result-content pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.result-content code {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Alert enhancements for better error display */
+.alert {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.alert pre, .alert code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* Ensure overflow containers have smooth scrolling */
+.overflow-auto {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+/* Animation for result appearance */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#runWrap {
+  animation: slideUp 0.3s ease-out;
+}
