@@ -33,7 +33,7 @@ class TaskStats(BaseModel):
 
 # Curated TASKS: broad coverage while pruning niche / low-signal tasks.
 # Inclusion heuristics applied offline: (model_count >= 50) OR (avg_likes >= ~40) OR (core user goal) excluding experimental / niche.
-# Duplicates unified (e.g. visual-question-answering folded into image-text-to-text; mask-generation folded into image-segmentation; image-feature-extraction into feature-extraction; unconditional-image-generation folded into text-to-image).
+# Duplicates unified (e.g. mask-generation folded into image-segmentation; image-feature-extraction into feature-extraction; unconditional-image-generation folded into text-to-image).
 TASKS = {
     # Language core & transformation
     "text-generation","summarization","translation","question-answering","table-question-answering",
@@ -42,8 +42,6 @@ TASKS = {
     "sentence-similarity","feature-extraction",
     # Vision understanding & detection
     "image-classification","object-detection","image-segmentation","zero-shot-image-classification","zero-shot-object-detection","keypoint-detection","depth-estimation",
-    # Vision & multimodal reasoning / captioning
-    "image-to-text","image-text-to-text",
     # Image generation & transformation
     "text-to-image","image-to-image","image-super-resolution","image-restoration",
     # 3D / emerging vision (kept due to growth & avg likes)
@@ -58,6 +56,20 @@ TASKS = {
     "visual-document-retrieval",
     # High-engagement generalist (kept despite broad scope)
     "any-to-any",
+}
+
+SUPPORTED_TASKS = {
+    # Phase 0/1 tasks retained elsewhere
+    # Vision & Audio Phase 2 (multimodal removed):
+    "image-classification",
+    "image-captioning",
+    "image-to-text",  # keep standard HF alias for captioning
+    "object-detection",
+    "image-segmentation",
+    "depth-estimation",
+    "automatic-speech-recognition",
+    "text-to-speech",
+    "audio-classification",
 }
 
 # In-memory cache + TTL (synced with persistent disk cache TTL)

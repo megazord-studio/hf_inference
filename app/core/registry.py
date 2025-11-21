@@ -16,10 +16,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, Any, Tuple
 
 from app.core.device import select_device
-from app.core.runners.text import (
-    TEXT_TASKS,
-    runner_for_task,
-)
+from app.core.runners import TEXT_TASKS, text_runner_for_task, VISION_AUDIO_TASKS, vision_audio_runner_for_task
 from app.core.resources import RESOURCES
 
 _LOCK = threading.RLock()
@@ -50,14 +47,15 @@ class ModelRegistry:
 
     # --- public API ---
     def predict(self, task: str, model_id: str, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
-        if task not in TEXT_TASKS:
-            raise ValueError(f"Unsupported Phase 0 text task: {task}")
+        if task not in TEXT_TASKS and task not in VISION_AUDIO_TASKS:
+            raise ValueError(f"Unsupported task: {task}")
         entry = self._get_or_load(task, model_id)
         entry.touch()
         start = time.time()
         output = entry.runner.predict(inputs, options)
         runtime_ms = int((time.time() - start) * 1000)
-        return {"task": task, "model_id": model_id, "output": output, "runtime_ms": runtime_ms, "backend": getattr(entry.runner, 'backend', 'torch')}
+        resolved_id = getattr(entry.runner, 'resolved_model_id', None)
+        return {"task": task, "model_id": model_id, "output": output, "runtime_ms": runtime_ms, "backend": getattr(entry.runner, 'backend', 'torch'), "resolved_model_id": resolved_id}
 
     def list_loaded(self) -> Dict[str, Any]:  # debug/inspection
         with _LOCK:
@@ -93,10 +91,12 @@ class ModelRegistry:
             existing = self._models.get(key)
             if existing:
                 return existing
-            # eviction first if capacity full or memory watermark exceeded
             if len(self._models) >= self._max_loaded or RESOURCES.need_eviction():
                 self._evict_one()
-            runner_cls = runner_for_task(task)
+            if task in TEXT_TASKS:
+                runner_cls = text_runner_for_task(task)
+            else:
+                runner_cls = vision_audio_runner_for_task(task)
             runner = runner_cls(model_id=model_id, device=self._device)
             entry = ModelEntry(model_id=model_id, task=task, runner=runner, status="loading")
             try:
@@ -123,6 +123,7 @@ class ModelRegistry:
                         entry.runner = runner
                         raise RuntimeError(f"Failed ONNX fallback for {model_id}: {onnx_e}") from onnx_e
                 else:
+                    # No dummy fallback for vision/audio; surface error directly
                     entry.status = "error"
                     entry.runner = runner
                     raise RuntimeError(f"Failed loading model {model_id} for task {task}: {e}")
@@ -149,12 +150,41 @@ class ModelRegistry:
 # Singleton instance
 REGISTRY = ModelRegistry()
 
-# Mapping pipeline_tag -> default task for Phase 0
+# Mapping pipeline_tag -> default task for Phase 0 + Phase 2
 PIPELINE_TO_TASK = {
     "text-generation": "text-generation",
     "text-classification": "text-classification",
-    "feature-extraction": "embedding",  # huggingface pipeline_tag for embeddings
-    "sentence-similarity": "embedding",
+    "feature-extraction": "embedding",
+    "sentence-similarity": "embedding",  # map to embedding for now
+    # Phase 2 mappings
+    "image-to-text": "image-captioning",
+    "image-classification": "image-classification",
+    "object-detection": "object-detection",
+    "image-segmentation": "image-segmentation",
+    "depth-estimation": "depth-estimation",
+    "automatic-speech-recognition": "automatic-speech-recognition",
+    "audio-classification": "audio-classification",
+    "text-to-speech": "text-to-speech",
+    # Phase A new pipeline tags (stubbed runners pending)
+    "zero-shot-image-classification": "zero-shot-image-classification",
+    "zero-shot-object-detection": "zero-shot-object-detection",
+    "keypoint-detection": "keypoint-detection",
+    "image-super-resolution": "image-super-resolution",
+    "image-restoration": "image-restoration",
+    "image-to-3d": "image-to-3d",
+    "text-to-3d": "text-to-3d",
+    "text-to-image": "text-to-image",
+    "image-to-image": "image-to-image",
+    "text-to-video": "text-to-video",
+    "image-to-video": "image-to-video",
+    "audio-to-audio": "audio-to-audio",
+    "text-to-audio": "text-to-audio",
+    "audio-text-to-text": "audio-text-to-text",
+    "voice-activity-detection": "voice-activity-detection",
+    "time-series-forecasting": "time-series-forecasting",
+    "visual-document-retrieval": "visual-document-retrieval",
+    "any-to-any": "any-to-any",
+    "image-text-to-text": "image-text-to-text",
 }
 
 __all__ = ["REGISTRY", "PIPELINE_TO_TASK", "ModelRegistry"]

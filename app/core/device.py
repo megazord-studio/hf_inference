@@ -26,7 +26,8 @@ GPU_REQUIRED_TASKS: Set[str] = {
     "image-to-video",
     "image-to-3d",
     "text-to-3d",
-    "video-generation",
+    "video-generation",  # legacy alias
+    "any-to-any",  # generalist may compose heavy tasks
 }
 
 _try_torch_done = False
@@ -136,4 +137,3 @@ __all__ = [
     "startup_log",
     "GPU_REQUIRED_TASKS",
 ]
-

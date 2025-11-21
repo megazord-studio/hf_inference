@@ -55,6 +55,8 @@ dependencies = [
   "whisper>=1.1.10",
   "onnxruntime~=1.18",
   "sse-starlette~=1.6",
+  "torchaudio~=2.8.0",
+  "librosa~=0.10",
 ]
 
 [project.urls]
@@ -147,4 +149,9 @@ include = [
   "LICENSE",
   "pyproject.toml",
   "Dockerfile",
+]
+
+[tool.pytest.ini_options]
+markers = [
+  "timeout: mark tests that may take longer to run"
 ]

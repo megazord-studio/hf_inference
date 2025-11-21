@@ -4,8 +4,19 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from huggingface_hub import HfApi
+# Correct public import for hub HTTP error; keep fallback stub if unavailable
+try:
+    from huggingface_hub import HfHubHTTPError  # preferred public import
+except ImportError:  # pragma: no cover
+    try:
+        from huggingface_hub.utils import HfHubHTTPError  # legacy location
+    except ImportError:  # pragma: no cover
+        class HfHubHTTPError(Exception):  # type: ignore
+            pass
+import socket
 from app.core.device import ensure_task_supported
 from app.core.registry import REGISTRY, PIPELINE_TO_TASK
+from app.core.runners import VISION_AUDIO_TASKS  # removed multimodal import
 from app.core.runners.text import TEXT_TASKS
 from fastapi.responses import StreamingResponse
 import uuid
@@ -33,7 +44,7 @@ class InferenceResponse(BaseModel):
 class CurlExampleResponse(BaseModel):
     command: str
 
-# Full model enrichment helper using model_info with expand list
+# Full model enrichment helper using model_info with expand list (now with retries & fallback)
 def _fetch_full_model_meta(model_id: str) -> Optional[dict]:
     token = os.getenv("HF_TOKEN")
     api = HfApi(token=token) if token else HfApi()
@@ -41,47 +52,74 @@ def _fetch_full_model_meta(model_id: str) -> Optional[dict]:
         "author","cardData","config","createdAt","lastModified","likes","trendingScore",
         "downloads","pipeline_tag","library_name","sha","tags","siblings","gated","private"
     ]
+    retries = int(os.getenv("HF_META_RETRIES", "2"))
+    timeout = float(os.getenv("HF_META_TIMEOUT", "10"))
+    last_err: Exception | None = None
+    for attempt in range(1, retries + 2):  # initial + retries
+        try:
+            info = api.model_info(model_id, expand=expand_fields, timeout=timeout)
+            meta = {
+                "id": getattr(info, "modelId", None) or model_id,
+                "modelId": getattr(info, "modelId", None),
+                "author": getattr(info, "author", None),
+                "gated": getattr(info, "gated", None),
+                "private": getattr(info, "private", None),
+                "lastModified": getattr(info, "lastModified", None),
+                "createdAt": getattr(info, "createdAt", None),
+                "likes": getattr(info, "likes", None),
+                "trendingScore": getattr(info, "trendingScore", None),
+                "downloads": getattr(info, "downloads", None),
+                "pipeline_tag": getattr(info, "pipeline_tag", None),
+                "library_name": getattr(info, "library_name", None),
+                "sha": getattr(info, "sha", None),
+                "tags": getattr(info, "tags", None),
+                "config": getattr(info, "config", None),
+                "cardData": getattr(info, "cardData", None),
+                "siblings": [ {"rfilename": s.rfilename} for s in getattr(info, "siblings", []) ] if getattr(info, "siblings", None) else None,
+            }
+            meta["_id"] = getattr(info, "_id", None)
+            return meta
+        except (HfHubHTTPError, socket.timeout, ConnectionError, OSError, Exception) as e:  # broad catch for transient issues
+            last_err = e
+            # Only warn on final attempt; earlier attempts debug for noise reduction
+            level = log.warning if attempt == (retries + 1) else log.debug
+            level(f"model_info enrichment attempt {attempt} failed for {model_id}: {e}")
+    # Fallback: try lightweight list_models search for minimal data
     try:
-        info = api.model_info(model_id, expand=expand_fields)  # richer direct fetch
-        meta = {
-            "id": getattr(info, "modelId", None) or model_id,
-            "modelId": getattr(info, "modelId", None),
-            "author": getattr(info, "author", None),
-            "gated": getattr(info, "gated", None),
-            "private": getattr(info, "private", None),
-            "lastModified": getattr(info, "lastModified", None),
-            "createdAt": getattr(info, "createdAt", None),
-            "likes": getattr(info, "likes", None),
-            "trendingScore": getattr(info, "trendingScore", None),
-            "downloads": getattr(info, "downloads", None),
-            "pipeline_tag": getattr(info, "pipeline_tag", None),
-            "library_name": getattr(info, "library_name", None),
-            "sha": getattr(info, "sha", None),
-            "tags": getattr(info, "tags", None),
-            "config": getattr(info, "config", None),
-            "cardData": getattr(info, "cardData", None),
-            "siblings": [ {"rfilename": s.rfilename} for s in getattr(info, "siblings", []) ] if getattr(info, "siblings", None) else None,
-        }
-        meta["_id"] = getattr(info, "_id", None)  # may be absent
-        return meta
-    except Exception as e:
-        log.warning(f"model_info enrichment failed for {model_id}: {e}")
-        return None
+        listed = api.list_models(search=f"id={model_id}", limit=1)
+        listed_models = list(listed)
+        if listed_models:
+            m = listed_models[0]
+            return {
+                "id": model_id,
+                "modelId": model_id,
+                "likes": getattr(m, "likes", None),
+                "downloads": getattr(m, "downloads", None),
+                "pipeline_tag": getattr(m, "pipeline_tag", None),
+                "tags": getattr(m, "tags", None),
+                "gated": getattr(m, "gated", None),
+                "private": getattr(m, "private", None),
+                "fallback": True,
+            }
+    except Exception as e2:
+        log.debug(f"Fallback list_models failed for {model_id}: {e2}")
+    log.warning(f"Model meta unavailable for {model_id}; proceeding without enrichment (last error: {last_err})")
+    return None
 
 # Placeholder store for future model handles / pooling / concurrency limits
 # For now we simply echo request; real inference integration will plug into HF Inference Endpoints or local pipelines.
 
 @router.post("/inference", response_model=InferenceResponse)
 async def run_inference(req: InferenceRequest, include_model_meta: bool = True) -> InferenceResponse:
-    """Stub inference endpoint with optional model metadata enrichment."""
+    """Inference endpoint dispatching to local runners (text, vision/audio)."""
     if not req.inputs:
         raise HTTPException(status_code=400, detail="inputs object cannot be empty")
     provided = {k: ("<bytes>" if isinstance(v, str) and v.startswith("data:") else v) for k, v in req.inputs.items()}
-    result = {
+    result: Dict[str, Any] = {
         "echo": provided,
         "info": {
             "model_id": req.model_id,
-            "intent_id": req.intent_id,
+            "intent_id": req.intent_id or "",
             "input_type": req.input_type,
             "received_fields": list(req.inputs.keys()),
         }
@@ -91,17 +129,19 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
         meta = _fetch_full_model_meta(req.model_id)
         if meta is None:
             log.warning(f"Model meta unavailable for {req.model_id}; proceeding without enrichment")
-    # New: enforce device availability for GPU-required tasks
+    # Device suitability enforcement
     try:
-        ensure_task_supported(req.task or meta.get("pipeline_tag") if meta else None)
+        ensure_task_supported(req.task or (meta.get("pipeline_tag") if meta else None))
     except RuntimeError as e:
-        return InferenceResponse(result={"error": "device_unavailable", "detail": str(e), "suggestion": "Try smaller model or enable GPU/MPS."}, runtime_ms=0, model_id=req.model_id, model_meta=meta)
+        result["task_output"] = {}
+        result["error"] = {"message": str(e)}
+        return InferenceResponse(result=result, runtime_ms=0, model_id=req.model_id, model_meta=meta)
 
-    # Phase 0 dispatch for text tasks with pipeline fallback
     task = req.task
     if not task and meta and meta.get("pipeline_tag") in PIPELINE_TO_TASK:
         task = PIPELINE_TO_TASK[meta.get("pipeline_tag")]
-    if task in TEXT_TASKS:
+
+    if task and (task in TEXT_TASKS or task in VISION_AUDIO_TASKS):
         try:
             pred = REGISTRY.predict(task=task, model_id=req.model_id, inputs=req.inputs, options=req.options or {})
             result["task_output"] = pred["output"]
@@ -109,7 +149,31 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
             result["runtime_ms_model"] = pred["runtime_ms"]
             result["resolved_model_id"] = pred.get("resolved_model_id")
         except Exception as e:
+            result.setdefault("task_output", {})
+            result["task"] = task
             result["error"] = {"message": f"inference_failed: {e}"}
+            # Provide structural empty outputs for vision/audio tasks to satisfy schema expectations
+            if task == "object-detection" and "detections" not in result["task_output"]:
+                result["task_output"]["detections"] = []
+            elif task == "depth-estimation" and "depth_summary" not in result["task_output"]:
+                result["task_output"]["depth_summary"] = {"mean":0.0,"min":0.0,"max":0.0,"shape":[],"len":0}
+            elif task == "text-to-speech" and "audio_base64" not in result["task_output"]:
+                result["task_output"]["audio_base64"] = ""
+            elif task == "image-segmentation" and ("labels" not in result["task_output"] or "shape" not in result["task_output"]):
+                result["task_output"].setdefault("labels", {})
+                result["task_output"].setdefault("shape", [])
+            elif task == "image-classification" and "predictions" not in result["task_output"]:
+                result["task_output"]["predictions"] = []
+            elif task == "image-captioning" and "text" not in result["task_output"]:
+                result["task_output"]["text"] = ""
+            elif task == "automatic-speech-recognition" and "text" not in result["task_output"]:
+                result["task_output"]["text"] = ""
+            elif task == "audio-classification" and "predictions" not in result["task_output"]:
+                result["task_output"]["predictions"] = []
+    else:
+        result["task_output"] = {}
+        if task:
+            result["task"] = str(task)
     return InferenceResponse(result=result, runtime_ms=0, model_id=req.model_id, model_meta=meta)
 
 @router.post("/curl-example", response_model=CurlExampleResponse)
