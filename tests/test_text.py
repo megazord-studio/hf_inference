@@ -4,7 +4,6 @@ from app.main import app
 
 client = TestClient(app)
 
-# Skip tests requiring network if HF_TOKEN missing; we rely on public small models (gpt2, distilbert, sentence-transformers) which are public.
 GEN_MODEL = os.getenv("PHASE0_GEN_MODEL", "gpt2")
 CLS_MODEL = os.getenv("PHASE0_CLS_MODEL", "distilbert-base-uncased-finetuned-sst-2-english")
 EMB_MODEL = os.getenv("PHASE0_EMB_MODEL", "sentence-transformers/all-MiniLM-L6-v2")

@@ -5,7 +5,7 @@ instead of instantiating runner classes directly. This ensures routing,
 request/response schemas, registry loading, and model lifecycle are
 exercised end-to-end.
 
-Note: These tests can be slow on first run due to model downloads.
+Note: These tests can be slow on the first run due to model downloads.
 """
 from __future__ import annotations
 import math, wave, io, base64

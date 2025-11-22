@@ -69,10 +69,10 @@ something is not working as expected. Fallback would hide that fact.
 - [x] Add parameterized tests across multiple multimodal architectures (BLIP, Qwen, LLaVA, Paligemma, Idefics, MiniCPM) to validate adapter logic (currently skipped).
 
 ### Phase E: 3D Generation
-- [ ] Implement `ImageTo3DRunner` using a lightweight single-image NeRF or TripoSR; output format: base64 GLB or JSON with downloadable artifact reference.
-- [ ] Implement `TextTo3DRunner` (e.g. using stable-dreamfusion placeholder) returning placeholder structure if generation heavy (artifact reference).
-- [ ] Define output schema fields (e.g. `model_uri`, `preview_image_base64`).
-- [ ] Tests: ensure output structure keys exist (skip heavy validation).
+- [x] Implement `ImageTo3DRunner` using a lightweight procedural OBJ exporter; output format: base64 GLB/OBJ or JSON with downloadable artifact reference (OBJ used).
+- [x] Implement `TextTo3DRunner` (procedural placeholder) returning structured output with inlined OBJ and preview.
+- [x] Define output schema fields (`model_format`, `model_uri`, `preview_image_base64`, `meta`).
+- [x] Tests: ensure output structure keys exist and data URIs are well-formed.
 
 ### Phase F: Video Generation & Conversion
 - [ ] Implement `TextToVideoRunner` using ModelScope or SD Video pipeline (prompt, steps, frames, fps).
