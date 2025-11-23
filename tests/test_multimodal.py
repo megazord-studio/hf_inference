@@ -15,6 +15,7 @@ MM_MODELS = [
     "google/paligemma-3b-mix-448",
     "HuggingFaceM4/idefics2-8b",
     "openbmb/MiniCPM-V-2",
+    # "openbmb/MiniCPM-o-2_6",
 ]
 
 ANSWER_MODELS = {"Salesforce/blip-vqa-base"}
