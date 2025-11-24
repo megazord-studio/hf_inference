@@ -6,6 +6,7 @@ not available to keep tests deterministic without heavy downloads.
 
 Each runner adheres to BaseRunner contract.
 """
+
 from __future__ import annotations
 from typing import Dict, Any, Type, Set
 from .base import BaseRunner
@@ -20,6 +21,7 @@ VISION_GEN_TASKS: Set[str] = {
     "image-restoration",
 }
 
+
 class TextToImageRunner(BaseRunner):
     def load(self) -> int:
         shared = get_or_create_sd_pipeline(self.model_id, self.device, mode="text")
@@ -27,22 +29,23 @@ class TextToImageRunner(BaseRunner):
         if not self.pipe:
             raise RuntimeError(f"text_to_image_init_failed:{self.model_id}")
         self._loaded = True
-        return sum(p.numel() for p in self.pipe.unet.parameters()) if hasattr(self.pipe, 'unet') else 0
+        return sum(p.numel() for p in self.pipe.unet.parameters()) if hasattr(self.pipe, "unet") else 0
 
     def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         if not self.pipe:
-            raise RuntimeError('text_to_image_pipeline_unavailable')
-        prompt = inputs.get('text') or ''
+            raise RuntimeError("text_to_image_pipeline_unavailable")
+        prompt = inputs.get("text") or ""
         if not prompt:
-            raise RuntimeError('text_to_image_missing_prompt')
+            raise RuntimeError("text_to_image_missing_prompt")
         guidance = float(options.get("guidance_scale", 7.5))
         steps = int(options.get("num_inference_steps", 20))
         with torch.no_grad():
             out = self.pipe(prompt=prompt, guidance_scale=guidance, num_inference_steps=steps, output_type="pil")
-        if not getattr(out, 'images', None):
-            raise RuntimeError('text_to_image_no_images')
+        if not getattr(out, "images", None):
+            raise RuntimeError("text_to_image_no_images")
         img = out.images[0]
         return {"image_base64": encode_image_base64(img)}
+
 
 class ImageToImageRunner(BaseRunner):
     def load(self) -> int:
@@ -51,24 +54,25 @@ class ImageToImageRunner(BaseRunner):
         if not self.pipe:
             raise RuntimeError(f"image_to_image_init_failed:{self.model_id}")
         self._loaded = True
-        return sum(p.numel() for p in self.pipe.unet.parameters()) if hasattr(self.pipe, 'unet') else 0
+        return sum(p.numel() for p in self.pipe.unet.parameters()) if hasattr(self.pipe, "unet") else 0
 
     def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         if not self.pipe:
-            raise RuntimeError('image_to_image_pipeline_unavailable')
-        img_b64 = inputs.get('image_base64')
-        prompt = options.get('prompt') or inputs.get('text') or ''
+            raise RuntimeError("image_to_image_pipeline_unavailable")
+        img_b64 = inputs.get("image_base64")
+        prompt = options.get("prompt") or inputs.get("text") or ""
         if not img_b64 or not prompt:
-            raise RuntimeError('image_to_image_missing_inputs')
+            raise RuntimeError("image_to_image_missing_inputs")
         init_img = decode_image_base64(img_b64)
-        strength = float(options.get('strength', 0.75))
-        steps = int(options.get('num_inference_steps', 20))
+        strength = float(options.get("strength", 0.75))
+        steps = int(options.get("num_inference_steps", 20))
         with torch.no_grad():
-            out = self.pipe(prompt=prompt, image=init_img, strength=strength, num_inference_steps=steps, output_type='pil')
-        if not getattr(out, 'images', None):
-            raise RuntimeError('image_to_image_no_images')
+            out = self.pipe(prompt=prompt, image=init_img, strength=strength, num_inference_steps=steps, output_type="pil")
+        if not getattr(out, "images", None):
+            raise RuntimeError("image_to_image_no_images")
         img = out.images[0]
         return {"image_base64": encode_image_base64(img)}
+
 
 class ImageSuperResolutionRunner(BaseRunner):
     def load(self) -> int:
@@ -84,6 +88,7 @@ class ImageSuperResolutionRunner(BaseRunner):
         new_size = (img.width * scale, img.height * scale)
         up = img.resize(new_size)
         return {"image_base64": encode_image_base64(up), "orig_size": image_size(img), "new_size": new_size}
+
 
 class ImageRestorationRunner(BaseRunner):
     def load(self) -> int:
@@ -101,6 +106,7 @@ class ImageRestorationRunner(BaseRunner):
         restored = img.filter(self._filter)
         return {"image_base64": encode_image_base64(restored), "width": restored.width, "height": restored.height, "mask_applied": bool(mask_b64)}
 
+
 _TASK_TO_RUNNER: Dict[str, Type[BaseRunner]] = {
     "text-to-image": TextToImageRunner,
     "image-to-image": ImageToImageRunner,
@@ -108,8 +114,10 @@ _TASK_TO_RUNNER: Dict[str, Type[BaseRunner]] = {
     "image-restoration": ImageRestorationRunner,
 }
 
+
 def vision_gen_runner_for_task(task: str) -> Type[BaseRunner]:
     return _TASK_TO_RUNNER[task]
+
 
 __all__ = [
     "VISION_GEN_TASKS",

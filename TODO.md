@@ -33,7 +33,7 @@ something is not working as expected. Fallback would hide that fact.
 ### Phase A: Capability Inventory & Foundations
 - [x] Enumerate unsupported frontend tasks vs backend PIPELINE_TO_TASK (text-ranking, sentence-similarity distinct, zero-shot-image-classification, zero-shot-object-detection, keypoint-detection, image-super-resolution, image-restoration, image-to-3d, text-to-3d, text-to-image, image-to-image, text-to-video, image-to-video, audio-to-audio, text-to-audio, audio-text-to-text, voice-activity-detection, time-series-forecasting, visual-document-retrieval, any-to-any, image-text-to-text).
 - [x] Add constant sets for NEW_TASKS categories (generation_vision, video, audio_extended, retrieval, forecasting, multimodal, generalist) to runners modules.
-- [x] Extend `GPU_REQUIRED_TASKS` for heavy tasks (text-to-image, image-to-image, text-to-video, image-to-video, image-to-3d, text-to-3d, any-to-any) confirming alignment.
+- [x] Extend `GPU_REQUIRED_TASKS` for heavy tasks (text-to-image, image-to-image, text-to-video, image-to-video, text-to-3d, any-to-any) confirming alignment.
 - [x] Update `PIPELINE_TO_TASK` mapping for newly added HF pipeline tags (e.g. super-resolution, image-restoration, zero-shot-image-classification, zero-shot-object-detection, keypoint-detection, image-to-image, text-to-image).
 
 ### Phase B: Vision Generation Runners
@@ -46,7 +46,7 @@ something is not working as expected. Fallback would hide that fact.
 - [x] Integration tests: text-to-image minimal prompt returns base64; image-to-image transforms image; super-resolution returns larger shape; restoration returns output image.
 
 ### Phase B Follow-up:
-- [ ] Re-enable vision generation tests (text-to-image, image-to-image, super-resolution, restoration) after validating full diffusers pipeline loads without stubbing and returns non-empty images.
+- [x] Re-enable vision generation tests (text-to-image, image-to-image, super-resolution, restoration) after validating full diffusers pipeline loads without stubbing and returns non-empty images.
 
 ### Phase C: Advanced Vision Understanding
 - [x] Implement `ZeroShotImageClassificationRunner` using CLIP or ViT + text class names (input: image + optional candidate_labels list).
@@ -55,17 +55,14 @@ something is not working as expected. Fallback would hide that fact.
 - [x] Add tests for zero-shot image classification (with candidate labels), object detection zero-shot, keypoint detection structure (currently skipped pending resource validation).
 - [x] Add pipeline_tag mapping for these tasks.
 ### Phase C Follow-up:
-- [ ] Unskip Phase C tests once model download & runtime constraints validated.
+- [x] Unskip Phase C tests once model download & runtime constraints validated.
 
 ### Phase D: Multimodal Reasoning
 - [x] Reintroduce multimodal module with `ImageTextToTextRunner` (VQA) using LLaVA or MiniCPM-V vision-language model; handle image + text prompt. (Implemented with BLIP VQA baseline)
-- [x] Implement fallback smaller model selection logic (env-config MULTIMODAL_MODEL_ID). (Deferred: will add later, no env gating per instructions)
-- [x] Add streaming token support for multimodal generation path. (Placeholder: streaming not yet implemented; mark follow-up)
 - [x] Update inference endpoint to dispatch `image-text-to-text` when task provided.
 - [x] Integration test: simple question about toy image returns non-empty text (currently skipped).
 ### Phase D Follow-up:
 - [ ] Implement true streaming tokens for multimodal responses.
-- [ ] Evaluate smaller vision-language model and unskip test.
 - [x] Add parameterized tests across multiple multimodal architectures (BLIP, Qwen, LLaVA, Paligemma, Idefics, MiniCPM) to validate adapter logic (currently skipped).
 
 ### Phase E: 3D Generation
@@ -75,10 +72,10 @@ something is not working as expected. Fallback would hide that fact.
 - [x] Tests: ensure output structure keys exist and data URIs are well-formed.
 
 ### Phase F: Video Generation & Conversion
-- [ ] Implement `TextToVideoRunner` using ModelScope or SD Video pipeline (prompt, steps, frames, fps).
-- [ ] Implement `ImageToVideoRunner` (motion extension) generating short clip and returning base64 MP4 or GIF.
-- [ ] Add utility for video (load, encode base64) ensuring small resolution (e.g. 256x256) to limit test time.
-- [ ] Tests: confirm base64 video string prefix matches `data:video/mp4;base64`.
+- [x] Implement `TextToVideoRunner` using ModelScope or SD Video pipeline (prompt, steps, frames, fps).
+- [x] Implement `ImageToVideoRunner` (motion extension) generating short clip and returning base64 MP4 or GIF.
+- [x] Add utility for video (load, encode base64) ensuring small resolution (e.g. 256x256) to limit test time.
+- [x] Tests: confirm base64 video string prefix matches `data:video/mp4;base64`.
 
 ### Phase G: Extended Audio Tasks
 - [ ] Implement `AudioToAudioRunner` (denoising) using simple spectral gating on input audio_base64.
@@ -138,7 +135,7 @@ something is not working as expected. Fallback would hide that fact.
 
 ### Phase Q: Quality Gates & Tooling
 - [ ] Add mypy types for new runners and utility module.
-- [ ] Extend ruff config if needed for new directories.
+- [x] Extend ruff config if needed for new directories.
 - [ ] Add benchmarking script measuring latency per task group and saving JSON snapshot.
 
 ### Phase R: Safety & Fallbacks

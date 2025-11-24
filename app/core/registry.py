@@ -16,11 +16,22 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, Any, Tuple
 
 from app.core.device import select_device
-from app.core.runners import TEXT_TASKS, text_runner_for_task, VISION_AUDIO_TASKS, vision_audio_runner_for_task
-from app.core.runners.vision_generation import VISION_GEN_TASKS, vision_gen_runner_for_task
-from app.core.runners.vision_understanding import VISION_UNDERSTANDING_TASKS, vision_understanding_runner_for_task
-from app.core.runners.multimodal import MULTIMODAL_TASKS, multimodal_runner_for_task
-from app.core.runners.vision_3d import VISION_3D_TASKS, vision_3d_runner_for_task
+from app.core.runners import (
+    TEXT_TASKS,
+    text_runner_for_task,
+    VISION_AUDIO_TASKS,
+    vision_audio_runner_for_task,
+    VISION_GEN_TASKS,
+    vision_gen_runner_for_task,
+    VISION_UNDERSTANDING_TASKS,
+    vision_understanding_runner_for_task,
+    VISION_3D_TASKS,
+    vision_3d_runner_for_task,
+    MULTIMODAL_TASKS,
+    multimodal_runner_for_task,
+    VIDEO_TASKS,
+    video_runner_for_task,
+)
 from app.core.resources import RESOURCES
 
 _LOCK = threading.RLock()
@@ -51,7 +62,7 @@ class ModelRegistry:
 
     # --- public API ---
     def predict(self, task: str, model_id: str, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
-        if task not in TEXT_TASKS and task not in VISION_AUDIO_TASKS and task not in VISION_GEN_TASKS and task not in VISION_UNDERSTANDING_TASKS and task not in MULTIMODAL_TASKS and task not in VISION_3D_TASKS:
+        if task not in TEXT_TASKS and task not in VISION_AUDIO_TASKS and task not in VISION_GEN_TASKS and task not in VISION_UNDERSTANDING_TASKS and task not in MULTIMODAL_TASKS and task not in VISION_3D_TASKS and task not in VIDEO_TASKS:
             raise ValueError(f"Unsupported task: {task}")
         entry = self._get_or_load(task, model_id)
         entry.touch()
@@ -107,6 +118,8 @@ class ModelRegistry:
                 runner_cls = vision_understanding_runner_for_task(task)
             elif task in MULTIMODAL_TASKS:
                 runner_cls = multimodal_runner_for_task(task)
+            elif task in VIDEO_TASKS:
+                runner_cls = video_runner_for_task(task)
             else:
                 runner_cls = vision_3d_runner_for_task(task)
             runner = runner_cls(model_id=model_id, device=self._device)
