@@ -57,3 +57,28 @@ def test_models_meta(monkeypatch):
     meta = r.json()
     assert "cached" in meta and "ttl" in meta
 
+def test_inference_unknown_task_returns_clear_error():
+    """Calling /api/inference with an unsupported task should yield a clear error message.
+
+    This guards against silently returning empty task_output when a task has
+    not yet been implemented in the backend.
+    """
+    payload = {
+        "model_id": "bert-base-uncased",
+        "intent_id": "",
+        "input_type": "text",
+        "inputs": {"text": "hello"},
+        "task": "non-existing-task-xyz",
+        "options": {},
+    }
+    resp = client.post("/api/inference", json=payload, params={"include_model_meta": False})
+    assert resp.status_code == 200
+    data = resp.json()["result"]
+    assert data.get("task") == "non-existing-task-xyz"
+    # Unknown task should not silently succeed; we expect a clear error
+    err = data.get("error")
+    assert isinstance(err, dict)
+    msg = err.get("message", "")
+    assert msg.startswith("task_not_implemented:"), msg
+    # task_output should be present but empty
+    assert isinstance(data.get("task_output"), dict)

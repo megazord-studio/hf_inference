@@ -13,6 +13,7 @@ from app.core.runners.vision_3d import VISION_3D_TASKS
 from app.core.runners.multimodal import MULTIMODAL_TASKS
 from app.core.runners.vision_understanding import VISION_UNDERSTANDING_TASKS
 from app.core.runners.text import TEXT_TASKS
+from app.core.runners.retrieval import RETRIEVAL_TASKS
 from fastapi.responses import StreamingResponse
 import uuid
 import time
@@ -136,7 +137,7 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
     if not task and meta and meta.get("pipeline_tag") in PIPELINE_TO_TASK:
         task = PIPELINE_TO_TASK[meta.get("pipeline_tag")]
 
-    supported_tasks = set(TEXT_TASKS) | set(VISION_AUDIO_TASKS) | set(VISION_GEN_TASKS) | set(VISION_3D_TASKS) | set(MULTIMODAL_TASKS) | set(VISION_UNDERSTANDING_TASKS) | set(VIDEO_TASKS)
+    supported_tasks = set(TEXT_TASKS) | set(VISION_AUDIO_TASKS) | set(VISION_GEN_TASKS) | set(VISION_3D_TASKS) | set(MULTIMODAL_TASKS) | set(VISION_UNDERSTANDING_TASKS) | set(VIDEO_TASKS) | set(RETRIEVAL_TASKS)
     if task and task in supported_tasks:
         try:
             pred = REGISTRY.predict(task=task, model_id=req.model_id, inputs=req.inputs, options=req.options or {})
@@ -149,9 +150,13 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
             result["task"] = task
             result["error"] = {"message": f"inference_failed: {e}"}
     else:
+        # Task is unknown or not yet implemented in the backend runners
         result["task_output"] = {}
         if task:
             result["task"] = str(task)
+            result["error"] = {"message": f"task_not_implemented: {task}"}
+        else:
+            result["error"] = {"message": "task_not_provided"}
     return InferenceResponse(result=result, runtime_ms=0, model_id=req.model_id, model_meta=meta)
 
 @router.post("/curl-example", response_model=CurlExampleResponse)

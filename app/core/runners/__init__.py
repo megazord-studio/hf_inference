@@ -6,6 +6,7 @@ from .vision_understanding import VISION_UNDERSTANDING_TASKS, vision_understandi
 from .vision_3d import VISION_3D_TASKS, vision_3d_runner_for_task
 from .multimodal import MULTIMODAL_TASKS, multimodal_runner_for_task
 from .video_generation import VIDEO_TASKS, video_runner_for_task
+from .retrieval import RETRIEVAL_TASKS, retrieval_runner_for_task
 
 __all__ = [
     "TEXT_TASKS",
@@ -22,4 +23,6 @@ __all__ = [
     "multimodal_runner_for_task",
     "VIDEO_TASKS",
     "video_runner_for_task",
+    "RETRIEVAL_TASKS",
+    "retrieval_runner_for_task",
 ]

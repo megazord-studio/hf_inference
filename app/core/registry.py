@@ -31,6 +31,8 @@ from app.core.runners import (
     multimodal_runner_for_task,
     VIDEO_TASKS,
     video_runner_for_task,
+    RETRIEVAL_TASKS,
+    retrieval_runner_for_task,
 )
 from app.core.resources import RESOURCES
 
@@ -62,7 +64,7 @@ class ModelRegistry:
 
     # --- public API ---
     def predict(self, task: str, model_id: str, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
-        if task not in TEXT_TASKS and task not in VISION_AUDIO_TASKS and task not in VISION_GEN_TASKS and task not in VISION_UNDERSTANDING_TASKS and task not in MULTIMODAL_TASKS and task not in VISION_3D_TASKS and task not in VIDEO_TASKS:
+        if task not in TEXT_TASKS and task not in VISION_AUDIO_TASKS and task not in VISION_GEN_TASKS and task not in VISION_UNDERSTANDING_TASKS and task not in MULTIMODAL_TASKS and task not in VISION_3D_TASKS and task not in VIDEO_TASKS and task not in RETRIEVAL_TASKS:
             raise ValueError(f"Unsupported task: {task}")
         entry = self._get_or_load(task, model_id)
         entry.touch()
@@ -120,6 +122,8 @@ class ModelRegistry:
                 runner_cls = multimodal_runner_for_task(task)
             elif task in VIDEO_TASKS:
                 runner_cls = video_runner_for_task(task)
+            elif task in RETRIEVAL_TASKS:
+                runner_cls = retrieval_runner_for_task(task)
             else:
                 runner_cls = vision_3d_runner_for_task(task)
             runner = runner_cls(model_id=model_id, device=self._device)
