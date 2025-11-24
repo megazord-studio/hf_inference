@@ -78,11 +78,11 @@ something is not working as expected. Fallback would hide that fact.
 - [x] Tests: confirm base64 video string prefix matches `data:video/mp4;base64`.
 
 ### Phase G: Extended Audio Tasks
-- [ ] Implement `AudioToAudioRunner` (denoising) using simple spectral gating on input audio_base64.
-- [ ] Implement `TextToAudioRunner` (music/sfx) wrapper for MusicGen or AudioCraft model returning audio_base64.
-- [ ] Implement `AudioTextToTextRunner` (complex reasoning) placeholder using Whisper + small LLM chaining.
-- [ ] Implement `VoiceActivityDetectionRunner` using silero-vad; output segments list with start/end timestamps.
-- [ ] Tests for each extended audio task verifying structural outputs.
+- [x] Implement `AudioToAudioRunner` (denoising) using simple spectral gating on input audio_base64.
+- [x] Implement `TextToAudioRunner` (music/sfx) wrapper for MusicGen or AudioCraft model returning audio_base64.
+- [x] Implement `AudioTextToTextRunner` (complex reasoning) placeholder using Whisper + small LLM chaining.
+- [x] Implement `VoiceActivityDetectionRunner` using silero-vad; output segments list with start/end timestamps.
+- [x] Tests for each extended audio task verifying structural outputs.
 
 ### Phase H: Retrieval & Embeddings Extensions
 - [ ] Implement `VisualDocumentRetrievalRunner` using multi-modal embedding model (e.g. BLIP / CLIP) comparing image embedding to corpus loaded from local docs.

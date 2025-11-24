@@ -14,6 +14,12 @@ CAPTION_MODEL = "nlpconnect/vit-gpt2-image-captioning"
 ASR_MODEL = "facebook/wav2vec2-base-960h"
 TTS_MODEL = "microsoft/speecht5_tts"
 
+# Extended audio models (reuse ASR model for audio-text-to-text by design)
+AUDIO_TEXT_TO_TEXT_MODEL = ASR_MODEL
+AUDIO_TO_AUDIO_MODEL = AUDIO_CLS_MODEL  # model_id is opaque; runner only needs audio stack
+TEXT_TO_AUDIO_MODEL = TTS_MODEL
+VAD_MODEL = AUDIO_CLS_MODEL
+
 # Utility: build base64 image
 def _make_image_b64(color=(255,255,255), size=(32,32)):
     import base64, io
@@ -162,3 +168,77 @@ def test_text_to_speech_structure():
     data = resp.json()['result']
     audio_b64 = data['task_output'].get('audio_base64')
     assert isinstance(audio_b64, str)
+
+
+def test_audio_to_audio_structure():
+    audio_b64 = _make_silent_wav_b64()
+    resp = client.post('/api/inference', json={
+        'model_id': AUDIO_TO_AUDIO_MODEL,
+        'intent_id': '',
+        'input_type': 'audio',
+        'inputs': {'audio_base64': audio_b64},
+        'task': 'audio-to-audio',
+        'options': {}
+    })
+    assert resp.status_code == 200
+    data = resp.json()['result']
+    out = data['task_output']
+    audio_out = out.get('audio_base64')
+    assert isinstance(audio_out, str)
+    assert audio_out.startswith("data:audio/wav;base64,")
+    assert "error" not in data
+
+
+def test_text_to_audio_structure():
+    resp = client.post('/api/inference', json={
+        'model_id': TEXT_TO_AUDIO_MODEL,
+        'intent_id': '',
+        'input_type': 'text',
+        'inputs': {'text': 'beep'},
+        'task': 'text-to-audio',
+        'options': {}
+    })
+    assert resp.status_code == 200
+    data = resp.json()['result']
+    out = data['task_output']
+    audio_b64 = out.get('audio_base64')
+    assert isinstance(audio_b64, str)
+    assert audio_b64.startswith("data:audio/wav;base64,")
+    assert "error" not in data
+
+
+def test_audio_text_to_text_structure():
+    audio_b64 = _make_silent_wav_b64()
+    resp = client.post('/api/inference', json={
+        'model_id': AUDIO_TEXT_TO_TEXT_MODEL,
+        'intent_id': '',
+        'input_type': 'audio',
+        'inputs': {'audio_base64': audio_b64},
+        'task': 'audio-text-to-text',
+        'options': {}
+    })
+    assert resp.status_code == 200
+    data = resp.json()['result']
+    out = data['task_output']
+    text = out.get('text')
+    assert isinstance(text, str)
+    assert "error" not in data
+
+
+def test_voice_activity_detection_structure():
+    audio_b64 = _make_silent_wav_b64()
+    resp = client.post('/api/inference', json={
+        'model_id': VAD_MODEL,
+        'intent_id': '',
+        'input_type': 'audio',
+        'inputs': {'audio_base64': audio_b64},
+        'task': 'voice-activity-detection',
+        'options': {}
+    })
+    assert resp.status_code == 200
+    data = resp.json()['result']
+    out = data['task_output']
+    segments = out.get('segments')
+    assert isinstance(segments, list)
+    assert "sample_rate" in out
+    assert "error" not in data
