@@ -13,6 +13,7 @@ from .base import BaseRunner
 from app.core.utils.media import decode_image_base64, encode_image_base64, image_size
 from app.core.runners.diffusion_shared import get_or_create_sd_pipeline
 import torch
+import time
 
 VISION_GEN_TASKS: Set[str] = {
     "text-to-image",
@@ -39,12 +40,19 @@ class TextToImageRunner(BaseRunner):
             raise RuntimeError("text_to_image_missing_prompt")
         guidance = float(options.get("guidance_scale", 7.5))
         steps = int(options.get("num_inference_steps", 20))
+        stream = bool(options.get("_stream", False))
+        start = time.time()
         with torch.no_grad():
             out = self.pipe(prompt=prompt, guidance_scale=guidance, num_inference_steps=steps, output_type="pil")
+        runtime_ms = int((time.time() - start) * 1000)
         if not getattr(out, "images", None):
             raise RuntimeError("text_to_image_no_images")
         img = out.images[0]
-        return {"image_base64": encode_image_base64(img)}
+        payload: Dict[str, Any] = {"image_base64": encode_image_base64(img)}
+        if stream:
+            payload["runtime_ms"] = runtime_ms
+            payload["num_inference_steps"] = steps
+        return payload
 
 
 class ImageToImageRunner(BaseRunner):
@@ -66,12 +74,19 @@ class ImageToImageRunner(BaseRunner):
         init_img = decode_image_base64(img_b64)
         strength = float(options.get("strength", 0.75))
         steps = int(options.get("num_inference_steps", 20))
+        stream = bool(options.get("_stream", False))
+        start = time.time()
         with torch.no_grad():
             out = self.pipe(prompt=prompt, image=init_img, strength=strength, num_inference_steps=steps, output_type="pil")
+        runtime_ms = int((time.time() - start) * 1000)
         if not getattr(out, "images", None):
             raise RuntimeError("image_to_image_no_images")
         img = out.images[0]
-        return {"image_base64": encode_image_base64(img)}
+        payload: Dict[str, Any] = {"image_base64": encode_image_base64(img)}
+        if stream:
+            payload["runtime_ms"] = runtime_ms
+            payload["num_inference_steps"] = steps
+        return payload
 
 
 class ImageSuperResolutionRunner(BaseRunner):

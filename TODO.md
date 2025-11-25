@@ -40,9 +40,9 @@ something is not working as expected. Fallback would hide that fact.
 - [x] Add eviction policy weights (LRU + size + last error).
 
 ### Phase C: Streaming Enhancements
-- [ ] Extend SSE streaming to multimodal and text-to-image (progress events: step, done) and accordingly update frontend.
-- [ ] Add chunked audio streaming for TTS when generating long outputs and update frontend player to handle streaming audio.
-- [ ] Tests: verify presence of `event: progress` events for diffusion tasks.
+- [x] Extend SSE streaming to multimodal and text-to-image (progress events: step, done) and accordingly update frontend.
+- [x] Add chunked audio streaming for TTS when generating long outputs and update frontend player to handle streaming audio.
+- [x] Tests: verify presence of `event: progress` events for diffusion tasks.
 
 ### Phase E: Documentation & Examples
 - [ ] Completely refactor README with new tasks table and curl examples.

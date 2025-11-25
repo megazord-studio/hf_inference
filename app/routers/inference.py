@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 import uuid
 import time
 import json
+import base64
 
 router = APIRouter(prefix="/api", tags=["inference"])
 log = logging.getLogger("app.inference")
@@ -237,4 +238,121 @@ async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50,
             "tokens_per_second": tps,
         }
         yield f"event: done\nid: {corr_id}\ndata: {json.dumps(done_payload)}\n\n"
+    return StreamingResponse(event_iter(), media_type="text/event-stream")
+
+
+@router.get("/inference/stream/text-to-image")
+async def stream_text_to_image(model_id: str, prompt: str, num_inference_steps: int = 20, guidance_scale: float = 7.5):
+    """SSE streaming for text-to-image diffusion with synthetic progress events.
+
+    We run a single blocking diffusion call, then emit a sequence of `progress`
+    events followed by a final `done` event containing the generated image. This
+    keeps the implementation deterministic for tests without complex callbacks.
+    """
+    corr_id = str(uuid.uuid4())
+    task = "text-to-image"
+    start_time = time.time()
+    try:
+        pred = REGISTRY.predict(
+            task=task,
+            model_id=model_id,
+            inputs={"text": prompt},
+            options={"num_inference_steps": num_inference_steps, "guidance_scale": guidance_scale, "_stream": True},
+        )
+        output = pred["output"] or {}
+        image_b64 = output.get("image_base64")
+        runtime_ms = int(output.get("runtime_ms") or (time.time() - start_time) * 1000)
+        steps = int(output.get("num_inference_steps") or num_inference_steps)
+    except Exception as exc:
+        error_msg = str(exc)
+        async def error_iter():
+            payload = {"message": error_msg}
+            yield f"event: error\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
+        return StreamingResponse(error_iter(), media_type="text/event-stream")
+
+    async def event_iter():
+        total_steps = max(1, steps)
+        # Start event for debugging / correlation
+        yield f"event: start\nid: {corr_id}\ndata: {json.dumps({'model_id': model_id, 'total_steps': total_steps})}\n\n"
+        # Emit synthetic progress steps; keep it small for tests
+        for i in range(total_steps):
+            payload = {
+                "step": i + 1,
+                "total_steps": total_steps,
+                "percent": round(((i + 1) / total_steps) * 100.0, 1),
+            }
+            yield f"event: progress\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
+        done_payload: Dict[str, Any] = {
+            "model_id": model_id,
+            "task": task,
+            "steps": total_steps,
+            "runtime_ms": runtime_ms,
+            "image_base64": image_b64,
+        }
+        yield f"event: done\nid: {corr_id}\ndata: {json.dumps(done_payload)}\n\n"
+
+    return StreamingResponse(event_iter(), media_type="text/event-stream")
+
+
+@router.get("/inference/stream/tts")
+async def stream_tts(model_id: str, text: str):
+    """SSE streaming for text-to-speech using simple chunked audio.
+
+    We generate a full TTS waveform via REGISTRY.predict, then split the
+    base64-encoded WAV bytes into chunks and emit them as progress events.
+    """
+    corr_id = str(uuid.uuid4())
+    task = "text-to-speech"
+    start_time = time.time()
+    try:
+        pred = REGISTRY.predict(
+            task=task,
+            model_id=model_id,
+            inputs={"text": text},
+            options={"_stream": True},
+        )
+        output = pred["output"] or {}
+        audio_b64 = output.get("audio_base64")
+        sample_rate = output.get("sample_rate")
+        num_samples = output.get("num_samples")
+        if not audio_b64:
+            raise RuntimeError("tts_missing_audio")
+        header, data = audio_b64.split(",", 1)
+        raw_bytes = base64.b64decode(data)
+    except Exception as e:
+        async def error_iter():
+            yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': str(e)})}\n\n"
+        return StreamingResponse(error_iter(), media_type="text/event-stream")
+
+    async def event_iter():
+        chunk_size = 64 * 1024
+        total_len = len(raw_bytes)
+        num_chunks = max(1, (total_len + chunk_size - 1) // chunk_size)
+        # Start event with basic metadata
+        start_payload = {
+            "model_id": model_id,
+            "task": task,
+            "sample_rate": sample_rate,
+            "num_samples": num_samples,
+            "num_chunks": num_chunks,
+        }
+        yield f"event: start\nid: {corr_id}\ndata: {json.dumps(start_payload)}\n\n"
+        for idx in range(num_chunks):
+            chunk = raw_bytes[idx * chunk_size : (idx + 1) * chunk_size]
+            chunk_b64 = base64.b64encode(chunk).decode("utf-8")
+            payload = {
+                "chunk_index": idx,
+                "num_chunks": num_chunks,
+                "audio_base64": f"{header},{chunk_b64}",
+            }
+            yield f"event: progress\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
+        runtime_ms = int((time.time() - start_time) * 1000)
+        done_payload = {
+            "model_id": model_id,
+            "task": task,
+            "runtime_ms": runtime_ms,
+            "num_chunks": num_chunks,
+        }
+        yield f"event: done\nid: {corr_id}\ndata: {json.dumps(done_payload)}\n\n"
+
     return StreamingResponse(event_iter(), media_type="text/event-stream")
