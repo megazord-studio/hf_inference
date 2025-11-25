@@ -28,10 +28,10 @@ something is not working as expected. Fallback would hide that fact.
 ## Specific Tasks
 
 ### Phase A: Shared Utilities & Refactors
-- [ ] Extract common base64 encode/decode for images, audio, video, 3D (glb) into `app/core/utils/media.py`.
-- [ ] Standardize output schemas with Pydantic models per task group; reference in inference endpoint response assembly and accordingly update frontend.
-- [ ] Introduce task registry mapping task -> runner class; replace manual if/else in registry.
-- [ ] Add caching layer for diffusion model schedulers to reduce load time.
+- [x] Extract common base64 encode/decode for images, audio, video, 3D (glb) into `app/core/utils/media.py`.
+- [x] Standardize output schemas with Pydantic models per task group; reference in inference endpoint response assembly and accordingly update frontend.
+- [x] Introduce task registry mapping task -> runner class; replace manual if/else in registry.
+- [x] Add caching layer for diffusion model schedulers to reduce load time.
 
 ### Phase B: Performance & Resource Management
 - [ ] Add async loading queue to ModelRegistry for heavy models (diffusers, video) to avoid blocking inference requests.

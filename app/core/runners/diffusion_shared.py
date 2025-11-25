@@ -12,7 +12,7 @@ Supports:
 """
 
 from __future__ import annotations
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, Type
 import logging
 import os
 import json
@@ -32,6 +32,7 @@ from transformers import CLIPTextModel, CLIPTokenizer
 log = logging.getLogger("app.runners.diffusion_shared")
 
 _SD_CACHE: Dict[str, Dict[str, Any]] = {}
+_SCHEDULER_CACHE: Dict[Tuple[str, str], Any] = {}
 
 DIRECT_SD_MODELS = {"segmind/tiny-sd"}
 
@@ -85,6 +86,20 @@ def _has_model_index(local_dir: str) -> bool:
     return os.path.exists(os.path.join(local_dir, "model_index.json"))
 
 
+def _get_or_create_scheduler(local_dir: str, scheduler_cls: Type[Any]) -> Any:
+    """Return a cached diffusion scheduler for a given local directory.
+
+    Caches by (local_dir, scheduler_cls.__name__) to avoid repeated
+    from_pretrained() calls across multiple pipelines and invocations.
+    """
+    key = (os.path.abspath(local_dir), scheduler_cls.__name__)
+    cached = _SCHEDULER_CACHE.get(key)
+    if cached is not None:
+        return cached
+    scheduler = scheduler_cls.from_pretrained(local_dir, subfolder="scheduler", local_files_only=True)
+    _SCHEDULER_CACHE[key] = scheduler
+    return scheduler
+
 # --------------------------------------------------------------------------- #
 # Tiny SD15 helper
 # --------------------------------------------------------------------------- #
@@ -131,9 +146,7 @@ def _bootstrap_tiny_sd15_pipeline(pipe_cls, unet_weights_path: str, device):
 
     base_dir = _download_model(BASE_SD15_REPO)
 
-    scheduler = DPMSolverMultistepScheduler.from_pretrained(
-        base_dir, subfolder="scheduler", local_files_only=True
-    )
+    scheduler = _get_or_create_scheduler(base_dir, DPMSolverMultistepScheduler)
     tokenizer = CLIPTokenizer.from_pretrained(
         base_dir, subfolder="tokenizer", local_files_only=True
     )
@@ -199,9 +212,7 @@ def _bootstrap_text_to_video_pipeline(local_dir: str, device):
 
     dtype = torch.float16 if (device and device.type in ("cuda", "mps")) else None
 
-    scheduler = DPMSolverMultistepScheduler.from_pretrained(
-        local_dir, subfolder="scheduler", local_files_only=True
-    )
+    scheduler = _get_or_create_scheduler(local_dir, DPMSolverMultistepScheduler)
     tokenizer = CLIPTokenizer.from_pretrained(
         local_dir, subfolder="tokenizer", local_files_only=True
     )

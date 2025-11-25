@@ -8,12 +8,8 @@ from huggingface_hub.utils import HfHubHTTPError
 import socket
 from app.core.device import ensure_task_supported
 from app.core.registry import REGISTRY, PIPELINE_TO_TASK
-from app.core.runners import VISION_AUDIO_TASKS, VISION_GEN_TASKS, VIDEO_TASKS
-from app.core.runners.vision_3d import VISION_3D_TASKS
-from app.core.runners.multimodal import MULTIMODAL_TASKS
-from app.core.runners.vision_understanding import VISION_UNDERSTANDING_TASKS
-from app.core.runners.text import TEXT_TASKS
-from app.core.runners.retrieval import RETRIEVAL_TASKS
+from app.core.runners import SUPPORTED_TASKS
+from app.core.tasks import get_output_model_for_task
 from fastapi.responses import StreamingResponse
 import uuid
 import time
@@ -137,14 +133,28 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
     if not task and meta and meta.get("pipeline_tag") in PIPELINE_TO_TASK:
         task = PIPELINE_TO_TASK[meta.get("pipeline_tag")]
 
-    supported_tasks = set(TEXT_TASKS) | set(VISION_AUDIO_TASKS) | set(VISION_GEN_TASKS) | set(VISION_3D_TASKS) | set(MULTIMODAL_TASKS) | set(VISION_UNDERSTANDING_TASKS) | set(VIDEO_TASKS) | set(RETRIEVAL_TASKS)
-    if task and task in supported_tasks:
+    if task and task in SUPPORTED_TASKS:
         try:
             pred = REGISTRY.predict(task=task, model_id=req.model_id, inputs=req.inputs, options=req.options or {})
-            result["task_output"] = pred["output"]
+            output_model = get_output_model_for_task(task)
+            raw_output = pred["output"]
+            if output_model is not None:
+                try:
+                    parsed = output_model.model_validate(raw_output)
+                    task_output = parsed.model_dump()
+                except Exception:
+                    task_output = raw_output
+            else:
+                task_output = raw_output
+            # Preserve backend and other runner-level metadata if present
+            if isinstance(raw_output, dict) and "backend" in raw_output:
+                task_output.setdefault("backend", raw_output["backend"])
+            result["task_output"] = task_output
             result["task"] = task
             result["runtime_ms_model"] = pred["runtime_ms"]
             result["resolved_model_id"] = pred.get("resolved_model_id")
+            if "backend" in pred:
+                result["backend"] = pred["backend"]
         except Exception as e:
             result.setdefault("task_output", {})
             result["task"] = task

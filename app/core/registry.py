@@ -17,22 +17,8 @@ from typing import Dict, Optional, Any, Tuple
 
 from app.core.device import select_device
 from app.core.runners import (
-    TEXT_TASKS,
-    text_runner_for_task,
-    VISION_AUDIO_TASKS,
-    vision_audio_runner_for_task,
-    VISION_GEN_TASKS,
-    vision_gen_runner_for_task,
-    VISION_UNDERSTANDING_TASKS,
-    vision_understanding_runner_for_task,
-    VISION_3D_TASKS,
-    vision_3d_runner_for_task,
-    MULTIMODAL_TASKS,
-    multimodal_runner_for_task,
-    VIDEO_TASKS,
-    video_runner_for_task,
-    RETRIEVAL_TASKS,
-    retrieval_runner_for_task,
+    get_runner_cls,
+    SUPPORTED_TASKS,
 )
 from app.core.resources import RESOURCES
 
@@ -64,7 +50,7 @@ class ModelRegistry:
 
     # --- public API ---
     def predict(self, task: str, model_id: str, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
-        if task not in TEXT_TASKS and task not in VISION_AUDIO_TASKS and task not in VISION_GEN_TASKS and task not in VISION_UNDERSTANDING_TASKS and task not in MULTIMODAL_TASKS and task not in VISION_3D_TASKS and task not in VIDEO_TASKS and task not in RETRIEVAL_TASKS:
+        if task not in SUPPORTED_TASKS:
             raise ValueError(f"Unsupported task: {task}")
         entry = self._get_or_load(task, model_id)
         entry.touch()
@@ -110,22 +96,7 @@ class ModelRegistry:
                 return existing
             if len(self._models) >= self._max_loaded or RESOURCES.need_eviction():
                 self._evict_one()
-            if task in TEXT_TASKS:
-                runner_cls = text_runner_for_task(task)
-            elif task in VISION_AUDIO_TASKS:
-                runner_cls = vision_audio_runner_for_task(task)
-            elif task in VISION_GEN_TASKS:
-                runner_cls = vision_gen_runner_for_task(task)
-            elif task in VISION_UNDERSTANDING_TASKS:
-                runner_cls = vision_understanding_runner_for_task(task)
-            elif task in MULTIMODAL_TASKS:
-                runner_cls = multimodal_runner_for_task(task)
-            elif task in VIDEO_TASKS:
-                runner_cls = video_runner_for_task(task)
-            elif task in RETRIEVAL_TASKS:
-                runner_cls = retrieval_runner_for_task(task)
-            else:
-                runner_cls = vision_3d_runner_for_task(task)
+            runner_cls = get_runner_cls(task)
             runner = runner_cls(model_id=model_id, device=self._device)
             entry = ModelEntry(model_id=model_id, task=task, runner=runner, status="loading")
             try:
