@@ -34,10 +34,10 @@ something is not working as expected. Fallback would hide that fact.
 - [x] Add caching layer for diffusion model schedulers to reduce load time.
 
 ### Phase B: Performance & Resource Management
-- [ ] Add async loading queue to ModelRegistry for heavy models (diffusers, video) to avoid blocking inference requests.
-- [ ] Implement memory-based auto-precision (use fp16 if GPU + supports) for large models.
-- [ ] Track per-model load time and expose in `/api/models/status`.
-- [ ] Add eviction policy weights (LRU + size + last error).
+- [x] Add async loading queue to ModelRegistry for heavy models (diffusers, video) to avoid blocking inference requests.
+- [x] Implement memory-based auto-precision (use fp16 if GPU + supports) for large models.
+- [x] Track per-model load time and expose in `/api/models/status`.
+- [x] Add eviction policy weights (LRU + size + last error).
 
 ### Phase C: Streaming Enhancements
 - [ ] Extend SSE streaming to multimodal and text-to-image (progress events: step, done) and accordingly update frontend.

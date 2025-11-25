@@ -127,21 +127,11 @@ show_error_codes = true
 include = [
   "README.md",
   "LICENSE",
-  "app/static/**",
-  "app/templates/**",
 ]
 
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["app"]
-include = [
-  "app/static/**",
-  "app/templates/**",
-  "app/py.typed",
-]
 
 # For source distributions, include tests and assets for reference
 [tool.hatch.build.targets.sdist]
@@ -153,9 +143,4 @@ include = [
   "LICENSE",
   "pyproject.toml",
   "Dockerfile",
-]
-
-[tool.pytest.ini_options]
-markers = [
-  "timeout: mark tests that may take longer to run"
 ]

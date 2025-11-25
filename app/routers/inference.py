@@ -186,6 +186,7 @@ async def curl_example(req: InferenceRequest) -> CurlExampleResponse:
 
 @router.get("/models/status")
 async def models_status():
+    """Expose runtime status for all loaded models, including load time and errors."""
     return {"loaded": REGISTRY.list_loaded()}
 
 @router.delete("/models/{task}/{model_id}")

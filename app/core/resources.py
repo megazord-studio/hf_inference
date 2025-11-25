@@ -1,10 +1,9 @@
 """Minimal ResourceManager (Phase 0).
 
-Provides a simple memory watermark check using psutil (if available).
-No side effects beyond in-process queries.
+Provides a simple memory watermark check using psutil.
+Configuration is hardcoded for simplicity per project guidelines.
 """
 from __future__ import annotations
-import os
 import logging
 
 log = logging.getLogger("app.resources")
@@ -16,7 +15,8 @@ except Exception:  # pragma: no cover
 
 class ResourceManager:
     def __init__(self) -> None:
-        self._watermark_percent = float(os.getenv("MEMORY_WATERMARK_PERCENT", "85"))  # % RAM usage trigger
+        # Hardcoded watermark to avoid env-driven behavior; can be tuned in code.
+        self._watermark_percent = 85.0  # % RAM usage trigger
 
     def need_eviction(self) -> bool:
         if psutil is None:
@@ -31,4 +31,3 @@ class ResourceManager:
 RESOURCES = ResourceManager()
 
 __all__ = ["RESOURCES", "ResourceManager"]
-

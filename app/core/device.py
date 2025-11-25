@@ -130,10 +130,51 @@ def startup_log() -> None:
         prefer, dev_str, caps["cuda"], caps["mps"], caps["gpu_name"], caps["memory_gb"]
     )
 
+
+def choose_dtype(param_count: Optional[int], task: Optional[str] = None) -> str:
+    """Heuristic dtype selection based on device capabilities and model size.
+
+    For GPU/MPS devices we prefer float16 for large or heavy-task models; for CPU we
+    always return float32. This keeps the logic simple while still reducing memory
+    pressure for big models.
+    """
+    caps = device_capabilities()
+    # CPU or unknown -> stick to float32 for numerical stability
+    if not (caps.get("cuda") or caps.get("mps")):
+        return "float32"
+
+    # Heuristic: diffusion / video / 3d tasks default to float16 on GPU
+    if task in GPU_REQUIRED_TASKS:
+        return "float16"
+
+    memory_gb = caps.get("memory_gb")
+    if memory_gb is None or not param_count:
+        # Without size info, stay conservative
+        return "float32"
+
+    # memory_gb is typically a float but typed as object; cast via float() defensively
+    try:
+        mem_gb_float: float = float(memory_gb)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "float32"
+
+    # Rough memory estimates: 4 bytes (fp32) vs 2 bytes (fp16)
+    fp32_gb = (param_count * 4) / (1024**3)
+    fp16_gb = (param_count * 2) / (1024**3)
+
+    # If fp32 comfortably fits (<40% of available memory), keep it; otherwise use fp16
+    if fp32_gb < 0.4 * mem_gb_float:
+        return "float32"
+    if fp16_gb < 0.7 * mem_gb_float:
+        return "float16"
+    # If even fp16 is close to the limit, still choose float16 but caller may decide to evict
+    return "float16"
+
 __all__ = [
     "select_device",
     "device_capabilities",
     "ensure_task_supported",
     "startup_log",
     "GPU_REQUIRED_TASKS",
+    "choose_dtype",
 ]
