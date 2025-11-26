@@ -38,9 +38,9 @@ ANSWER_MODELS = {"Salesforce/blip-vqa-base"}
 
 def _mk_image_b64(color=(200, 180, 50)):
     img = Image.new("RGB", (64, 64), color=color)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    with io.BytesIO() as buf:
+        img.save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
 def _post(client, task: str, model_id: str, inputs: dict, options: dict):

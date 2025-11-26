@@ -5,6 +5,7 @@ No env gating; always-on discovery; errors surface.
 """
 from __future__ import annotations
 
+import gc
 import logging
 from typing import Any
 from typing import Dict
@@ -52,7 +53,6 @@ class ImageTextToTextRunner(BaseRunner):
                 except Exception:
                     pass
         # Explicitly run garbage collection to free GPU memory
-        import gc
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -744,9 +744,12 @@ class ImageTextToTextRunner(BaseRunner):
         return None
 
     def _decode_output(self, out) -> str:
+        if out is None or (hasattr(out, "__len__") and len(out) == 0):
+            return ""
         if self.processor is not None:
             if hasattr(self.processor, "batch_decode"):
-                return self.processor.batch_decode(out, skip_special_tokens=True)[0]
+                decoded = self.processor.batch_decode(out, skip_special_tokens=True)
+                return decoded[0] if decoded else ""
             if hasattr(self.processor, "decode"):
                 return self.processor.decode(out[0], skip_special_tokens=True)
         tok = self._get_tokenizer()
