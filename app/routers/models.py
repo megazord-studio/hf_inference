@@ -1,7 +1,8 @@
 import os
 import time
-from typing import List, Optional
-from fastapi import APIRouter, Query
+from typing import List, Optional, Dict
+from fastapi import APIRouter, Query, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from huggingface_hub import HfApi
 import logging
@@ -90,6 +91,13 @@ CACHE_MODE = "all"  # we now store all pipeline tags
 
 PRELOAD_LIMIT = 30000
 
+# --- Enrich cache (disk-backed) ---
+ENRICH_CACHE_FILE = os.path.join(CACHE_DIR, "enrich_cache.json")
+_ENRICH_CACHE_TTL = FOUR_DAYS
+# Structure: { model_id: { "gated": bool, "ts": float } }
+_ENRICH_CACHE: Dict[str, Dict[str, float]] = {}
+_ENRICH_TS: float = 0.0
+
 
 def _ensure_cache_dir() -> None:
     try:
@@ -144,6 +152,48 @@ def _load_cache_from_disk() -> None:
             log.info(f"Loaded models cache from disk: mode={mode} entries={len(_CACHE)} age={int(time.time()-_CACHE_TS)}s")
     except Exception as e:
         log.warning(f"Failed to load models cache from disk: {e}")
+
+
+# --- Enrich cache helpers ---
+
+def _load_enrich_cache_from_disk() -> None:
+    global _ENRICH_CACHE, _ENRICH_TS
+    if not os.path.exists(ENRICH_CACHE_FILE):
+        return
+    try:
+        import json
+        with open(ENRICH_CACHE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        ts = data.get("timestamp", 0.0)
+        entries = data.get("entries", {})
+        if not isinstance(entries, dict):
+            return
+        # TTL check for whole cache
+        if time.time() - ts > _ENRICH_CACHE_TTL:
+            log.info("Enrich disk cache expired; ignoring cached entries.")
+            return
+        _ENRICH_CACHE = entries
+        _ENRICH_TS = ts
+        log.info(f"Loaded enrich cache from disk: entries={len(_ENRICH_CACHE)} age={int(time.time()-_ENRICH_TS)}s")
+    except Exception as e:
+        log.warning(f"Failed to load enrich cache from disk: {e}")
+
+
+def _persist_enrich_cache_to_disk() -> None:
+    _ensure_cache_dir()
+    tmp = ENRICH_CACHE_FILE + ".tmp"
+    try:
+        import json
+        payload = {
+            "timestamp": _ENRICH_TS,
+            "entries": _ENRICH_CACHE,
+        }
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+        os.replace(tmp, ENRICH_CACHE_FILE)
+        log.info(f"Persisted enrich cache to disk: entries={len(_ENRICH_CACHE)} ts={_ENRICH_TS}")
+    except Exception as e:
+        log.warning(f"Failed to persist enrich cache: {e}")
 
 
 def _fetch_models(limit: int) -> List[ModelSummary]:
@@ -307,14 +357,76 @@ def _enrich_single_model(model_id: str) -> ModelMetaLite:
 
 
 @router.post("/models/enrich", response_model=List[ModelMetaLite])
-async def enrich_models(models: List[str]):
+async def enrich_models(
+    models: List[str],
+    since_ts: float = Query(0.0, description="Client's last known enrich cache timestamp"),
+    force_refresh: bool = Query(False, description="Force refresh of enrich cache")
+):
     """Enrich a small list of model ids with only the `gated` flag for the UI.
 
-    Always returns a boolean for `gated`. Call with currently visible models only.
+    Behavior changes:
+    - Uses a disk-backed per-model cache at ./cache/enrich_cache.json to avoid
+      repeated HF Hub calls.
+    - Only queries HF for models missing from the cache or expired.
+    - If the client provides `since_ts` and there are no updates newer than
+      that timestamp, returns 204 No Content so the frontend doesn't need to
+      re-render.
     """
+    global _ENRICH_CACHE, _ENRICH_TS
     max_batch = int(os.getenv("ENRICH_MODELS_MAX", "128"))
     ids = models[:max_batch]
+    now = time.time()
+
+    # Load enrich cache lazily
+    if not _ENRICH_CACHE:
+        _load_enrich_cache_from_disk()
+
+    # Determine which ids need fetching
+    to_fetch: List[str] = []
+    for mid in ids:
+        entry = _ENRICH_CACHE.get(mid)
+        if force_refresh:
+            to_fetch.append(mid)
+            continue
+        if not entry:
+            to_fetch.append(mid)
+            continue
+        # entry is expected to have a ts field
+        entry_ts = float(entry.get("ts", 0.0))
+        if now - entry_ts > _ENRICH_CACHE_TTL:
+            to_fetch.append(mid)
+
+    # Fetch missing/expired entries
+    updated = False
+    for mid in to_fetch:
+        meta = _enrich_single_model(mid)
+        _ENRICH_CACHE[mid] = {"gated": bool(meta.gated), "ts": time.time()}
+        updated = True
+
+    if updated:
+        # bump global enrich cache timestamp to now and persist
+        _ENRICH_TS = time.time()
+        _persist_enrich_cache_to_disk()
+
+    # If client is up-to-date and nothing changed, return 204 No Content
+    if not updated and since_ts and _ENRICH_TS and _ENRICH_TS <= since_ts:
+        # include cache ts so the client still knows the current cache timestamp
+        return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"X-Enrich-Cache-Ts": str(_ENRICH_TS or now)})
+
+    # Build response list in same order as request
     metas: List[ModelMetaLite] = []
     for mid in ids:
-        metas.append(_enrich_single_model(mid))
-    return metas
+        entry = _ENRICH_CACHE.get(mid)
+        if entry:
+            metas.append(ModelMetaLite(id=mid, gated=bool(entry.get("gated", False))))
+        else:
+            # fallback: if something odd happened, call the fetch function synchronously
+            metas.append(_enrich_single_model(mid))
+
+    # Return proper JSONResponse so Content-Length is set correctly
+    try:
+        body = [m.model_dump() for m in metas]
+        return JSONResponse(content=body, status_code=status.HTTP_200_OK, headers={"X-Enrich-Cache-Ts": str(_ENRICH_TS or now)})
+    except Exception:
+        # As a last-resort fallback, let FastAPI serialize the Pydantic models list
+        return JSONResponse(content=[m.model_dump() for m in metas], status_code=status.HTTP_200_OK, headers={"X-Enrich-Cache-Ts": str(_ENRICH_TS or now)})

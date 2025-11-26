@@ -16,12 +16,16 @@ def configure_logging() -> None:
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
         datefmt="%H:%M:%S",
     )
-    # Adjust third-party verbosity
-    logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+    # Increase third-party verbosity to surface model download progress
+    logging.getLogger("huggingface_hub").setLevel(logging.INFO)
+    logging.getLogger("huggingface_hub.file_download").setLevel(logging.INFO)
+    logging.getLogger("transformers").setLevel(logging.INFO)
+    # Uvicorn
     logging.getLogger("uvicorn.error").setLevel(level)
     logging.getLogger("uvicorn.access").setLevel(logging.INFO)
     # Application namespace
     logging.getLogger("app").setLevel(level)
+    logging.getLogger("app.runners").setLevel(logging.INFO)
 
 
 # Configure logging early

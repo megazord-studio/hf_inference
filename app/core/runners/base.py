@@ -21,5 +21,3 @@ class BaseRunner:
         # Allow GC by dropping references; DRY & minimal side effects
         pass
 
-__all__ = ["BaseRunner"]
-

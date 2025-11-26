@@ -21,6 +21,7 @@ VISION_UNDERSTANDING_TASKS: Set[str] = {
 
 class ZeroShotImageClassificationRunner(BaseRunner):
     def load(self) -> int:
+        log.info("vision_understanding: loading zero-shot image classification model_id=%s (may download)", self.model_id)
         self.processor = AutoProcessor.from_pretrained(self.model_id)
         self.model = AutoModelForZeroShotImageClassification.from_pretrained(self.model_id)
         self.model.to(self.device)
@@ -39,6 +40,7 @@ class ZeroShotImageClassificationRunner(BaseRunner):
 
 class ZeroShotObjectDetectionRunner(BaseRunner):
     def load(self) -> int:
+        log.info("vision_understanding: loading OWLv2 model_id=%s (may download)", self.model_id)
         # OWLv2 zero-shot object detection for models like google/owlv2-base-patch16-ensemble
         self.processor = Owlv2Processor.from_pretrained(self.model_id)
         self.model = Owlv2ForObjectDetection.from_pretrained(self.model_id)

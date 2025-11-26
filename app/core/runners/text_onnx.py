@@ -40,6 +40,7 @@ class OnnxTextGenerationRunner(BaseRunner):
             raise RuntimeError("onnxruntime unavailable; install onnxruntime or onnxruntime-gpu")
         if AutoTokenizer is None:
             raise RuntimeError("transformers unavailable for tokenizer")
+        log.info("onnx: preparing to load model for %s (may download .onnx)", self.model_id)
         # Candidate filenames we prefer
         preferred: List[str] = ["model.onnx", "gpt2.onnx", "decoder_model.onnx"]
         found_path: Optional[str] = None
@@ -52,6 +53,7 @@ class OnnxTextGenerationRunner(BaseRunner):
         # 2) Remote search if not found locally and hub available
         if not found_path and HfApi and hf_hub_download:
             try:
+                log.info("onnx: listing repo files for %s", self.model_id)
                 api = HfApi(token=os.getenv("HF_TOKEN"))
                 files = api.list_repo_files(self.model_id)
                 # Filter .onnx files
@@ -59,6 +61,7 @@ class OnnxTextGenerationRunner(BaseRunner):
                 # Choose best match (preferred order else first)
                 match = next((p for p in preferred if p in onnx_files), None) or (onnx_files[0] if onnx_files else None)
                 if match:
+                    log.info("onnx: downloading %s from hub", match)
                     found_path = hf_hub_download(self.model_id, filename=match, token=os.getenv("HF_TOKEN"))
             except Exception as e:  # pragma: no cover
                 log.warning(f"Could not list/download ONNX files for {self.model_id}: {e}")
@@ -66,9 +69,11 @@ class OnnxTextGenerationRunner(BaseRunner):
             raise RuntimeError(f"No ONNX file found for {self.model_id}; looked for {preferred} or any *.onnx in repo")
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if self._cuda_available() else ["CPUExecutionProvider"]
         try:
+            log.info("onnx: creating inference session for %s (providers=%s)", found_path, providers)
             self.session = ort.InferenceSession(found_path, providers=providers)  # type: ignore[attr-defined]
         except Exception as e:
             raise RuntimeError(f"Failed creating ONNX session for {found_path}: {e}")
+        log.info("onnx: loading tokenizer for %s (may download)", self.model_id)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, use_fast=True)
         self._loaded = True
         return 0  # param count unknown for ONNX fallback

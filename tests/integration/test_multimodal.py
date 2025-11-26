@@ -8,6 +8,15 @@ MM_MODELS = [
     "Salesforce/blip-vqa-base",
     "llava-hf/llava-1.5-7b-hf",
     "Qwen/Qwen-VL-Chat",
+    "google/gemma-3-1b-it",
+    "HuggingFaceM4/idefics2-8b",
+    "openbmb/MiniCPM-Llama3-V-2_5",
+    "01-ai/Yi-VL-6B",
+    "OpenGVLab/InternVL2-8B",
+    "microsoft/kosmos-2-patch14-224",
+    "microsoft/Florence-2-base-ft",
+    "google/paligemma-3b-pt-224",
+    "THUDM/cogvlm2-llama3-chat-19B",
 ]
 
 ANSWER_MODELS = {"Salesforce/blip-vqa-base"}
@@ -20,6 +29,7 @@ def _mk_image_b64(color=(200, 180, 50)):
 
 
 def _post(client, task: str, model_id: str, inputs: dict, options: dict):
+    # removed interactive debugger to allow automated test runs
     resp = client.post('/api/inference', json={
         'model_id': model_id,
         'intent_id': '',

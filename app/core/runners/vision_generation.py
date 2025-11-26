@@ -14,6 +14,9 @@ from app.core.utils.media import decode_image_base64, encode_image_base64, image
 from app.core.runners.diffusion_shared import get_or_create_sd_pipeline
 import torch
 import time
+import logging
+
+log = logging.getLogger("app.runners.vision_generation")
 
 VISION_GEN_TASKS: Set[str] = {
     "text-to-image",
@@ -25,6 +28,7 @@ VISION_GEN_TASKS: Set[str] = {
 
 class TextToImageRunner(BaseRunner):
     def load(self) -> int:
+        log.info("vision_generation: loading model_id=%s", self.model_id)
         shared = get_or_create_sd_pipeline(self.model_id, self.device, mode="text")
         self.pipe = shared.get("pipe_text")
         if not self.pipe:
@@ -57,6 +61,7 @@ class TextToImageRunner(BaseRunner):
 
 class ImageToImageRunner(BaseRunner):
     def load(self) -> int:
+        log.info("vision_generation: loading model_id=%s", self.model_id)
         shared = get_or_create_sd_pipeline(self.model_id, self.device, mode="img2img")
         self.pipe = shared.get("pipe_img2img")
         if not self.pipe:

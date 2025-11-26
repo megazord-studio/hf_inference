@@ -156,7 +156,8 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
         except Exception as e:
             result.setdefault("task_output", {})
             result["task"] = task
-            result["error"] = {"message": f"inference_failed: {e}"}
+            # Use repr(e) to surface non-empty diagnostic even if __str__ is empty
+            result["error"] = {"message": f"inference_failed: {repr(e)}"}
     else:
         # Task is unknown or not yet implemented in the backend runners
         result["task_output"] = {}
@@ -199,7 +200,8 @@ async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50,
         tokens = pred_init["output"].get("tokens", [])
     except Exception as e:
         async def error_iter():
-            yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': str(e)})}\n\n"
+            # Use repr(e) to ensure a descriptive message is returned
+            yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': repr(e)})}\n\n"
         return StreamingResponse(error_iter(), media_type="text/event-stream")
 
     async def event_iter():
@@ -303,7 +305,7 @@ async def stream_tts(model_id: str, text: str):
         raw_bytes = base64.b64decode(data)
     except Exception as e:
         async def error_iter():
-            yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': str(e)})}\n\n"
+            yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': repr(e)})}\n\n"
         return StreamingResponse(error_iter(), media_type="text/event-stream")
 
     async def event_iter():

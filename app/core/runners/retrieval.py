@@ -7,6 +7,7 @@ is constructed at load time and lives entirely in RAM.
 from __future__ import annotations
 
 from typing import Dict, Any, Type, Set, List
+import logging
 
 import torch
 from transformers import CLIPModel, CLIPImageProcessor
@@ -39,15 +40,17 @@ class VisualDocumentRetrievalRunner(BaseRunner):
 
         # Try CLIP path first
         try:
+            log = logging.getLogger("app.runners.retrieval")
+            log.info("retrieval: loading CLIP model_id=%s (may download)", model_id)
             self.processor = CLIPImageProcessor.from_pretrained(model_id)
             self.model = CLIPModel.from_pretrained(model_id)
             self._mode = "clip"
         except Exception:
-            # Fallback: treat as zero-shot image classification model with
-            # id2label-based corpus. We just reuse AutoImageProcessor and
-            # AutoModelForImageClassification here.
+            # Fallback: treat as zero-shot image classification model
             from transformers import AutoImageProcessor, AutoModelForImageClassification
             try:
+                log = logging.getLogger("app.runners.retrieval")
+                log.info("retrieval: loading zero-shot image classification model_id=%s (may download)", model_id)
                 self.processor = AutoImageProcessor.from_pretrained(model_id)
                 self.model = AutoModelForImageClassification.from_pretrained(model_id)
                 if not getattr(self.model.config, "id2label", None):

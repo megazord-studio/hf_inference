@@ -168,15 +168,14 @@ class ImageTo3DRunner(BaseRunner):
             self._loaded = True
             return 0
         mid = self.model_id.lower()
-        # If TRELLIS model is not recognized by generic AutoModel (missing model_type), do not fail hard
-        # here; instead, attempt a best-effort generic AutoModel load and fall back to procedural output
-        # if even that fails.
         self.processor = None
         try:
+            log.info("vision_3d: loading AutoProcessor for %s (may download)", self.model_id)
             self.processor = AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True)
         except Exception as e:
             log.info(f"vision_3d: no AutoProcessor for {self.model_id}: {e}")
         try:
+            log.info("vision_3d: loading AutoModel for %s (may download)", self.model_id)
             self.model = AutoModel.from_pretrained(self.model_id, trust_remote_code=True)
             if self.device:
                 try:
@@ -244,6 +243,7 @@ class TextTo3DRunner(BaseRunner):
         # AutoTokenizer/AutoModelForCausalLM cannot recognize the model_type. In that case, fall back
         # to procedural text-based 3D generation so the test contract is still satisfied.
         try:
+            log.info("vision_3d: loading AutoTokenizer/AutoModelForCausalLM for %s (may download)", self.model_id)
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, trust_remote_code=True)
             self.model = AutoModelForCausalLM.from_pretrained(self.model_id, trust_remote_code=True)
             if self.device:

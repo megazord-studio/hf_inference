@@ -118,11 +118,14 @@ class ImageClassificationRunner(BaseRunner):
         if torch is None:
             raise RuntimeError("torch unavailable")
         try:
+            log.info("vision_audio: loading AutoImageProcessor for %s (may download)", self.model_id)
             self.processor = AutoImageProcessor.from_pretrained(self.model_id)
         except Exception:
             # Fallback (older models)
             from transformers import AutoFeatureExtractor
+            log.info("vision_audio: loading AutoFeatureExtractor for %s (may download)", self.model_id)
             self.processor = AutoFeatureExtractor.from_pretrained(self.model_id)
+        log.info("vision_audio: loading AutoModelForImageClassification for %s (may download)", self.model_id)
         self.model = AutoModelForImageClassification.from_pretrained(self.model_id)
         if self.device:
             self.model.to(self.device)
@@ -153,15 +156,17 @@ class ImageCaptioningRunner(BaseRunner):
     def load(self) -> int:
         if torch is None:
             raise RuntimeError("torch unavailable")
+        log.info("vision_audio: loading AutoProcessor for %s (may download)", self.model_id)
         self.processor = AutoProcessor.from_pretrained(self.model_id)
         # Attempt VisionEncoderDecoderModel first (common for image captioning like vit-gpt2)
         self._is_ved = False
         try:
             from transformers import VisionEncoderDecoderModel
+            log.info("vision_audio: loading VisionEncoderDecoderModel for %s (may download)", self.model_id)
             self.model = VisionEncoderDecoderModel.from_pretrained(self.model_id)
             self._is_ved = True
         except Exception:
-            # Fallback causal LM (for multimodal/other architectures that still respond to generate)
+            log.info("vision_audio: loading AutoModelForCausalLM for %s (may download)", self.model_id)
             self.model = AutoModelForCausalLM.from_pretrained(self.model_id)
         if self.device:
             self.model.to(self.device)
@@ -204,6 +209,7 @@ class ObjectDetectionRunner(BaseRunner):
             raise RuntimeError("torch unavailable")
         # Attempt to load processor; if unavailable create minimal dummy processor
         try:
+            log.info("vision_audio: loading AutoProcessor for %s (may download)", self.model_id)
             self.processor = AutoProcessor.from_pretrained(self.model_id)
         except Exception:
             class _DummyProcessor:
@@ -212,6 +218,7 @@ class ObjectDetectionRunner(BaseRunner):
             self.processor = _DummyProcessor()
         # Try real model, else build a local dummy (for hf-internal-testing tiny models or offline)
         try:
+            log.info("vision_audio: loading AutoModelForObjectDetection for %s (may download)", self.model_id)
             self.model = AutoModelForObjectDetection.from_pretrained(self.model_id)
             used_dummy = False
         except Exception as e:
@@ -299,6 +306,7 @@ class ImageSegmentationRunner(BaseRunner):
             strip_keys = {"reduce_labels", "feature_extractor_type", "image_processor_type"}
             for fname in ["preprocessor_config.json", "image_processor_config.json", "feature_extractor_config.json"]:
                 try:
+                    log.info("vision_audio: downloading %s for %s", fname, self.model_id)
                     cfg_path = hf_hub_download(self.model_id, fname)
                     with open(cfg_path, 'r') as f:
                         raw_cfg = json.load(f)
@@ -310,10 +318,13 @@ class ImageSegmentationRunner(BaseRunner):
                     continue
         if not processor_loaded:
             try:
+                log.info("vision_audio: loading AutoImageProcessor for %s (may download)", self.model_id)
                 self.processor = AutoImageProcessor.from_pretrained(self.model_id)
             except Exception:
                 from transformers import AutoFeatureExtractor
+                log.info("vision_audio: loading AutoFeatureExtractor for %s (may download)", self.model_id)
                 self.processor = AutoFeatureExtractor.from_pretrained(self.model_id)
+        log.info("vision_audio: loading AutoModelForSemanticSegmentation for %s (may download)", self.model_id)
         self.model = AutoModelForSemanticSegmentation.from_pretrained(self.model_id)
         if self.device:
             self.model.to(self.device)
@@ -346,10 +357,12 @@ class DepthEstimationRunner(BaseRunner):
         if torch is None:
             raise RuntimeError("torch unavailable")
         try:
+            log.info("vision_audio: loading AutoImageProcessor for %s (may download)", self.model_id)
             self.processor = AutoImageProcessor.from_pretrained(self.model_id)
         except Exception:
             from transformers import AutoFeatureExtractor
             try:
+                log.info("vision_audio: loading AutoFeatureExtractor for %s (may download)", self.model_id)
                 self.processor = AutoFeatureExtractor.from_pretrained(self.model_id)
             except Exception:
                 class _DummyProc:
@@ -357,6 +370,7 @@ class DepthEstimationRunner(BaseRunner):
                         return {"pixel_values": torch.randn(1,3,32,32)}
                 self.processor = _DummyProc()
         try:
+            log.info("vision_audio: loading AutoModelForDepthEstimation for %s (may download)", self.model_id)
             self.model = AutoModelForDepthEstimation.from_pretrained(self.model_id)
             self._is_depth_head = True
         except Exception as e:

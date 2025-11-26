@@ -28,15 +28,16 @@ TEXT_TASKS = {"text-generation", "text-classification", "embedding"}
 
 class TextGenerationRunner(BaseRunner):
     def load(self) -> int:
-        if torch is None:
-            raise RuntimeError("torch unavailable")
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_id)
-        if self.device:
-            self.model.to(self.device)
-        self.model.eval()
-        self._loaded = True
-        return getattr(self.model, "num_parameters", lambda: self.model.numel())()
+        log.info("text: loading model_id=%s", self.model_id)
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        log.info("text: downloading tokenizer/model if not cached")
+        tok = AutoTokenizer.from_pretrained(self.model_id)
+        mdl = AutoModelForCausalLM.from_pretrained(self.model_id)
+        self.tokenizer = tok
+        self.model = mdl.to(self.device)
+        if hasattr(self.model, "eval"):
+            self.model.eval()
+        return sum(p.numel() for p in self.model.parameters())
 
     def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
         prompt = inputs.get("text") or ""

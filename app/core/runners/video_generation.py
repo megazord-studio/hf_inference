@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Dict, Any, Set, Type
 import inspect
 import io
+import logging
 
 import numpy as np
 from PIL import Image
@@ -20,6 +21,8 @@ from .base import BaseRunner
 
 
 VIDEO_TASKS: Set[str] = {"text-to-video", "image-to-video"}
+
+log = logging.getLogger("app.runners.video_generation")
 
 
 def _encode_video_mp4_base64(frames: np.ndarray, fps: int = 4) -> str:
@@ -217,6 +220,7 @@ class TextToVideoRunner(BaseRunner):
     """Text-to-video using SD text-to-image or text-to-video pipeline."""
 
     def load(self) -> int:  # type: ignore[override]
+        log.info("video_generation: get_or_create_sd_pipeline(text) model_id=%s (may download)", self.model_id)
         shared = get_or_create_sd_pipeline(self.model_id, self.device, mode="text")
         self.pipe = shared.get("pipe_text")
         if not self.pipe:
@@ -282,6 +286,7 @@ class ImageToVideoRunner(BaseRunner):
     """Image-to-video using SD img2img or img2video pipeline."""
 
     def load(self) -> int:  # type: ignore[override]
+        log.info("video_generation: get_or_create_sd_pipeline(img2img) model_id=%s (may download)", self.model_id)
         shared = get_or_create_sd_pipeline(self.model_id, self.device, mode="img2img")
         self.pipe = shared.get("pipe_img2img")
         if not self.pipe:
