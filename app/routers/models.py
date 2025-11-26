@@ -31,6 +31,10 @@ class TaskStats(BaseModel):
     total_downloads: int
     avg_downloads: float
 
+class ModelMetaLite(BaseModel):
+    id: str
+    gated: bool = False
+
 # Curated TASKS: broad coverage while pruning niche / low-signal tasks.
 # Inclusion heuristics applied offline: (model_count >= 50) OR (avg_likes >= ~40) OR (core user goal) excluding experimental / niche.
 # Duplicates unified (e.g. mask-generation folded into image-segmentation; image-feature-extraction into feature-extraction; unconditional-image-generation folded into text-to-image).
@@ -84,7 +88,7 @@ CACHE_DIR = os.path.join(PROJECT_ROOT, "cache")
 CACHE_FILE = os.path.join(CACHE_DIR, "models_preloaded.json")
 CACHE_MODE = "all"  # we now store all pipeline tags
 
-PRELOAD_LIMIT = int(os.getenv("PRELOAD_MODELS_LIMIT", "30000"))  # configurable preload size
+PRELOAD_LIMIT = 30000
 
 
 def _ensure_cache_dir() -> None:
@@ -148,6 +152,7 @@ def _fetch_models(limit: int) -> List[ModelSummary]:
     results: List[ModelSummary] = []
     try:
         for info in api.list_models(sort="downloads", direction=-1):  # type: ignore
+        # for info in api.list_models(sort="downloads", direction=-1, expand=["gated"]):  # type: ignore
             mid = getattr(info, "modelId", None)
             if not mid:
                 continue
@@ -271,3 +276,45 @@ async def list_tasks(
     elif sort_by == 'downloads':
         stats.sort(key=lambda s: (s.total_downloads, s.model_count), reverse=reverse)
     return stats
+
+def _enrich_single_model(model_id: str) -> ModelMetaLite:
+    """Fetch minimal metadata for a single model id (only `gated`).
+
+    Always returns a boolean for `gated` (True for gated, False otherwise).
+    Uses model_info (no expand) to avoid heavy timeouts; falls back to a
+    lightweight list_models search if needed. Designed for small UI batches.
+    """
+    token = os.getenv("HF_TOKEN")
+    api = HfApi(token=token) if token else HfApi()
+    try:
+        info = api.model_info(model_id)
+        gv = getattr(info, "gated", None)
+        return ModelMetaLite(
+            id=model_id,
+            gated=bool(gv),
+        )
+    except Exception:
+        try:
+            for m in api.list_models(search=f"id={model_id}", limit=1):  # type: ignore
+                gv = getattr(m, "gated", None)
+                return ModelMetaLite(
+                    id=model_id,
+                    gated=bool(gv),
+                )
+        except Exception as e2:
+            log.debug(f"enrich_single_model fallback failed for {model_id}: {e2}")
+    return ModelMetaLite(id=model_id, gated=False)
+
+
+@router.post("/models/enrich", response_model=List[ModelMetaLite])
+async def enrich_models(models: List[str]):
+    """Enrich a small list of model ids with only the `gated` flag for the UI.
+
+    Always returns a boolean for `gated`. Call with currently visible models only.
+    """
+    max_batch = int(os.getenv("ENRICH_MODELS_MAX", "128"))
+    ids = models[:max_batch]
+    metas: List[ModelMetaLite] = []
+    for mid in ids:
+        metas.append(_enrich_single_model(mid))
+    return metas

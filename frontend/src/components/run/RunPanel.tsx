@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon, Type as TextIcon, Code, Play, Loader2, Clipboard, CheckCircle2, ChevronRight, HelpCircle } from 'lucide-react';
 import { tasksInfo } from '../../constants/tasksCatalog';
 import type { UseModelExplorerReturn } from '../../hooks/useModelExplorer';
+import { CurlExample } from './CurlExample';
 
 interface RunPanelProps { m: UseModelExplorerReturn }
 
@@ -55,11 +56,27 @@ export function RunPanel({ m }: RunPanelProps) {
 
   const streamingActive = m.streamEnabled && m.selectedTask === 'text-generation';
 
+  // Derive viewport gated flag for selected model
+  const selectedGated = m.selectedModel ? (m.gatedById?.[m.selectedModel.id] ?? (m.selectedModel as any).gated) : undefined;
+  const showGatedBadge = selectedGated === true || (typeof selectedGated === 'string' && selectedGated.trim().toLowerCase() !== 'none');
+
   return (
     <div className="card bg-base-100 shadow-sm border border-base-300">
       <div className="card-body space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-md font-semibold flex items-center gap-2">Run / Inspect {modalityIcons}</h3>
+          <h3 className="text-md font-semibold flex items-center gap-2">
+            Run / Inspect
+            {/* modality icons */}
+            <span className="flex gap-1 items-center">
+              {m.requiresImage && <ImageIcon className="w-3 h-3 text-info"/>}
+              {m.requiresText && <TextIcon className="w-3 h-3 text-success"/>}
+              {showGatedBadge && (
+                <div className="tooltip" data-tip="Gated repository on Hugging Face">
+                  <span className="badge badge-xxs badge-warning font-mono">G</span>
+                </div>
+              )}
+            </span>
+          </h3>
           {m.selectedModel && (
             <span className="badge badge-outline badge-sm max-w-[16rem] truncate" title={m.selectedModel.id}>{m.selectedModel.id}</span>
           )}
@@ -161,13 +178,7 @@ export function RunPanel({ m }: RunPanelProps) {
                     className="btn btn-sm btn-primary gap-1"
                     onClick={m.runModel}
                     disabled={!m.canRun || m.inferencePending}
-                  >{m.inferencePending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {streamingActive ? 'Stream' : 'Run'}</button>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline gap-1"
-                    onClick={m.showCurl}
-                    disabled={!m.canRun || m.curlPending}
-                  >{m.curlPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Code className="w-4 h-4" />} Curl</button>
+                  >{m.inferencePending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} {m.selectedTask === 'text-generation' && m.streamEnabled ? 'Stream' : 'Run'}</button>
                   {m.selectedTask === 'text-generation' && (
                     <label className="label cursor-pointer gap-1 text-xs">
                       <span className="opacity-70">Streaming</span>
@@ -175,6 +186,7 @@ export function RunPanel({ m }: RunPanelProps) {
                     </label>
                   )}
                 </div>
+                {m.latestCurl && <CurlExample command={m.latestCurl} />}
                 {run && (
                   <div className="mt-2 alert alert-info overflow-auto">
                     <div className="flex items-center justify-between">
@@ -241,12 +253,6 @@ export function RunPanel({ m }: RunPanelProps) {
                     <details className="rounded-md border border-base-300 bg-base-100 p-3">
                       <summary className="cursor-pointer text-[11px] font-semibold flex items-center gap-1"><ChevronRight className="w-3 h-3" /> Request payload</summary>
                       <pre className="mt-2 text-[10px] whitespace-pre-wrap">{JSON.stringify(run.requestInputs, null, 2)}</pre>
-                    </details>
-                  )}
-                  {run.curl && (
-                    <details className="rounded-md border border-base-300 bg-base-100 p-3">
-                      <summary className="cursor-pointer text-[11px] font-semibold flex items-center gap-1"><ChevronRight className="w-3 h-3" /> curl example</summary>
-                      <pre className="mt-2 text-[10px] whitespace-pre-wrap">{run.curl}</pre>
                     </details>
                   )}
                 </div>

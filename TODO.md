@@ -45,9 +45,9 @@ something is not working as expected. Fallback would hide that fact.
 - [x] Tests: verify presence of `event: progress` events for diffusion tasks.
 
 ### Phase E: Documentation & Examples
-- [ ] Completely refactor README with new tasks table and curl examples.
+- [x] Completely refactor README with new tasks table and curl examples.
       Make it very slim, but incl. the tasks supported.
-- [ ] Reimplement the curl examples in the frontend (in the runner for selected model).
+- [x] Reimplement the curl examples in the frontend (in the runner for selected model).
 
 ### Phase F: Test Suite Expansion
 - [ ] Parametrize existing tests to reduce duplication.

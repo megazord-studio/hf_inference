@@ -12,7 +12,7 @@ export interface ModelSummary {
   id: string;
   pipeline_tag?: string;
   tags?: string[];
-  gated?: string;
+  gated?: boolean | string;
   likes?: number;
   downloads?: number;
   trendingScore?: number; // optional server-provided trending score

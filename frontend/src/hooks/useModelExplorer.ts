@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import { useInference, useCurlExample } from '../api/hooks';
+import { useInference } from '../api/hooks';
 import { useTextGenerationStream } from '../api/hooks';
 import type { InputType, OutputType, ModelSummary, Intent, RunRecord, InferenceRequest } from '../types';
 import { taskModalities } from '../constants/taskModalities';
@@ -193,10 +193,10 @@ export function useModelExplorer() {
   // Runs history
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [latestCurl, setLatestCurl] = useState<string | null>(null);
 
   // Inference hooks
   const inference = useInference();
-  const curlExample = useCurlExample();
   const streamGen = useTextGenerationStream();
   const [streamEnabled, setStreamEnabled] = useState<boolean>(true);
 
@@ -236,40 +236,120 @@ export function useModelExplorer() {
     return inputs;
   };
 
+  const buildInferenceRequest = (): InferenceRequest | null => {
+    if (!canRun || !selectedModel) return null;
+    const inputs = buildInputs();
+    return {
+      model_id: selectedModel.id,
+      intent_id: runIntent?.id || '',
+      input_type: primaryInputType,
+      inputs,
+      task: selectedTask || undefined,
+    } as any;
+  };
+
   const runModel = () => {
     if (!canRun || !selectedModel) return;
     const inputs = buildInputs();
     const isTextGen = selectedTask === 'text-generation' && !requiresImage && !requiresAudio && !requiresVideo && !requiresDocument;
     if (isTextGen && streamEnabled && textInput.trim()) {
-      streamGen.mutate({ model_id: selectedModel.id, prompt: textInput.trim(), params: { max_new_tokens: (inputs.extra_args as any)?.max_new_tokens || 50, temperature: (inputs.extra_args as any)?.temperature || 1.0, top_p: (inputs.extra_args as any)?.top_p || 1.0 } }, {
+      streamGen.mutate({
+        model_id: selectedModel.id,
+        prompt: textInput.trim(),
+        params: {
+          max_new_tokens: (inputs.extra_args as any)?.max_new_tokens || 50,
+          temperature: (inputs.extra_args as any)?.temperature || 1.0,
+          top_p: (inputs.extra_args as any)?.top_p || 1.0,
+        },
+      }, {
         onSuccess: (data) => {
           const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-          const newRun: RunRecord = { id, createdAt: new Date().toISOString(), inputType: primaryInputType, intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] }, model: selectedModel, inputText: textInput, streaming: true, streamingTokens: data.tokens, streamingMetrics: data.metrics, streamingError: data.error };
-          setRuns(prev => [...prev, newRun]); setSelectedRunId(id);
-        }
+          const newRun: RunRecord = {
+            id,
+            createdAt: new Date().toISOString(),
+            inputType: primaryInputType,
+            intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] },
+            model: selectedModel,
+            inputText: textInput,
+            streaming: true,
+            streamingTokens: data.tokens,
+            streamingMetrics: data.metrics,
+            streamingError: data.error,
+          };
+          setRuns(prev => [...prev, newRun]);
+          setSelectedRunId(id);
+        },
       });
       return;
     }
-    const body: InferenceRequest = { model_id: selectedModel.id, intent_id: runIntent?.id || '', input_type: primaryInputType, inputs, task: selectedTask || undefined } as any;
-    inference.mutate(body, { onSuccess: (data) => {
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-      const newRun: RunRecord = { id, createdAt: new Date().toISOString(), inputType: primaryInputType, intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] }, model: selectedModel, inputText: textInput, result: data.result, runtime_ms: data.runtime_ms, requestInputs: inputs, model_meta: data.model_meta };
-      setRuns(prev => [...prev, newRun]); setSelectedRunId(id);
-    }});
+    const body = buildInferenceRequest();
+    if (!body) return;
+    inference.mutate(body, {
+      onSuccess: (data) => {
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+        const newRun: RunRecord = {
+          id,
+          createdAt: new Date().toISOString(),
+          inputType: primaryInputType,
+          intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] },
+          model: selectedModel,
+          inputText: textInput,
+          result: data.result,
+          runtime_ms: data.runtime_ms,
+          requestInputs: body.inputs,
+          model_meta: data.model_meta,
+        };
+        setRuns(prev => [...prev, newRun]);
+        setSelectedRunId(id);
+      },
+    });
   };
 
   const showCurl = () => {
-    if (!canRun || !selectedModel) return;
-    const inputs = buildInputs();
-    const body: InferenceRequest = { model_id: selectedModel.id, intent_id: runIntent?.id || '', input_type: primaryInputType, inputs, task: selectedTask || undefined } as any;
-    curlExample.mutate(body, { onSuccess: (data) => {
-      setRuns(prev => prev.map(r => r.id === selectedRunId ? { ...r, curl: data.command } : r));
-    }});
+    // No-op now that curl is generated client-side via useEffect; keep for button wiring.
   };
 
-  const selectRun = (id: string) => { setSelectedRunId(id); const r = runs.find(rr => rr.id === id); if (r) { setSelectedModel(r.model); setTextInput(r.inputText); setRunIntentId(r.intent.id); } };
+  const selectRun = (id: string) => {
+    setSelectedRunId(id);
+    const r = runs.find(rr => rr.id === id);
+    if (r) {
+      setSelectedModel(r.model);
+      setTextInput(r.inputText);
+      setRunIntentId(r.intent.id);
+    }
+  };
 
-  const effectiveRunIntent = runIntent; // alias for panel
+  // Live-update latestCurl when inputs change, using placeholders for file inputs
+  useEffect(() => {
+    const body = buildInferenceRequest();
+    if (!body) { setLatestCurl(null); return; }
+    const sanitized = { ...body, inputs: { ...body.inputs } } as any;
+    if (sanitized.inputs.image_base64) sanitized.inputs.image_base64 = '@IMAGE_PATH';
+    if (sanitized.inputs.audio_base64) sanitized.inputs.audio_base64 = '@AUDIO_PATH';
+    if (sanitized.inputs.video_base64) sanitized.inputs.video_base64 = '@VIDEO_PATH';
+    if (sanitized.inputs.document_base64) sanitized.inputs.document_base64 = '@DOCUMENT_PATH';
+    try {
+      const json = JSON.stringify(sanitized, null, 0);
+      const cmd = "curl -s -X POST 'http://localhost:8000/api/inference' " +
+        "-H 'Content-Type: application/json' " +
+        "-d '" + json.replace(/'/g, "'\\''") + "'";
+      setLatestCurl(cmd);
+    } catch {
+      setLatestCurl(null);
+    }
+  }, [
+    selectedModel?.id,
+    runIntent?.id,
+    primaryInputType,
+    selectedTask,
+    textInput,
+    imageB64,
+    audioB64,
+    videoB64,
+    documentB64,
+    extraArgsJson,
+    canRun,
+  ]);
 
   // Ensure selectedTask aligns with current model's tasks when model changes
   useEffect(() => {
@@ -285,6 +365,31 @@ export function useModelExplorer() {
     }
   }, [selectedModel, selectedTask, modelTasks, requiresImage, requiresAudio, requiresVideo, requiresDocument, imageB64, audioB64, videoB64, documentB64]);
 
+  // Gated overlay: lazily fetched per visible model ids
+  const [gatedById, setGatedById] = useState<Record<string, boolean | undefined>>({});
+  const enrichedIdsRef = useRef<Set<string>>(new Set());
+
+  // When visible models change, enrich gated flag for those not yet known
+  useEffect(() => {
+    const ids = visibleModels.map(m => m.id);
+    const toFetch = ids.filter(id => !enrichedIdsRef.current.has(id));
+    if (!toFetch.length) return;
+    const batch = toFetch.slice(0, 96); // keep requests small
+    (async () => {
+      try {
+        const { data } = await api.post('/models/enrich', batch);
+        const next: Record<string, boolean | undefined> = {};
+        for (const m of data as Array<{ id: string; gated?: boolean }>) {
+          next[m.id] = m.gated;
+          enrichedIdsRef.current.add(m.id);
+        }
+        setGatedById(prev => ({ ...prev, ...next }));
+      } catch (e) {
+        // ignore; we can retry on next visibility change
+      }
+    })();
+  }, [visibleModels]);
+
   return {
     // Modality state
     selectedInputModalities, toggleInputModality,
@@ -295,7 +400,7 @@ export function useModelExplorer() {
     filteredModels: sortedModels, visibleModels, loadMoreModels, modelChunkSize,
     selectedModel, selectModel,
     // Intents & tasks
-    candidateIntents, runIntentId, setRunIntentId, runIntent, effectiveRunIntent,
+    candidateIntents, runIntentId, setRunIntentId, runIntent,
     modelTasks, selectedTask, setSelectedTask,
     // Input handling
     textInput, setTextInput,
@@ -308,9 +413,10 @@ export function useModelExplorer() {
     // Execution
     canRun, runModel, showCurl,
     inferencePending: inference.isPending || streamGen.isPending,
-    curlPending: curlExample.isPending,
+    curlPending: false,
     // Runs history
     runs, selectedRunId, selectRun,
+    latestCurl,
     // Misc
     tasksFromIO,
     clearFilters,
@@ -318,6 +424,7 @@ export function useModelExplorer() {
     isLoadingModels: modelsQuery.isLoading, isLoadingIntents: intentsQuery.isLoading,
     searchQuery, setSearchQuery,
     streamEnabled, setStreamEnabled,
+    gatedById,
   };
 }
 

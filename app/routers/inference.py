@@ -34,9 +34,6 @@ class InferenceResponse(BaseModel):
     model_id: Optional[str] = None
     model_meta: Optional[dict] = None
 
-class CurlExampleResponse(BaseModel):
-    command: str
-
 # Full model enrichment helper using model_info with expand list (now with retries & fallback)
 def _fetch_full_model_meta(model_id: str) -> Optional[dict]:
     token = os.getenv("HF_TOKEN")
@@ -169,21 +166,6 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
         else:
             result["error"] = {"message": "task_not_provided"}
     return InferenceResponse(result=result, runtime_ms=0, model_id=req.model_id, model_meta=meta)
-
-@router.post("/curl-example", response_model=CurlExampleResponse)
-async def curl_example(req: InferenceRequest) -> CurlExampleResponse:
-    """Return a curl command example for the given request.
-
-    This mirrors the payload the frontend would send for /api/inference.
-    """
-    import json
-    body = json.dumps(req.model_dump(), separators=(",", ":"))
-    command = (
-        "curl -s -X POST 'http://localhost:8000/api/inference' "
-        "-H 'Content-Type: application/json' "
-        f"-d '{body}'"
-    )
-    return CurlExampleResponse(command=command)
 
 @router.get("/models/status")
 async def models_status():

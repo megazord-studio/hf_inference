@@ -1,214 +1,162 @@
 # HF Inference
 
-A small FastAPI server and CLI that make trying Hugging Face models consistent. One endpoint. Many tasks. Fewer surprises.
+FastAPI server + small frontend to try Hugging Face models through a single, consistent API.
 
-> 🚧 Status: HEAVY DEVELOPMENT – not stable yet
->
-> ⚠️ Security disclaimer: by default this project loads models with transformers trust_remote_code=True in multiple
-> runners/utilities. Remote model repos may execute arbitrary Python when loading. Do not run untrusted models in
-> production. Prefer sandboxing (containers/VMs), pin models, audit code, and isolate credentials/network.
+- One `/api/inference` endpoint for text, vision, audio, and multimodal tasks.
+- Optional streaming endpoints for text, diffusion, and TTS.
+- Uses real HF Hub models via `transformers`, `diffusers`, `onnxruntime`, etc.
 
-## Quick links
+> This project is still under heavy development. Expect breaking changes.
 
-- Install
-- Quick start
-- Docker
-- API overview
-- Supported tasks
-- Examples
-- Testing (read this)
-- Authentication (read this)
-- Security notes
-- Performance notes
-- Development
-- Contributing
-
-## Why this exists 🧭
-
-Trying different HF models is great until each one “speaks” a slightly different API dialect. This project gives you:
-
-- One simple REST endpoint for 31+ tasks
-- Consistent request/response shapes across models
-- A quick model catalog to discover candidates
-
-In short: less boilerplate, fewer notebook tabs, more experiments per minute.
-
-## What you get 🧰
-
-- Single POST /inference endpoint that handles text, image, audio, and video tasks
-- 31+ tasks across text, vision, audio, and multimodal
-- Minimal model catalog API and a lightweight HTML UI for discovery
-- CLI: hf-inference to start the server quickly
-
-## Installation
-
-Prereqs (recommended):
-
-- Python 3.12+
-- `ffmpeg` (video)
-- `tesseract-ocr`, `libtesseract-dev`, `libleptonica-dev` (OCR tasks)
-
-Install from PyPI:
-
-- `pip install hf-inference`
-
-Note: Large dependencies (PyTorch, Transformers, Diffusers). Expect hefty downloads and build times.
-
-## Quick start 🚀
-
-Start the server (default 0.0.0.0:8000):
-
-- `uv run poe dev`
+## Install & run
 
 ```bash
-# Health check:
-curl http://localhost:8000/healthz
-
-# First request (text generation):
-curl -X POST http://localhost:8000/inference \
-  -F 'spec={"model_id":"gpt2","task":"text-generation","payload":{"prompt":"Hello HF"}}'
+# From the repo root (dev workflow)
+uv sync
+uv run fastapi dev app.main:app --host 0.0.0.0 --port 8000
 ```
 
-## Authentication 🔐
+The API will be served at `http://localhost:8000`.
 
-The server can be run open (default) or protected with either:
+## Core API
 
-- Bearer token(s) via Authorization header
-- Login form and signed session cookie (/login)
+### `POST /api/inference`
 
-If you do NOT configure any auth-related env vars, the middleware fails OPEN (no authentication required). Set at least
-one of the secrets below for any protection.
+Single JSON endpoint for all non-streaming tasks.
 
-### 1. Bearer token
+Request body (`InferenceRequest`):
 
-Set INFERENCE_SHARED_SECRET to a token string (or a comma-separated list for key rotation). Example:
+- `model_id` – HF repo id, e.g. `gpt2`, `runwayml/stable-diffusion-v1-5`.
+- `intent_id` – optional opaque id from the UI.
+- `input_type` – high-level modality, e.g. `text`, `image`, `audio`, `video`.
+- `inputs` – task-specific payload; typical keys:
+  - `text` – prompt for text or text-to-image.
+  - `image_base64` – `data:image/...;base64,...`.
+  - `audio_base64` – `data:audio/wav;base64,...`.
+- `task` – pipeline tag / task id (see below).
+- `options` – model/task options, e.g. decoding params.
+
+Response (`InferenceResponse`):
+
+```jsonc
+{
+  "result": {
+    "task": "text-generation",
+    "task_output": { /* task-specific dict */ },
+    "backend": "torch" | "onnx" | ...,
+    "runtime_ms_model": 123,
+    "resolved_model_id": "actual/revision"
+  },
+  "runtime_ms": 0,
+  "model_id": "...",
+  "model_meta": { /* from HF Hub when available */ }
+}
+```
+
+#### Text generation example
 
 ```bash
-export INFERENCE_SHARED_SECRET="superlongsecret1,superlongsecret2"
-uv run poe dev
+curl -s -X POST http://localhost:8000/api/inference \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model_id": "gpt2",
+    "intent_id": "cli-example",
+    "input_type": "text",
+    "inputs": {"text": "Hello from hf_inference"},
+    "task": "text-generation",
+    "options": {"max_new_tokens": 32, "temperature": 0.8}
+  }'
 ```
 
-Send requests with one of the tokens:
+#### Text-to-image (diffusion) example
 
 ```bash
-curl -H 'Authorization: Bearer superlongsecret1' \
-  -X POST http://localhost:8000/inference \
-  -F 'spec={"model_id":"gpt2","task":"text-generation","payload":{"prompt":"Hi"}}'
+curl -s -X POST http://localhost:8000/api/inference \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model_id": "runwayml/stable-diffusion-v1-5",
+    "intent_id": "cli-example",
+    "input_type": "text",
+    "inputs": {"text": "a tiny cat on a skateboard"},
+    "task": "text-to-image",
+    "options": {"num_inference_steps": 20, "guidance_scale": 7.5}
+  }'
 ```
 
-### 2. Session login (/login)
+The response contains `result.task_output.image_base64` with a `data:image/...;base64,...` URI.
 
-Provide a username (optional) and password via env vars:
-
-- INFERENCE_LOGIN_PASSWORD (REQUIRED to enable the login flow)
-- INFERENCE_LOGIN_USER (default: admin)
-
-Then visit http://localhost:8000/login in a browser, submit the form, and a signed session cookie (default name: `session`) will be set.
-
-Example:
+#### Image classification example
 
 ```bash
-export INFERENCE_LOGIN_PASSWORD='change-me'
-export INFERENCE_SESSION_SECRET='hex-or-random-string'  # stable HMAC key (else random per start)
-uv run poe dev
+IMG_PATH=./assets/image.jpg
+
+curl -s -X POST http://localhost:8000/api/inference \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model_id": "google/vit-base-patch16-224",
+    "intent_id": "cli-example",
+    "input_type": "image",
+    "inputs": {"image_base64": "'"$(node -e 'console.log("data:image/jpeg;base64," + require("fs").readFileSync(process.argv[1]).toString("base64"))' "$IMG_PATH")"'"},
+    "task": "image-classification",
+    "options": {"top_k": 3}
+  }'
 ```
 
-### Session signing secret
+> In practice, the frontend handles base64 encoding; this example shows the wire format.
 
-INFERENCE_SESSION_SECRET supplies the HMAC key used to sign the session cookie. If omitted, a random key is generated at
-startup (all sessions invalidate on restart). Always set this in production.
-
-### Exempt / public paths
-
-The following paths are always unauthenticated (health and docs):
-
-```
-/healthz
-/docs
-/redoc
-/openapi.json
-/login
-/logout
-/static
-```
-
-### Combining methods
-
-You can enable BOTH bearer tokens and session login simultaneously. A request is allowed if EITHER a valid Authorization
-header OR a valid session cookie is present.
-
-### Summary of core env vars
-
-| Purpose | Variable | Default | Notes |
-| ------- | -------- | ------- | ----- |
-| Bearer token(s) | INFERENCE_SHARED_SECRET | (empty) | Comma-separated list. If empty, bearer auth disabled. |
-| Login username | INFERENCE_LOGIN_USER | admin | Only used if password set. |
-| Login password | INFERENCE_LOGIN_PASSWORD | (empty) | If empty, login/session auth disabled. Set to enable form auth. |
-| Session signing key | INFERENCE_SESSION_SECRET | (random each start) | Set for stable sessions across restarts. |
-| Host bind | HF_INF_HOST | 0.0.0.0 | CLI flag --host overrides. |
-| Port | HF_INF_PORT | 8000 | CLI flag --port overrides. |
-| Log level | HF_INF_LOG_LEVEL | info | Standard levels. |
-
-## Docker 🐳
+#### Speech recognition (ASR) example
 
 ```bash
-# Pull image (GPU):
-docker pull ghcr.io/megazord-studio/hf-inference:gpu-latest
+AUDIO=./assets/audio.wav
 
-# Run (GPU, NVIDIA runtime required):
-docker run --rm -it --gpus all -p 8000:8000 \
-  ghcr.io/megazord-studio/hf-inference:gpu-latest \
-  hf-inference --host 0.0.0.0 --port 8000
+# Convert file to base64 data URI for the payload
+DATA_URI="data:audio/wav;base64,$(base64 -w0 "$AUDIO")"
 
-# Persist model/cache data (recommended):
-docker run --rm -it --gpus all -p 8000:8000 \
-  -v hf-cache:/root/.cache/huggingface \
-  ghcr.io/megazord-studio/hf-inference:gpu-latest \
-  hf-inference --host 0.0.0.0 --port 8000
+curl -s -X POST http://localhost:8000/api/inference \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model_id": "openai/whisper-tiny.en",
+    "intent_id": "cli-example",
+    "input_type": "audio",
+    "inputs": {"audio_base64": "'"$DATA_URI"'"}
+  }'
 ```
 
-Notes:
+## Streaming endpoints
 
-- First run may download large models inside the container; use a volume to avoid redownloading. 🗂️
-- A CPU-only image may be published separately; GPU image expects NVIDIA Container Toolkit.
+For tasks with optional streaming support (e.g. text generation, TTS), use the `GET /api/streaming/...` endpoints.
 
-## API overview 🔌
+### Text generation streaming example
 
-### POST /inference
+```bash
+curl -N -H 'Accept: text/event-stream' -X POST http://localhost:8000/api/streaming/text-generation \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model_id": "gpt2",
+    "intent_id": "cli-example",
+    "input_type": "text",
+    "inputs": {"text": "Once upon a time"},
+    "task": "text-generation",
+    "options": {"max_new_tokens": 32, "temperature": 0.8}
+  }'
+```
 
-Multipart form accepting:
+### TTS streaming example
 
-- spec: JSON string
-  - model_id: str (e.g., "gpt2" or "google/vit-base-patch16-224")
-  - task: str (pipeline tag; see Supported tasks)
-  - payload: object (task-specific kwargs)
-- image: optional file
-- audio: optional file
-- video: optional file
+```bash
+curl -N -H 'Accept: audio/wav' -X POST http://localhost:8000/api/streaming/text-to-speech \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model_id": "tts_model",
+    "intent_id": "cli-example",
+    "input_type": "text",
+    "inputs": {"text": "Hello, world!"},
+    "task": "text-to-speech",
+    "options": {"sample_rate": 22050}
+  }' > output.wav
+```
 
-Responses:
-
-- JSON for textual results
-- Streaming file for binary outputs when applicable (with Content-Disposition)
-
-Example specs:
-
-- Text generation: `{"model_id":"gpt2","task":"text-generation","payload":{"prompt":"..."}`}\`
-- Image classification: `{"model_id":"google/vit-base-patch16-224","task":"image-classification","payload":{}}`
-- ASR (speech): `{"model_id":"openai/whisper-tiny","task":"automatic-speech-recognition","payload":{}}`
-
-### GET /healthz
-
-- Returns `{ status, device }`
-
-### GET /models?task=...
-
-- Returns minimal metadata for public models of a task: id, likes, trendingScore, downloads, gated
-- If task is missing, returns available_tasks (the supported tasks on this server)
-
-### GET /
-
-- Lightweight HTML table for quick sorting/filtering of a task’s models, backed by /models
+> Note the use of `-N` to disable buffering for streaming responses.
 
 ## Supported tasks (examples) 📋
 
@@ -218,24 +166,6 @@ Example specs:
 - Multimodal: image-text-to-text, visual-question-answering, table-question-answering, document-question-answering, depth-estimation, video-classification
 
 Tip: GET /models without a task returns the exact list your server supports.
-
-## Examples
-
-```bash
-# Text generation:
-curl -X POST http://localhost:8000/inference \
-  -F 'spec={"model_id":"gpt2","task":"text-generation","payload":{"prompt":"Hello world"}}'
-
-# Image classification:
-curl -X POST http://localhost:8000/inference \
-  -F 'spec={"model_id":"google/vit-base-patch16-224","task":"image-classification","payload":{}}' \
-  -F 'image=@/path/to/image.jpg'
-
-# Speech recognition:
-curl -X POST http://localhost:8000/inference \
-  -F 'spec={"model_id":"openai/whisper-tiny","task":"automatic-speech-recognition","payload":{}}' \
-  -F 'audio=@/path/to/audio.wav'
-```
 
 ## Testing 🧪 (read before running)
 
