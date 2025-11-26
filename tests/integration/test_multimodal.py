@@ -23,14 +23,8 @@ MM_MODELS = [
 
 # Models that require HF authentication (gated models)
 GATED_MODELS = {
-    "llava-hf/llava-1.5-7b-hf",
-    "Qwen/Qwen-VL-Chat",
-    "HuggingFaceM4/idefics2-8b",
-    "openbmb/MiniCPM-Llama3-V-2_5",
-    "01-ai/Yi-VL-6B",
-    "OpenGVLab/InternVL2-8B",
+    "google/gemma-3-1b-it",
     "google/paligemma-3b-pt-224",
-    "THUDM/cogvlm2-llama3-chat-19B",
 }
 
 ANSWER_MODELS = {"Salesforce/blip-vqa-base"}
