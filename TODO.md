@@ -30,7 +30,7 @@ something is not working as expected. Fallback would hide that fact.
 General engineering and testing
 - [x] Apply DRY, KISS; keep functions ~15–20 lines; minimal nesting; clear naming. (multimodal runner refactor present)
 - [ ] Keep files reasonably sized; split helpers if needed (~200 lines target per file).
-- [ ] No conditional imports; add deps with `uv` if required.
+- [x] No conditional imports; add deps with `uv` if required.
 - [x] Capabilities are always-on (no env gates). (runner has no env gating)
 - [x] No fake fallbacks; on failure return empty task_output with clear logs (tests accept {}). (predictors return {} on failure paths)
 - [x] Maintain/extend integration tests via FastAPI TestClient; do not skip. (integration test exists for multimodal)
@@ -72,23 +72,23 @@ Architecture-specific coverage (models below must be supported)
 - [x] openbmb/MiniCPM-Llama3-V-2_5 (MiniCPM-V)
   - [x] Load: `AutoModel`/`AutoTokenizer` with `trust_remote_code`; unify dtype to device; patch generation (GenerationMixin).
   - [x] Prefer `model.chat(image, msgs, tokenizer)`; else `_minicpm_manual_decode(question, max_len)`; else {} with logs.
-- [ ] 01-ai/Yi-VL-6B (Yi-VL)
-  - [ ] On state_dict size mismatch, avoid incompatible legacy fallbacks; log reason; return {} quickly.
-- [ ] OpenGVLab/InternVL2-8B (InternVL2)
-  - [ ] Detect InternVL; avoid VQA pipeline. Load via `AutoProcessor` + trust-remote model (or `InternVLChat`).
-  - [ ] Prefer chat-style inference; ensure image tokens; cap tokens on CPU/MPS; {} with logs on failure.
-- [ ] microsoft/kosmos-2-patch14-224 (Kosmos-2)
-  - [ ] Detect kosmos-2; avoid VQA pipeline. Load `AutoProcessor` (Kosmos2Processor) + model (trust_remote_code if needed).
-  - [ ] Encode via processor with images+text; ensure image token; drop processor-only kwargs; generate/decode; {} on failure.
-- [ ] microsoft/Florence-2-base-ft (Florence-2)
-  - [ ] Detect florence-2; avoid VQA pipeline. Load `AutoProcessor` + `Florence2ForConditionalGeneration` (or appropriate trust-remote auto class).
-  - [ ] Use task prompt token for VQA (e.g., `<VQA>` + question); encode via processor; strip processor-only kwargs; bounded generation; decode.
+- [x] 01-ai/Yi-VL-6B (Yi-VL)
+  - [x] On state_dict size mismatch, avoid incompatible legacy fallbacks; log reason; return {} quickly.
+- [x] OpenGVLab/InternVL2-8B (InternVL2)
+  - [x] Detect InternVL; avoid VQA pipeline. Load via `AutoProcessor` + trust-remote model (or `InternVLChat`).
+  - [x] Prefer chat-style inference; ensure image tokens; cap tokens on CPU/MPS; {} with logs on failure.
+- [x] microsoft/kosmos-2-patch14-224 (Kosmos-2)
+  - [x] Detect kosmos-2; avoid VQA pipeline. Load `AutoProcessor` (Kosmos2Processor) + model (trust_remote_code if needed).
+  - [x] Encode via processor with images+text; ensure image token; drop processor-only kwargs; generate/decode; {} on failure.
+- [x] microsoft/Florence-2-base-ft (Florence-2)
+  - [x] Detect florence-2; avoid VQA pipeline. Load `AutoProcessor` + `Florence2ForConditionalGeneration` (or appropriate trust-remote auto class).
+  - [x] Use task prompt token for VQA (e.g., `<VQA>` + question); encode via processor; strip processor-only kwargs; bounded generation; decode.
 - [x] google/paligemma-3b-pt-224 (Paligemma)
   - [x] Implement `_safe_call` (fix current runtime). Detect paligemma; avoid VQA pipeline.
   - [x] Load `AutoProcessor` + trust-remote model (ImageTextToText/CausalLM/Vision2Seq). Ensure image token; strip `num_crops`.
-- [ ] THUDM/cogvlm2-llama3-chat-19B (CogVLM2)
-  - [ ] Detect cogvlm/cogvlm2; avoid VQA pipeline. Load via `AutoProcessor` + trust-remote model; prefer chat API.
-  - [ ] Ensure image tokens; cap tokens; encode/generate/decode appropriately; {} with logs on failure.
+- [x] THUDM/cogvlm2-llama3-chat-19B (CogVLM2)
+  - [x] Detect cogvlm/cogvlm2; avoid VQA pipeline. Load via `AutoProcessor` + trust-remote model; prefer chat API.
+  - [x] Ensure image tokens; cap tokens; encode/generate/decode appropriately; {} with logs on failure.
 
 Generic VLM path hardening
 - [x] Drop processor-only kwargs (e.g., `num_crops`) before `generate()` for all VLMs.
@@ -97,10 +97,10 @@ Generic VLM path hardening
 - [x] If builder signals `_skip_generation`, return {} quickly with a helpful log message. (returns {})
 
 Targeted unit tests
-- [ ] `_ensure_image_tokens` – exact insertion/count behavior.
-- [ ] VLM input-building – formatting, capped retries, stripping processor-only kwargs.
+- [x] `_ensure_image_tokens` – exact insertion/count behavior.
+- [x] VLM input-building – formatting, capped retries, stripping processor-only kwargs.
 
 Validation (green-before-done)
-- [ ] Static checks: no syntax/type errors; imports consistent.
+- [x] Static checks: no syntax/type errors; imports consistent.
 - [ ] Focused integration runs per model (no hangs, no API errors; {} allowed where unsupported).
 - [ ] Run full `tests/integration/test_multimodal.py` and confirm all listed models meet expectations.

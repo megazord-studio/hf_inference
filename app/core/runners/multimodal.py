@@ -6,31 +6,26 @@ No env gating; always-on discovery; errors surface.
 from __future__ import annotations
 
 import logging
-from typing import Dict, Any, Set, Type, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Set
+from typing import Type
 
 import torch
 import transformers as _tf
-from transformers import (
-    BlipProcessor,
-    BlipForQuestionAnswering,
-    AutoProcessor,
-    AutoModelForVision2Seq,
-    pipeline,
-    AutoModelForCausalLM,
-)
-
-try:
-    from transformers import AutoModelForImageTextToText  # type: ignore[attr-defined]
-except Exception:  # pragma: no cover
-    AutoModelForImageTextToText = None  # type: ignore
-
-try:
-    from transformers import LlavaProcessor, LlavaForConditionalGeneration  # type: ignore
-except Exception:  # pragma: no cover
-    LlavaProcessor = None  # type: ignore
-    LlavaForConditionalGeneration = None  # type: ignore
+from transformers import AutoModelForCausalLM
+from transformers import AutoModelForImageTextToText
+from transformers import AutoModelForVision2Seq
+from transformers import AutoProcessor
+from transformers import BlipForQuestionAnswering
+from transformers import BlipProcessor
+from transformers import LlavaForConditionalGeneration
+from transformers import LlavaProcessor
+from transformers import pipeline
 
 from app.core.utils.media import decode_image_base64
+
 from .base import BaseRunner
 
 log = logging.getLogger("app.runners.multimodal")
@@ -47,6 +42,20 @@ class ImageTextToTextRunner(BaseRunner):
         except Exception as e:
             log.error("safe_call failed: %s", e)
             return None
+
+    def unload(self) -> None:
+        """Release model, processor, tokenizer, pipeline to free memory."""
+        for attr in ("model", "processor", "tokenizer", "pipe"):
+            if hasattr(self, attr):
+                try:
+                    delattr(self, attr)
+                except Exception:
+                    pass
+        # Explicitly run garbage collection to free GPU memory
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     # ----------------------------- Public API ---------------------------------
     def load(self) -> int:
@@ -65,6 +74,16 @@ class ImageTextToTextRunner(BaseRunner):
             return self._predict_qwen_vl(image, question, options)
         if self._arch == "minicpm_vlm":
             return self._predict_minicpm(image, question, options)
+        if self._arch == "yi_vl":
+            return self._predict_yi_vl(image, question, options)
+        if self._arch == "internvl":
+            return self._predict_internvl(image, question, options)
+        if self._arch == "kosmos2":
+            return self._predict_kosmos2(image, question, options)
+        if self._arch == "florence2":
+            return self._predict_florence2(image, question, options)
+        if self._arch == "cogvlm":
+            return self._predict_cogvlm(image, question, options)
         if self._arch in {"vlm", "vlm_unsupported"}:
             return self._predict_vlm(image, question, options)
         if self._arch == "generic_vqa":
@@ -91,13 +110,24 @@ class ImageTextToTextRunner(BaseRunner):
         mid = model_id.lower()
         if "blip" in mid:
             return "blip"
-        if "llava" in mid and LlavaProcessor and LlavaForConditionalGeneration:
+        if "llava" in mid:
             return "llava"
-        if any(k in mid for k in ["qwen-vl", "qwen/vl", "qwen-vl-chat", "qwen-vl", "qwen/vl-chat"]):
+        if any(k in mid for k in ["qwen-vl", "qwen/vl", "qwen-vl-chat"]):
             return "qwen_vl"
         # Broaden MiniCPM detection to catch IDs like openbmb/MiniCPM-Llama3-V-2_5
         if any(k in mid for k in ["minicpm", "minicpm-v", "minicpm_v", "minicpm-o", "minicpmv"]):
             return "minicpm_vlm"
+        # New model architectures
+        if "yi-vl" in mid or "yi/vl" in mid:
+            return "yi_vl"
+        if "internvl" in mid:
+            return "internvl"
+        if "kosmos-2" in mid or "kosmos2" in mid:
+            return "kosmos2"
+        if "florence-2" in mid or "florence2" in mid:
+            return "florence2"
+        if "cogvlm" in mid:
+            return "cogvlm"
         if any(k in mid for k in ["idefics", "paligemma", "vl-", "vision-language", "gemma"]):
             return "vlm"
         return "generic_vqa"
@@ -111,6 +141,16 @@ class ImageTextToTextRunner(BaseRunner):
             return self._load_qwen_vl()
         if self._arch == "minicpm_vlm":
             return self._load_minicpm()
+        if self._arch == "yi_vl":
+            return self._load_yi_vl()
+        if self._arch == "internvl":
+            return self._load_internvl()
+        if self._arch == "kosmos2":
+            return self._load_kosmos2()
+        if self._arch == "florence2":
+            return self._load_florence2()
+        if self._arch == "cogvlm":
+            return self._load_cogvlm()
         if self._arch == "vlm":
             return self._load_vlm()
         return self._load_generic_vqa()
@@ -147,7 +187,8 @@ class ImageTextToTextRunner(BaseRunner):
         return self._count_params(self.model)
 
     def _load_minicpm(self) -> int:
-        from transformers import AutoModel, AutoTokenizer
+        from transformers import AutoModel
+        from transformers import AutoTokenizer
         load_dtype = self._select_dtype()
         log.info("multimodal: loading MiniCPM-V model_id=%s (may download)", self.model_id)
         self.tokenizer = self._safe_call(lambda: AutoTokenizer.from_pretrained(self.model_id, trust_remote_code=True))
@@ -165,9 +206,7 @@ class ImageTextToTextRunner(BaseRunner):
     def _load_vlm(self) -> int:
         log.info("multimodal: loading VLM (auto) model_id=%s (may download)", self.model_id)
         self.processor = self._safe_call(lambda: AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True))
-        model = None
-        if AutoModelForImageTextToText is not None:
-            model = self._safe_call(lambda: AutoModelForImageTextToText.from_pretrained(self.model_id, trust_remote_code=True))
+        model = self._safe_call(lambda: AutoModelForImageTextToText.from_pretrained(self.model_id, trust_remote_code=True))
         if model is None:
             model = self._safe_call(lambda: AutoModelForCausalLM.from_pretrained(self.model_id, trust_remote_code=True))
         if model is None:
@@ -189,6 +228,125 @@ class ImageTextToTextRunner(BaseRunner):
         )
         m = getattr(self.pipe, "model", None)
         return self._count_params(m)
+
+    def _load_yi_vl(self) -> int:
+        """Load Yi-VL model. On state_dict size mismatch, log and return 0."""
+        log.info("multimodal: loading Yi-VL model_id=%s (may download)", self.model_id)
+        self.processor = self._safe_call(
+            lambda: AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True)
+        )
+        model = self._safe_call(
+            lambda: AutoModelForCausalLM.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
+        )
+        if model is None:
+            log.warning("yi_vl: failed to load model, may be state_dict mismatch")
+            self._arch = "yi_vl_unsupported"
+            return 0
+        self.model = self._to_device(model)
+        if hasattr(self.model, "eval"):
+            self.model.eval()
+        return self._count_params(self.model)
+
+    def _load_internvl(self) -> int:
+        """Load InternVL2 model. Uses AutoProcessor + trust_remote_code."""
+        log.info("multimodal: loading InternVL model_id=%s (may download)", self.model_id)
+        self.processor = self._safe_call(
+            lambda: AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True)
+        )
+        # Try InternVLChat or AutoModelForCausalLM
+        model = self._safe_call(
+            lambda: AutoModelForCausalLM.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
+        )
+        if model is None:
+            model = self._safe_call(
+                lambda: AutoModelForVision2Seq.from_pretrained(
+                    self.model_id, trust_remote_code=True
+                )
+            )
+        if model is None:
+            log.warning("internvl: failed to load model")
+            self._arch = "internvl_unsupported"
+            return 0
+        self.model = self._to_device(model)
+        if hasattr(self.model, "eval"):
+            self.model.eval()
+        return self._count_params(self.model)
+
+    def _load_kosmos2(self) -> int:
+        """Load Kosmos-2 model. Uses AutoProcessor + appropriate model class."""
+        log.info("multimodal: loading Kosmos-2 model_id=%s (may download)", self.model_id)
+        self.processor = self._safe_call(
+            lambda: AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True)
+        )
+        model = self._safe_call(
+            lambda: AutoModelForVision2Seq.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
+        )
+        if model is None:
+            model = self._safe_call(
+                lambda: AutoModelForCausalLM.from_pretrained(
+                    self.model_id, trust_remote_code=True
+                )
+            )
+        if model is None:
+            log.warning("kosmos2: failed to load model")
+            self._arch = "kosmos2_unsupported"
+            return 0
+        self.model = self._to_device(model)
+        if hasattr(self.model, "eval"):
+            self.model.eval()
+        return self._count_params(self.model)
+
+    def _load_florence2(self) -> int:
+        """Load Florence-2 model using AutoProcessor + appropriate model."""
+        log.info("multimodal: loading Florence-2 model_id=%s (may download)", self.model_id)
+        self.processor = self._safe_call(
+            lambda: AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True)
+        )
+        model = self._safe_call(
+            lambda: AutoModelForCausalLM.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
+        )
+        if model is None:
+            model = self._safe_call(
+                lambda: AutoModelForVision2Seq.from_pretrained(
+                    self.model_id, trust_remote_code=True
+                )
+            )
+        if model is None:
+            log.warning("florence2: failed to load model")
+            self._arch = "florence2_unsupported"
+            return 0
+        self.model = self._to_device(model)
+        if hasattr(self.model, "eval"):
+            self.model.eval()
+        return self._count_params(self.model)
+
+    def _load_cogvlm(self) -> int:
+        """Load CogVLM2 model using AutoProcessor + trust_remote_code."""
+        log.info("multimodal: loading CogVLM model_id=%s (may download)", self.model_id)
+        self.processor = self._safe_call(
+            lambda: AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True)
+        )
+        model = self._safe_call(
+            lambda: AutoModelForCausalLM.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
+        )
+        if model is None:
+            log.warning("cogvlm: failed to load model")
+            self._arch = "cogvlm_unsupported"
+            return 0
+        self.model = self._to_device(model)
+        if hasattr(self.model, "eval"):
+            self.model.eval()
+        return self._count_params(self.model)
 
     # ---------------------------- Predictors ----------------------------------
     def _predict_blip(self, image, question: str, options: Dict[str, Any]) -> Dict[str, Any]:
@@ -284,6 +442,115 @@ class ImageTextToTextRunner(BaseRunner):
         first = out[0] if isinstance(out, list) else out
         ans = first.get("generated_text") or first.get("answer")
         return {"answer": ans, "arch": "generic_vqa"} if ans else {}
+
+    def _predict_yi_vl(self, image, question: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Predict using Yi-VL model. Returns {} if unsupported."""
+        if getattr(self, "_arch", None) == "yi_vl_unsupported" or self.model is None:
+            log.warning("yi_vl: model unsupported or not loaded")
+            return {}
+        try:
+            question = self._ensure_image_tokens(question, 1)
+            enc = self.processor(text=question, images=[image], return_tensors="pt")
+            enc = self._move_to_device(enc)
+            max_tokens = self._cap_max_new_tokens(int(options.get("max_length", 32)))
+            with torch.no_grad():
+                out = self.model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            answer = self._decode_output(out)
+            return {"answer": answer, "arch": "yi_vl"}
+        except Exception as e:
+            log.error("yi_vl predict failed: %s", e)
+            return {}
+
+    def _predict_internvl(self, image, question: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Predict using InternVL2. Prefer chat-style inference."""
+        if getattr(self, "_arch", None) == "internvl_unsupported" or self.model is None:
+            log.warning("internvl: model unsupported or not loaded")
+            return {}
+        # Try chat-style interface first
+        chat = getattr(self.model, "chat", None)
+        if callable(chat):
+            try:
+                resp = chat(image=image, question=question)
+                return {"answer": str(resp), "arch": "internvl_chat"}
+            except Exception as e:
+                log.info("internvl chat failed: %s", e)
+        try:
+            question = self._ensure_image_tokens(question, 1)
+            enc = self.processor(text=question, images=[image], return_tensors="pt")
+            enc = self._move_to_device(enc)
+            max_tokens = self._cap_max_new_tokens(int(options.get("max_length", 32)))
+            with torch.no_grad():
+                out = self.model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            answer = self._decode_output(out)
+            return {"answer": answer, "arch": "internvl"}
+        except Exception as e:
+            log.error("internvl predict failed: %s", e)
+            return {}
+
+    def _predict_kosmos2(self, image, question: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Predict using Kosmos-2 model."""
+        if getattr(self, "_arch", None) == "kosmos2_unsupported" or self.model is None:
+            log.warning("kosmos2: model unsupported or not loaded")
+            return {}
+        try:
+            question = self._ensure_image_tokens(question, 1)
+            enc = self.processor(text=question, images=[image], return_tensors="pt")
+            enc = self._move_to_device(enc)
+            self._strip_processor_only_kwargs(enc)
+            max_tokens = self._cap_max_new_tokens(int(options.get("max_length", 32)))
+            with torch.no_grad():
+                out = self.model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            answer = self._decode_output(out)
+            return {"answer": answer, "arch": "kosmos2"}
+        except Exception as e:
+            log.error("kosmos2 predict failed: %s", e)
+            return {}
+
+    def _predict_florence2(self, image, question: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Predict using Florence-2. Uses task prompt token for VQA."""
+        if getattr(self, "_arch", None) == "florence2_unsupported" or self.model is None:
+            log.warning("florence2: model unsupported or not loaded")
+            return {}
+        try:
+            # Florence-2 uses task prompt tokens for VQA
+            task_prompt = f"<VQA> {question}"
+            enc = self.processor(text=task_prompt, images=[image], return_tensors="pt")
+            enc = self._move_to_device(enc)
+            self._strip_processor_only_kwargs(enc)
+            max_tokens = self._cap_max_new_tokens(int(options.get("max_length", 32)))
+            with torch.no_grad():
+                out = self.model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            answer = self._decode_output(out)
+            return {"answer": answer, "arch": "florence2"}
+        except Exception as e:
+            log.error("florence2 predict failed: %s", e)
+            return {}
+
+    def _predict_cogvlm(self, image, question: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Predict using CogVLM2. Prefer chat API if available."""
+        if getattr(self, "_arch", None) == "cogvlm_unsupported" or self.model is None:
+            log.warning("cogvlm: model unsupported or not loaded")
+            return {}
+        # Try chat-style interface first
+        chat = getattr(self.model, "chat", None)
+        if callable(chat):
+            try:
+                resp = chat(image=image, query=question)
+                return {"answer": str(resp), "arch": "cogvlm_chat"}
+            except Exception as e:
+                log.info("cogvlm chat failed: %s", e)
+        try:
+            question = self._ensure_image_tokens(question, 1)
+            enc = self.processor(text=question, images=[image], return_tensors="pt")
+            enc = self._move_to_device(enc)
+            max_tokens = self._cap_max_new_tokens(int(options.get("max_length", 32)))
+            with torch.no_grad():
+                out = self.model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            answer = self._decode_output(out)
+            return {"answer": answer, "arch": "cogvlm"}
+        except Exception as e:
+            log.error("cogvlm predict failed: %s", e)
+            return {}
 
     # -------------------------- Input building --------------------------------
     def _build_vlm_inputs(self, image, question: str, options: Dict[str, Any]) -> Dict[str, Any]:
@@ -403,11 +670,14 @@ class ImageTextToTextRunner(BaseRunner):
             log.info("patched %s with GenerationMixin", llm.__class__.__name__)
         if not hasattr(llm, "generation_config") or llm.generation_config is None:
             try:
-                from transformers import GenerationConfig, PretrainedConfig
+                from transformers import GenerationConfig
+                from transformers import PretrainedConfig
                 base = getattr(llm, "config", None)
                 llm.generation_config = GenerationConfig.from_model_config(base) if isinstance(base, PretrainedConfig) else GenerationConfig()
             except Exception:  # pragma: no cover
-                from transformers.generation import GenerationConfig  # type: ignore
+                from transformers.generation import (
+                    GenerationConfig,  # type: ignore
+                )
                 llm.generation_config = GenerationConfig()
         tok = getattr(self, "tokenizer", None)
         if tok is not None:
