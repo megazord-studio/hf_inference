@@ -1,22 +1,15 @@
 import pytest
-from fastapi.testclient import TestClient
 
-from app.main import app
-
-
-client = TestClient(app)
+PARAMS = [
+    "stabilityai/stable-diffusion-2-1",
+]
 
 
 @pytest.mark.integration
-def test_models_status_includes_loaded_heavy_model():
-    """Regression: heavy tasks should register in /models/status with timing info.
-
-    Uses a text-to-image task to exercise the async loading path in ModelRegistry.
-    Adjust model_id to an existing diffusion model used elsewhere in tests to
-    avoid extra downloads.
-    """
+@pytest.mark.parametrize("model_id", PARAMS)
+def test_models_status_includes_loaded_heavy_model(client, model_id):
     payload = {
-        "model_id": "stabilityai/stable-diffusion-2-1",  # keep aligned with existing tests if possible
+        "model_id": model_id,
         "intent_id": None,
         "input_type": "text",
         "inputs": {"prompt": "a small test image"},

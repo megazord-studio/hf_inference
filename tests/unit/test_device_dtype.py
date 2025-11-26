@@ -26,3 +26,4 @@ def test_choose_dtype_gpu_heavy_task_prefers_fp16(monkeypatch):
 def test_choose_dtype_gpu_small_model_prefers_fp32(monkeypatch):
     monkeypatch.setattr("app.core.device.device_capabilities", lambda: _fake_caps(True, False, 16.0))
     assert choose_dtype(param_count=10_000_000, task="text-classification") == "float32"
+

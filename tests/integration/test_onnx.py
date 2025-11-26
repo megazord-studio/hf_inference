@@ -1,21 +1,14 @@
-import os
-from fastapi.testclient import TestClient
-from app.main import app
+import pytest
 
-client = TestClient(app)
-
-ONNX_MODEL = os.getenv("PHASE0_ONNX_MODEL", "Xenova/gpt2")
+PARAMS = [
+    "Xenova/gpt2",
+]
 
 
-def test_onnx_text_generation_fallback():
-    """Verify text generation works and returns expected fields.
-
-    Original version skipped when backend wasn't ONNX or on early errors.
-    This version asserts correctness for either torch or onnx backends so the
-    test is never skipped.
-    """
+@pytest.mark.parametrize("model_id", PARAMS)
+def test_onnx_text_generation_fallback(client, model_id):
     payload = {
-        "model_id": ONNX_MODEL,
+        "model_id": model_id,
         "input_type": "text",
         "inputs": {"text": "Hello ONNX"},
         "task": "text-generation",
@@ -43,6 +36,5 @@ def test_onnx_text_generation_fallback():
         assert params.get("max_new_tokens") == 5
         assert params.get("temperature") == 0.0
     else:  # torch path
-        # Minimal guarantees: generation produced non-empty text or at least input echoed with extra tokens
         generated = out.get("text", "")
         assert len(generated) >= len("Hello ONNX"), "Generated text shorter than input prompt"
