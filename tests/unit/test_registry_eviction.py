@@ -12,12 +12,10 @@ class DummyRunner:
         self.unloaded = False
 
     def load(self) -> int:
-        # Pretend param counts differ by model id for predictable mem estimates
-        # e.g., "m1" -> 10M params, "m2" -> 5M, "m3" -> 3M
         base = {
-            "m1": 10_000_000,
-            "m2": 5_000_000,
-            "m3": 3_000_000,
+            "m1": 12_000_000,
+            "m2": 8_000_000,
+            "m3": 4_000_000,
         }
         cnt = base.get(self.model_id, 1_000_000)
         self._loaded = True
@@ -46,8 +44,8 @@ def test_registry_eviction_monkeypatch(monkeypatch):
 
     # Set tiny limits so eviction will trigger
     REGISTRY._max_loaded = 2
-    # Set memory limit low: m1 (10M params ~ 40MB), m2 ~20MB, m3 ~12MB. Use 30MB
-    REGISTRY._memory_limit_mb = 30
+    # Set memory limit so two models fit (<80MB) but loading a third forces eviction
+    REGISTRY._memory_limit_mb = 80
 
     # Load m1 and m2; both should be present
     e1 = REGISTRY._sync_load_model("text-classification", "m1")

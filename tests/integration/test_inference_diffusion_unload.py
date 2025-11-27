@@ -3,6 +3,7 @@ import pytest
 
 PARAMS = [
     "runwayml/stable-diffusion-v1-5",
+    "ehristoforu/stable-diffusion-v1-5-tiny",
 ]
 
 

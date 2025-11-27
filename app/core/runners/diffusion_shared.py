@@ -108,16 +108,55 @@ def _is_tiny_sd15(model_id: str) -> bool:
     return model_id == TINY_SD15_MODEL_ID
 
 
-def _find_tiny_sd15_unet(local_dir: str) -> Optional[str]:
-    candidates = []
+def _find_tiny_sd15_unet(local_dir: str, prefer_inpainting: bool = False) -> Optional[str]:
+    """Locate the tiny SD v1.5 UNet weights within a snapshot.
+
+    The community snapshot ships both a base checkpoint and an inpainting
+    variant. Selecting the inpainting weights for the standard text-to-image
+    pipeline leads to architecture mismatches (missing attention blocks, etc.).
+    Prefer the base weights when available while still falling back to the
+    inpainting checkpoint if it is the only option.
+
+    Additionally, handle common layouts where weights live under an `unet/`
+    subfolder with a generic filename like `diffusion_pytorch_model.safetensors`.
+    """
+
+    base_path: Optional[str] = None
+    inpainting_path: Optional[str] = None
+    generic_unet_path: Optional[str] = None
+
+    # First pass: scan all safetensors and select by name hints
     for root, _, files in os.walk(local_dir):
         for name in files:
-            if name.endswith(".safetensors") and "sd-v1-5-tiny" in name:
-                candidates.append(os.path.join(root, name))
-    if not candidates:
-        return None
-    candidates.sort()
-    return candidates[0]
+            if not name.endswith(".safetensors"):
+                continue
+            lower = name.lower()
+            full = os.path.join(root, name)
+            if "sd-v1-5-inpainting-tiny" in lower:
+                inpainting_path = full
+            elif "sd-v1-5-tiny" in lower:
+                base_path = full
+            elif name == "diffusion_pytorch_model.safetensors":
+                # keep as a generic fallback if under an unet-like folder
+                # common layouts: {snapshot}/unet/diffusion_pytorch_model.safetensors
+                rlower = root.lower()
+                if "/unet" in rlower or rlower.endswith("/unet"):
+                    generic_unet_path = full
+
+    if prefer_inpainting and inpainting_path is not None:
+        return inpainting_path
+    if base_path is not None:
+        return base_path
+    if inpainting_path is not None:
+        return inpainting_path
+
+    # Second pass: try to find any safetensors under an `unet` subfolder
+    if generic_unet_path is None:
+        candidate = os.path.join(local_dir, "unet", "diffusion_pytorch_model.safetensors")
+        if os.path.exists(candidate):
+            generic_unet_path = candidate
+
+    return generic_unet_path
 
 
 def _apply_tiny_unet_weights(pipe_unet: torch.nn.Module, weights_path: str) -> None:

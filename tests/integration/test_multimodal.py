@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 
 import pytest
 from PIL import Image
@@ -20,12 +21,6 @@ MM_MODELS = [
     "google/paligemma-3b-pt-224",
     "THUDM/cogvlm2-llama3-chat-19B",
 ]
-
-# Models that require HF authentication (gated models)
-GATED_MODELS = {
-    "google/gemma-3-1b-it",
-    "google/paligemma-3b-pt-224",
-}
 
 ANSWER_MODELS = {"Salesforce/blip-vqa-base"}
 
@@ -54,8 +49,6 @@ def _post(client, task: str, model_id: str, inputs: dict, options: dict):
 
 @pytest.mark.parametrize("model_id", MM_MODELS)
 def test_image_text_to_text_basic(client, model_id: str):
-    if model_id in GATED_MODELS:
-        pytest.skip(f"Skipping gated model {model_id} - requires HF authentication")
     out = _post(client, "image-text-to-text", model_id, {"image_base64": _mk_image_b64(), "text": "What color is the square?"}, {"max_length": 10})
     if model_id in ANSWER_MODELS:
         assert isinstance(out.get("answer"), str)

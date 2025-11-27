@@ -11,16 +11,37 @@ DRY & KISS: keep logic straightforward; no side effects outside in-memory state.
 """
 from __future__ import annotations
 import asyncio
+import os
 import time
 import threading
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Any, Tuple
+from typing import Dict, Optional, Any, Iterable, Tuple
 import logging
 
 from app.core.device import select_device, choose_dtype
 from app.core.runners import get_runner_cls
 
 log = logging.getLogger("app.registry")
+
+DEFAULT_MAX_LOADED = 1000
+DEFAULT_MEMORY_LIMIT_MB = 32 * 1024  # 32GB logical cache budget
+ENV_MAX_LOADED = "HF_INFERENCE_MAX_LOADED_MODELS"
+ENV_MEMORY_LIMIT_MB = "HF_INFERENCE_MEMORY_LIMIT_MB"
+
+
+def _read_positive_int(env_name: str, default: Optional[int], *, allow_none: bool = False) -> Optional[int]:
+    value = os.getenv(env_name)
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        log.warning("invalid %s value %r; defaulting to %s", env_name, value, default)
+        return default
+    if parsed <= 0:
+        return None if allow_none else default
+    return parsed
+
 
 _LOCK = threading.RLock()
 _HEAVY_TASKS = {
@@ -59,12 +80,11 @@ class ModelRegistry:
     def __init__(self) -> None:
         self._models: Dict[Tuple[str, str], ModelEntry] = {}
         self._device = select_device("auto")
-        # Hardcode a cap; make it large by default to avoid aggressive eviction
-        # during integration tests. Unit tests override this value when they
-        # need to exercise eviction.
-        self._max_loaded = 1000
-        # Soft memory cap (MB) to prevent OOM from repeated loads; tuned small for tests
-        self._memory_limit_mb = 1024 * 4  # default 4GB; tests will override
+        # Caps can be tuned via env vars (see _read_positive_int helper).
+        self._max_loaded = _read_positive_int(ENV_MAX_LOADED, DEFAULT_MAX_LOADED) or DEFAULT_MAX_LOADED
+        # Soft memory cap (MB) to prevent OOM from repeated loads. Env var can
+        # disable it by passing 0/negative, allowing unlimited caching.
+        self._memory_limit_mb = _read_positive_int(ENV_MEMORY_LIMIT_MB, DEFAULT_MEMORY_LIMIT_MB, allow_none=True)
         # Create an event loop for background async loads and start the thread.
         # Keep the loop object on `self` so other methods can submit coroutines.
         self._loop = asyncio.new_event_loop()
@@ -351,56 +371,61 @@ class ModelRegistry:
                 except Exception:
                     log.exception("failed deleting model entry %s:%s from registry", mid, mtask)
 
-    def _evict_to_limit(self, exclude_keys: Optional[set[Tuple[str, str]]] = None) -> None:
-        """Evict models until len(self._models) <= self._max_loaded.
-        Exclude any keys in exclude_keys from being evicted (useful to
-        protect the freshly-loaded entry).
-        """
-        if exclude_keys is None:
-            exclude_keys = set()
-        now = time.time()
-        # Continue evicting until we're at or under the limit.
-        while len(self._models) > self._max_loaded:
-            # Build list of candidates excluding loading entries and excluded keys
+    def _evict_to_limit(self, exclude_keys: Optional[Iterable[Tuple[str, str]]] = None) -> None:
+        """Evict models while either count or estimated memory exceeds limits."""
+        protected = set(exclude_keys or ())
+        while True:
             with _LOCK:
+                now = time.time()
+                total_count = len(self._models)
+                total_mem = sum((e.mem_estimate_mb or 0.0) for e in self._models.values())
+                mem_limit = self._memory_limit_mb
+                over_count = total_count > self._max_loaded
+                over_mem = mem_limit is not None and total_mem > mem_limit
+                if not over_count and not over_mem:
+                    break
                 candidates = [
-                    (key, e, self._compute_eviction_score(e, now))
-                    for key, e in self._models.items()
-                    if e.status != "loading" and key not in exclude_keys
+                    (key, entry, self._compute_eviction_score(entry, now))
+                    for key, entry in self._models.items()
+                    if entry.status != "loading" and key not in protected
                 ]
             if not candidates:
-                # Nothing evictable (all remaining are loading or excluded)
+                log.debug(
+                    "eviction skipped; no candidates but limits exceeded (count=%d/%d mem=%.2f/%s)",
+                    total_count,
+                    self._max_loaded,
+                    total_mem,
+                    mem_limit if mem_limit is not None else "inf",
+                )
                 break
-            # Choose candidate with highest eviction score
-            candidates.sort(key=lambda t: t[2], reverse=True)
+            candidates.sort(key=lambda item: (item[2], item[1].mem_estimate_mb or 0.0), reverse=True)
             best_key = candidates[0][0]
-            try:
-                with _LOCK:
-                    if best_key in self._models:
-                        mid, mtask = best_key
-                        log.info("evicting %s:%s during trim mem, score=%.2f mem=%s", mid, mtask, self._compute_eviction_score(self._models[best_key], now), self._models[best_key].mem_estimate_mb)
-                        try:
-                            self._models[best_key].runner.unload()
-                        except Exception:
-                            log.exception("error unloading model %s:%s", mid, mtask)
+            with _LOCK:
+                entry = self._models.get(best_key)
+                if entry is None:
+                    continue
+                mid, mtask = best_key
+                try:
+                    log.info(
+                        "evicting %s:%s (count=%d/%d mem=%.2f/%s)",
+                        mid,
+                        mtask,
+                        len(self._models),
+                        self._max_loaded,
+                        sum((e.mem_estimate_mb or 0.0) for e in self._models.values()),
+                        mem_limit if mem_limit is not None else "inf",
+                    )
+                    entry.runner.unload()
+                except Exception:
+                    log.exception("error unloading model %s:%s", mid, mtask)
+                finally:
+                    try:
                         del self._models[best_key]
-            except Exception:
-                # If deletion failed, break to avoid tight loop
-                break
+                    except Exception:
+                        log.exception("failed deleting model entry %s:%s from registry", mid, mtask)
 
     def _ensure_limits(self) -> None:
-        # Evict repeatedly until we are under the configured count limit.
-        # Note: avoid using RESOURCES.need_eviction() here to prevent test flakiness
-        # where the host OS memory usage would cause unexpected evictions while
-        # loading models. System pressure is handled by other parts of the system.
-        attempts = 0
-        # Small safety cap to avoid infinite loop
-        while len(self._models) >= self._max_loaded and attempts < 16:
-            # If no candidate to evict, break
-            if not any(e.status != "loading" for e in self._models.values()):
-                break
-            self._evict_one()
-            attempts += 1
+        self._evict_to_limit()
 
 
 # mappings and exports (kept at bottom)
