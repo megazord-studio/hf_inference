@@ -37,6 +37,15 @@ MULTIMODAL_TASKS: Set[str] = {"image-text-to-text"}
 class ImageTextToTextRunner(BaseRunner):
     """Image+Text -> Text multimodal runner with clear per-arch flows."""
 
+    def _build_gemma_chat_messages(self, image, question: str, num_images: int = 1):
+        token_count = max(1, int(num_images) if num_images else 1)
+        prompt = (question or "").strip() or "Describe the image."
+        content = []
+        for _ in range(token_count):
+            content.append({"type": "image", "image": image})
+        content.append({"type": "text", "text": prompt})
+        return [{"role": "user", "content": content}]
+
     def _safe_call(self, fn):
         try:
             return fn()
@@ -558,10 +567,10 @@ class ImageTextToTextRunner(BaseRunner):
         if txt is not None:
             log.info("gemma pipeline produced text; short-circuit")
             return {"_pipeline_text": txt}
-        # For Gemma models, avoid hanging generate if pipeline failed to produce text
         if "gemma" in self.model_id.lower():
-            log.info("gemma: pipeline returned no text; skipping generation path")
-            return {"_skip_generation": True}
+            gemma_enc = self._build_gemma_generation_inputs(image, question)
+            if gemma_enc is not None:
+                return gemma_enc
         enc = self._encode_with_processor(image, question)
         if enc is not None:
             return enc
@@ -578,59 +587,63 @@ class ImageTextToTextRunner(BaseRunner):
             log.info("gemma pipeline build failed: %s", e)
             return None
         gen_max = self._cap_max_new_tokens(int(options.get("max_length", 16)))
+        prompt = self._format_gemma_chat_prompt(question, num_images=1)
+        if not prompt:
+            prompt = self._ensure_image_tokens(question or "", num_images=1)
         try:
             log.info("gemma: calling pipeline with capped max_new_tokens=%d", gen_max)
-            result_any = pl(images=[image], text=question, generate_kwargs={"max_new_tokens": gen_max, "do_sample": False, "num_beams": 1})  # type: ignore
+            result_any = pl(
+                images=[image],
+                text=prompt,
+                generate_kwargs={"max_new_tokens": gen_max, "do_sample": False, "num_beams": 1},
+            )  # type: ignore
             text = self._extract_text(result_any)
-            log.info("gemma pipeline returned: %s", (text[:80] + "...") if isinstance(text, str) and len(text) > 80 else text)
+            log.info(
+                "gemma pipeline returned: %s",
+                (text[:80] + "...") if isinstance(text, str) and len(text) > 80 else text,
+            )
             if text:
                 return text
         except Exception as e:
             log.info("gemma pipeline call failed: %s", e)
-            return None
         return None
 
-    def _encode_with_processor(self, image, question: str) -> Optional[Dict[str, Any]]:
-        if self.processor is None:
+    def _build_gemma_generation_inputs(self, image, question: str) -> Optional[Dict[str, Any]]:
+        processor = self._ensure_processor_loaded()
+        if processor is None:
+            log.info("gemma: processor unavailable, skipping generation inputs")
             return None
+        prompt = self._format_gemma_chat_prompt(question, num_images=1)
+        if not prompt:
+            prompt = self._ensure_image_tokens(question or "", num_images=1)
         try:
-            if any(k in self.model_id.lower() for k in ["idefics2", "idefics-2"]):
-                question = self._ensure_image_tokens(question, 1)
-            enc = self.processor(text=question, images=[image], return_tensors="pt")
+            enc = processor(images=[image], text=prompt, return_tensors="pt")
             return self._move_to_device(enc)
-        except TypeError:
-            try:
-                enc = self.processor(text=question, return_tensors="pt")
-                return self._move_to_device(enc)
-            except Exception as e2:
-                log.info("processor text-only failed: %s", e2)
-                return None
         except Exception as e:
-            log.info("processor encode failed: %s", e)
-            enc = self._retry_processor_with_image_tokens(image, question)
-            return self._move_to_device(enc) if enc else None
+            log.info("gemma: processor encoding failed: %s", e)
+            return None
 
-    def _retry_processor_with_image_tokens(self, image, question: str) -> Optional[Dict[str, Any]]:
-        candidates = [self._get_image_token(), "<image>", "<img>", "[IMG]", "<Image>"]
-        tried, retries, max_retries = set(), 0, 4
-        for cand in candidates:
-            for tpl in (f"{question} {cand}", f"{cand} {question}", f"{cand}"):
-                if tpl in tried:
-                    continue
-                tried.add(tpl)
-                try:
-                    enc = self.processor(text=tpl, images=[image], return_tensors="pt")
-                    return self._move_to_device(enc)
-                except Exception:
-                    retries += 1
-                    if retries >= max_retries:
-                        return {"_skip_generation": True}
+    def _ensure_processor_loaded(self):
+        if getattr(self, "processor", None) is None:
+            self.processor = self._safe_call(lambda: AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True))
+        return getattr(self, "processor", None)
+
+    def _format_gemma_chat_prompt(self, question: str, num_images: int = 1) -> Optional[str]:
+        if "gemma" not in self.model_id.lower():
+            return None
+        processor = self._ensure_processor_loaded()
+        if processor is None:
+            return None
+        messages = self._build_gemma_chat_messages(None, question, num_images=num_images)
+        apply_template = getattr(processor, "apply_chat_template", None)
+        tokenizer = getattr(processor, "tokenizer", None)
+        template_fn = apply_template or getattr(tokenizer, "apply_chat_template", None)
+        if callable(template_fn):
+            try:
+                return template_fn(messages, tokenize=False, add_generation_prompt=True)
+            except Exception as e:
+                log.info("gemma chat template failed: %s", e)
         return None
-
-    def _encode_with_tokenizer(self, question: str) -> Dict[str, Any]:
-        tok = self._get_tokenizer()
-        enc = tok(question, return_tensors="pt")
-        return self._move_to_device(enc)
 
     # ---------------------------- MiniCPM utils -------------------------------
     def _minicpm_manual_decode(self, question: str, max_len: int) -> str:
