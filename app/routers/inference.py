@@ -16,7 +16,7 @@ import uuid
 import time
 import json
 import base64
-from app.config import HF_META_RETRIES, HF_META_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT, HUB_LIST_LIMIT
+from app.config import HF_META_RETRIES, HF_META_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT
 from app.routers.models import ModelSummary
 from app.schemas_pb2 import (
     ErrorResponse,
