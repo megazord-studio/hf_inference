@@ -49,7 +49,6 @@ app.include_router(inference_module.router)
 # SPA catch-all (only if path not starting with /api)
 @app.get("/{full_path:path}")
 async def spa_catch_all(full_path: str) -> Union[FileResponse, dict]:
-    _ = full_path  # used for routing pattern
     if full_path.startswith("api"):
         raise HTTPException(status_code=404, detail="Not found")
     index_path = os.path.join(BASE_DIR, "static", "index.html")
