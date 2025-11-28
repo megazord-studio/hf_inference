@@ -14,8 +14,9 @@ import asyncio
 import os
 import time
 import threading
+from concurrent.futures import Future
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Any, Iterable, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
 import logging
 
 from app.config import REGISTRY_MAX_LOADED_MODELS, REGISTRY_MEMORY_LIMIT_MB
@@ -99,7 +100,7 @@ class ModelRegistry:
             time.sleep(0.01)
         else:
             log.warning("background asyncio loop did not start within timeout")
-        self._loading_futures: Dict[Tuple[str, str], asyncio.Future] = {}
+        self._loading_futures: Dict[Tuple[str, str], Union[asyncio.Future[Any], Future[Any], None]] = {}
         # Limit number of concurrent heavy loads
         self._max_concurrent_loads = 2
         self._load_semaphore = asyncio.Semaphore(self._max_concurrent_loads)
@@ -216,12 +217,12 @@ class ModelRegistry:
             if task in _HEAVY_TASKS:
                 # Use async loading queue for heavy models, blocking caller only while waiting
                 future = self._loading_futures.get(key)
-                if future is None or future.done():
+                if future is None or (hasattr(future, "done") and future.done()):
                     future = asyncio.run_coroutine_threadsafe(
                         self._async_load_model(task, model_id), self._loop
                     )
                     self._loading_futures[key] = future
-                runner_entry_future = self._loading_futures.get(key)
+                runner_entry_future: Any = self._loading_futures.get(key)
             else:
                 runner_entry_future = None
 
@@ -257,7 +258,7 @@ class ModelRegistry:
                 loop = self._loop
 
             # Offload potentially heavy runner.load() to thread pool
-            def _load_runner():
+            def _load_runner() -> int:
                 # local wrapper to allow swap to ONNX fallback on specific errors
                 try:
                     return entry.runner.load()
@@ -266,7 +267,7 @@ class ModelRegistry:
                     raise RuntimeError(f"Failed loading model {model_id} for task {task}: {msg}")
 
             try:
-                param_count = await loop.run_in_executor(None, _load_runner)  # type: ignore[arg-type]
+                param_count = await loop.run_in_executor(None, _load_runner)
                 with _LOCK:
                     entry.status = "ready"
                     entry.param_count = param_count

@@ -177,7 +177,9 @@ def _apply_tiny_unet_weights(pipe_unet: torch.nn.Module, weights_path: str) -> N
         )
 
 
-def _bootstrap_tiny_sd15_pipeline(pipe_cls, unet_weights_path: str, device):
+def _bootstrap_tiny_sd15_pipeline(
+    pipe_cls: Type[Any], unet_weights_path: str, device: Optional[torch.device]
+) -> Any:
     from diffusers import DPMSolverMultistepScheduler
 
     dtype = torch.float16 if (device and device.type in ("cuda", "mps")) else None
@@ -240,7 +242,9 @@ def _bootstrap_tiny_sd15_pipeline(pipe_cls, unet_weights_path: str, device):
 # Text-to-video bootstrap (generic)
 # --------------------------------------------------------------------------- #
 
-def _bootstrap_text_to_video_pipeline(local_dir: str, device):
+def _bootstrap_text_to_video_pipeline(
+    local_dir: str, device: Optional[torch.device]
+) -> Any:
     """Construct a TextToVideoSDPipeline manually from a local snapshot."""
     from diffusers import TextToVideoSDPipeline, UNet3DConditionModel
     from diffusers import DPMSolverMultistepScheduler
@@ -288,7 +292,9 @@ def _bootstrap_text_to_video_pipeline(local_dir: str, device):
 # Generic bootstrap for model_index.json
 # --------------------------------------------------------------------------- #
 
-def _bootstrap_from_model_index(local_dir: str, device: Optional[torch.device]):
+def _bootstrap_from_model_index(
+    local_dir: str, device: Optional[torch.device]
+) -> Optional[Any]:
     """Load pipeline based on its model_index.json _class_name."""
     model_index = _load_model_index(local_dir)
     if not model_index:
@@ -306,7 +312,9 @@ def _bootstrap_from_model_index(local_dir: str, device: Optional[torch.device]):
 # Stable diffusion loaders
 # --------------------------------------------------------------------------- #
 
-def _init_pipeline(pipe_cls, local_dir_or_id: str, device, *, local: bool):
+def _init_pipeline(
+    pipe_cls: Type[Any], local_dir_or_id: str, device: Optional[torch.device], *, local: bool
+) -> Any:
     start = time.time()
     dtype = torch.float16 if (device and device.type in ("cuda", "mps")) else None
     src = os.path.basename(local_dir_or_id) if local else local_dir_or_id
@@ -408,7 +416,7 @@ def get_or_create_sd_pipeline(model_id: str, device: Optional[torch.device], mod
         # If architecture is TextToVideo, reuse same pipeline
         arch_pipe = _bootstrap_from_model_index(local, device)
         if arch_pipe:
-            entry["pipe_img2img"] = archive_pipe = arch_pipe
+            entry["pipe_img2img"] = arch_pipe
         elif is_tiny and tiny_unet_path:
             entry["pipe_img2img"] = _bootstrap_tiny_sd15_pipeline(
                 StableDiffusionImg2ImgPipeline, tiny_unet_path, device

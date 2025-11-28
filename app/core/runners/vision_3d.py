@@ -19,7 +19,7 @@ Implementation choices:
 """
 from __future__ import annotations
 import logging
-from typing import Dict, Any, Set, Tuple
+from typing import Dict, Any, Set, Tuple, Type
 from .base import BaseRunner
 from app.core.utils.media import decode_image_base64, encode_image_base64
 from PIL import Image, ImageDraw
@@ -55,7 +55,9 @@ def _build_obj_bytes() -> bytes:
     return (OBJ_HEADER + CUBE_OBJ).encode("utf-8")
 
 
-def _build_preview(size: Tuple[int, int] = (128, 128), color=(80, 160, 220)) -> Image.Image:
+def _build_preview(
+    size: Tuple[int, int] = (128, 128), color: Tuple[int, int, int] = (80, 160, 220)
+) -> Image.Image:
     img = Image.new("RGB", size, (20, 20, 20))
     draw = ImageDraw.Draw(img)
     w, h = size
@@ -81,7 +83,7 @@ def _procedural_from_text(prompt: str) -> Dict[str, Any]:
     return _package_obj_bytes(obj_bytes, preview, meta)
 
 
-def _export_obj(vertices, faces) -> bytes:
+def _export_obj(vertices: Any, faces: Any) -> bytes:
     from io import StringIO
     buf = StringIO()
     buf.write(OBJ_HEADER)
@@ -196,7 +198,7 @@ class ImageTo3DRunner(BaseRunner):
             self._loaded = True
             return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         img_b64 = inputs.get("image_base64")
         if not img_b64:
             raise RuntimeError("vision_3d: missing_image")
@@ -265,7 +267,7 @@ class TextTo3DRunner(BaseRunner):
             self._loaded = True
             return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         prompt = (inputs.get("text") or "").strip()
         if self.backend == "procedural" or not hasattr(self, "model"):
             # For procedural backend, still return a text description alongside the OBJ stub
@@ -291,7 +293,7 @@ _TASK_MAP = {
 }
 
 
-def vision_3d_runner_for_task(task: str):
+def vision_3d_runner_for_task(task: str) -> Type[BaseRunner]:
     return _TASK_MAP[task]
 
 __all__ = [

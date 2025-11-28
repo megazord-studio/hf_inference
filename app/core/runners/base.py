@@ -1,9 +1,10 @@
 """Base runner abstraction (Phase 0)."""
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Any, Dict
+
 
 class BaseRunner:
-    def __init__(self, model_id: str, device):
+    def __init__(self, model_id: str, device: Any) -> None:
         self.model_id = model_id
         self.device = device
         self._loaded = False
@@ -20,4 +21,3 @@ class BaseRunner:
     def unload(self) -> None:
         # Allow GC by dropping references; DRY & minimal side effects
         pass
-

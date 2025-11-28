@@ -9,7 +9,7 @@ import logging
 log = logging.getLogger("app.resources")
 
 try:  # optional dependency, already likely present in environment
-    import psutil  # type: ignore
+    import psutil
 except Exception:  # pragma: no cover
     psutil = None
 

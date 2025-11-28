@@ -6,28 +6,33 @@ Simplified: assumes presence of model.onnx and tokenizer.json or vocab files.
 from __future__ import annotations
 import os
 import logging
-from typing import Dict, Any, Optional, List
-import numpy as np  # type: ignore
+from typing import Any, Dict, List, Optional
+import numpy as np
 
 log = logging.getLogger("app.runners.text_onnx")
 
+ort: Any = None
 try:
-    import onnxruntime as ort  # type: ignore
+    import onnxruntime as _ort
+    ort = _ort
 except Exception as e:  # pragma: no cover
-    ort = None
     log.warning(f"onnxruntime not available: {e}")
 
+AutoTokenizer: Any = None
 try:
-    from transformers import AutoTokenizer
+    from transformers import AutoTokenizer as _AutoTokenizer
+    AutoTokenizer = _AutoTokenizer
 except Exception as e:  # pragma: no cover
-    AutoTokenizer = None
     log.warning(f"transformers import failed: {e}")
 
+HfApi: Any = None
+hf_hub_download: Any = None
 try:
-    from huggingface_hub import HfApi, hf_hub_download
+    from huggingface_hub import HfApi as _HfApi
+    from huggingface_hub import hf_hub_download as _hf_hub_download
+    HfApi = _HfApi
+    hf_hub_download = _hf_hub_download
 except Exception as e:  # pragma: no cover
-    HfApi = None
-    hf_hub_download = None
     log.warning(f"huggingface_hub import failed for ONNX runner: {e}")
 
 from .base import BaseRunner
@@ -70,7 +75,7 @@ class OnnxTextGenerationRunner(BaseRunner):
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if self._cuda_available() else ["CPUExecutionProvider"]
         try:
             log.info("onnx: creating inference session for %s (providers=%s)", found_path, providers)
-            self.session = ort.InferenceSession(found_path, providers=providers)  # type: ignore[attr-defined]
+            self.session = ort.InferenceSession(found_path, providers=providers)
         except Exception as e:
             raise RuntimeError(f"Failed creating ONNX session for {found_path}: {e}")
         log.info("onnx: loading tokenizer for %s (may download)", self.model_id)
@@ -89,7 +94,7 @@ class OnnxTextGenerationRunner(BaseRunner):
         local = os.path.join(os.getcwd(), fname)
         return local if os.path.isfile(local) else None
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         text = inputs.get("text") or ""
         if not text:
             return {"text": ""}
@@ -100,7 +105,7 @@ class OnnxTextGenerationRunner(BaseRunner):
         # Initial token ids (list[int])
         input_ids = self.tokenizer.encode(text)
         # Session input names for dynamic feed building
-        input_names = {i.name for i in self.session.get_inputs()}  # type: ignore[attr-defined]
+        input_names = {i.name for i in self.session.get_inputs()}
 
         def build_feed(ids: List[int]) -> Dict[str, Any]:
             arr = np.array(ids, dtype=np.int64)[None, :]  # shape (1, seq)
@@ -148,7 +153,7 @@ class OnnxTextGenerationRunner(BaseRunner):
         for _ in range(max_new):
             feed = build_feed(input_ids)
             try:
-                outputs = self.session.run(None, feed)  # type: ignore[attr-defined]
+                outputs = self.session.run(None, feed)
             except Exception as e:
                 log.warning(f"ONNX inference failed: {e}")
                 break
@@ -184,11 +189,11 @@ class OnnxTextGenerationRunner(BaseRunner):
         }
 
     def unload(self) -> None:
-        self.session = None  # type: ignore
+        self.session = None
 
     def _cuda_available(self) -> bool:
         try:
-            return ort and 'CUDAExecutionProvider' in ort.get_available_providers()  # type: ignore[attr-defined]
+            return ort and 'CUDAExecutionProvider' in ort.get_available_providers()
         except Exception:
             return False
 
