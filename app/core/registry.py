@@ -18,15 +18,16 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, Any, Iterable, Tuple
 import logging
 
+from app.config import REGISTRY_MAX_LOADED_MODELS, REGISTRY_MEMORY_LIMIT_MB
 from app.core.device import select_device, choose_dtype
 from app.core.runners import get_runner_cls
 
 log = logging.getLogger("app.registry")
 
-DEFAULT_MAX_LOADED = 1000
-DEFAULT_MEMORY_LIMIT_MB = 32 * 1024  # 32GB logical cache budget
-ENV_MAX_LOADED = "HF_INFERENCE_MAX_LOADED_MODELS"
-ENV_MEMORY_LIMIT_MB = "HF_INFERENCE_MEMORY_LIMIT_MB"
+DEFAULT_MAX_LOADED = REGISTRY_MAX_LOADED_MODELS
+DEFAULT_MEMORY_LIMIT_MB = REGISTRY_MEMORY_LIMIT_MB
+ENV_MAX_LOADED = None
+ENV_MEMORY_LIMIT_MB = None
 
 
 def _read_positive_int(env_name: str, default: Optional[int], *, allow_none: bool = False) -> Optional[int]:
@@ -81,10 +82,10 @@ class ModelRegistry:
         self._models: Dict[Tuple[str, str], ModelEntry] = {}
         self._device = select_device("auto")
         # Caps can be tuned via env vars (see _read_positive_int helper).
-        self._max_loaded = _read_positive_int(ENV_MAX_LOADED, DEFAULT_MAX_LOADED) or DEFAULT_MAX_LOADED
+        self._max_loaded = DEFAULT_MAX_LOADED
         # Soft memory cap (MB) to prevent OOM from repeated loads. Env var can
         # disable it by passing 0/negative, allowing unlimited caching.
-        self._memory_limit_mb = _read_positive_int(ENV_MEMORY_LIMIT_MB, DEFAULT_MEMORY_LIMIT_MB, allow_none=True)
+        self._memory_limit_mb = DEFAULT_MEMORY_LIMIT_MB
         # Create an event loop for background async loads and start the thread.
         # Keep the loop object on `self` so other methods can submit coroutines.
         self._loop = asyncio.new_event_loop()
@@ -192,6 +193,16 @@ class ModelRegistry:
                 del self._models[key]
             return True
 
+    def reset(self) -> None:
+        with _LOCK:
+            for entry in self._models.values():
+                try:
+                    entry.runner.unload()
+                except Exception:
+                    pass
+            self._models.clear()
+            self._loading_futures.clear()
+
     # --- internals ---
     def _get_or_load(self, task: str, model_id: str) -> ModelEntry:
         key = (model_id, task)
@@ -234,7 +245,6 @@ class ModelRegistry:
                 try:
                     runner = runner_cls(model_id=model_id, device=self._device, dtype=dtype_str)  # type: ignore[call-arg]
                 except TypeError:
-                    # Backwards compatibility for runners that do not yet accept dtype
                     runner = runner_cls(model_id=model_id, device=self._device)
                 entry = ModelEntry(model_id=model_id, task=task, runner=runner, status="loading")
                 entry.load_started_at = time.time()
@@ -253,12 +263,7 @@ class ModelRegistry:
                     return entry.runner.load()
                 except Exception as e:
                     msg = str(e)
-                    if task == "text-generation" and "does not appear to have a file named" in msg:
-                        from app.core.runners.text_onnx import OnnxTextGenerationRunner
-                        onnx_runner = OnnxTextGenerationRunner(model_id=model_id, device=self._device)
-                        entry.runner = onnx_runner
-                        return onnx_runner.load()
-                    raise
+                    raise RuntimeError(f"Failed loading model {model_id} for task {task}: {msg}")
 
             try:
                 param_count = await loop.run_in_executor(None, _load_runner)  # type: ignore[arg-type]
@@ -313,13 +318,7 @@ class ModelRegistry:
                 param_count = runner.load()
             except Exception as e:
                 msg = str(e)
-                if task == "text-generation" and "does not appear to have a file named" in msg:
-                    from app.core.runners.text_onnx import OnnxTextGenerationRunner
-                    onnx_runner = OnnxTextGenerationRunner(model_id=model_id, device=self._device)
-                    entry.runner = onnx_runner
-                    param_count = onnx_runner.load()
-                else:
-                    raise
+                raise RuntimeError(f"Failed loading model {model_id} for task {task}: {msg}")
             with _LOCK:
                 entry.status = "ready"
                 entry.param_count = param_count
@@ -453,6 +452,8 @@ PIPELINE_TO_TASK = {
     "visual-document-retrieval": "visual-document-retrieval",
     "any-to-any": "any-to-any",
     "image_text-to-text": "image-text-to-text",
+    "text2text-generation": "summarization",
+    "summarization": "summarization",
 }
 
 # Singleton instance

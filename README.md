@@ -239,6 +239,10 @@ Poe tasks (run with uv run poe <task>):
 - deadcode: find unused code with vulture
   - `uv run poe deadcode`
 
+## Proto Contracts
+
+Shared frontend/backend contracts live in `proto/contracts.proto`. Regenerate backend (`app/schemas_pb2.py`) and frontend (`frontend/generated/contracts_pb.ts`) artifacts whenever the proto changes.
+
 ## Contributing
 
 See CONTRIBUTING.md

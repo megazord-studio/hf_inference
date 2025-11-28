@@ -101,6 +101,7 @@ security = { shell = "uv run bandit -r app --severity-level high" }
 complexity = { shell = "uv run radon cc -s -a app" }
 deadcode = { shell = "uv run vulture app tests" }
 dev = { shell = "uvicorn app.main:app --reload" }
+generate-contracts = { shell = "python scripts/generate_contracts.py" }
 
 [tool.ruff]
 line-length = 79

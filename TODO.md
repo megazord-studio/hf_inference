@@ -25,82 +25,58 @@ capabilities as either always-on (hardcoded).
 Do not add any fallbacks if a model does not run. It should be obvious that
 something is not working as expected. Fallback would hide that fact.
 
-## Plan (Multimodal: Image+Text -> Text)
+## Phases
 
-General engineering and testing
-- [x] Apply DRY, KISS; keep functions ~15–20 lines; minimal nesting; clear naming. (multimodal runner refactor present)
-- [ ] Keep files reasonably sized; split helpers if needed (~200 lines target per file).
-- [x] No conditional imports; add deps with `uv` if required.
-- [x] Capabilities are always-on (no env gates). (runner has no env gating)
-- [x] No fake fallbacks; on failure return empty task_output with clear logs (tests accept {}). (predictors return {} on failure paths)
-- [x] Maintain/extend integration tests via FastAPI TestClient; do not skip. (integration test exists for multimodal)
-- [x] Use frontend as general reference for UX/contracts.
+### Phase 1 – Critical runtime and API fixes
 
-Test harness
-- [x] Remove PDB breakpoint from `tests/integration/test_multimodal.py::_post`. (removed)
+- ✅ Remove environment-variable-based behavior that changes runtime semantics (e.g. `LOG_LEVEL`, `HF_META_RETRIES`, `HF_META_TIMEOUT`, `ENRICH_MODELS_MAX`, `HF_INFERENCE_MAX_LOADED_MODELS`, `HF_INFERENCE_MEMORY_LIMIT_MB`, `FORCE_DEVICE`, `MAX_GPU_MEM_GB`) and replace it with hardcoded configuration or a static config object.
+- ✅ Remove HTTP fallback and silent recovery paths for model metadata enrichment in `app/routers/inference.py::_fetch_full_model_meta`, `app/routers/models.py::_enrich_single_model`, and related helpers so model/hub failures are loud.
+- ✅ Ensure non-streaming `/api/inference` responses return success with `result.task_output` (no `result.error`) and failures with structured `error` objects and proper HTTP status codes instead of always returning 200.
+- ✅ Tighten the SPA catch-all in `app/main.py` so API paths return real FastAPI 404/405 (or explicit `HTTPException`) rather than a manual `{ "detail": "Not found" }` payload.
+- ✅ Guard Hugging Face Hub calls (`_fetch_models`, enrichment helpers) with explicit limits/timeouts and raise on failures rather than logging and returning partial data.
+- ✅ Replace broad `except Exception` blocks in inference/streaming/hub paths with narrow handling that rethrows unexpected errors so regressions are visible.
+- ✅ Validate and sanitize per-task `inputs` on the backend, rejecting requests missing required keys (`text`, `image_base64`, `audio_base64`, etc.) instead of accepting arbitrary dicts.
+- ✅ Ensure `ensure_task_supported` failures surface as HTTP errors for all endpoints (including streaming) so unsupported-device tasks never sneak through as soft errors.
+- ✅ Remove the ONNX text-generation fallback in `ModelRegistry` that silently swaps runners; fail loudly when files are missing.
+- ✅ Provide deterministic handling for `ModelRegistry` global state (`_models`, `_loading_futures`, eviction heuristics) so tests can reset/disable eviction and avoid flakiness.
 
-Multimodal runner refactor
-- [x] Split into small parts: arch detection, per-arch loaders, per-arch predictors, input builders, utilities. (implemented in `multimodal.py`)
-- [x] Implement loaders: `_load_blip`, `_load_llava`, `_load_qwen_vl`, `_load_minicpm`, `_load_vlm`, `_load_generic_vqa`. (implemented)
-- [x] Implement predictors: `_predict_blip`, `_predict_llava`, `_predict_qwen_vl`, `_predict_minicpm`, `_predict_vlm`, `_predict_generic_vqa`. (implemented)
-- [x] Add utilities: tokenizer lookup, output decode, image-token helpers, to-device, dtype select/unify, param count. (implemented)
-- [x] Add `_safe_call(fn)` helper (wrap try/except + logging) and use in loaders instead of repeated try/except. (implemented)
+### Phase 2 – Frontend–backend contract alignment
 
-Input building and robustness
-- [x] Add `_get_image_token()` and `_ensure_image_tokens(question, num_images)`; use when models require explicit image tokens. (implemented)
-- [x] If processor errors on image-token mismatch: do one formatting pass, then a capped retry (≤4 tries) with candidate tokens; never hang. (implemented `_retry_processor_with_image_tokens`)
-- [x] Strip processor-only kwargs (e.g., `num_crops`) from enc before `generate()`. (implemented `_strip_processor_only_kwargs`)
-- [x] Ensure all tensors/encodings are moved to device consistently. (implemented `_move_to_device`)
+- Define shared contracts for `InferenceResponse`, `ModelSummary`, `ModelMeta`, streaming events, and error payloads, enforcing them via Pydantic models and TypeScript interfaces to prevent drift.
+- Make runner failures speak clearly: propagate descriptive messages (with task/model context) from `ModelRegistry.predict` into structured error payloads instead of generic `inference_failed` strings.
+- Standardize error handling in `useInference` and `useTextGenerationStream` so both HTTP failures and backend-declared logical errors populate a typed `error` field rendered by the UI.
+- Make SSE payloads (`token`, `progress`, `done`, `error`) self-describing (e.g. include an internal `type`) and versioned, and update frontend parsers to branch on that type.
+- Keep streaming vs non-streaming text-generation outputs semantically equivalent (same token sequences/final text) and document any unavoidable differences.
+- Harmonize task/modality taxonomies across `app/core/tasks.py`, `taskModalities.ts`, `tasksCatalog.ts`, and `goalTaxonomy.ts`, clearly flagging unsupported tasks.
+- Enforce input invariants on both frontend (`useModelExplorer`) and backend so missing modalities immediately trigger high-signal errors instead of runner crashes.
+- Exercise the full contract with FastAPI `TestClient` integration tests that hit real models for representative tasks (text, image, audio, TTS) and assert both success and failure responses (unsupported tasks, missing inputs, device unavailable).
+- Ensure model metadata enrichment (`model_meta`, `/models/enrich` gated flags) is fully represented in frontend types/components and surfaces explicit UI messaging when enrichment fails.
 
-Performance guards
-- [x] Cap `max_new_tokens` on CPU/MPS for large VLMs (respect user `max_length`, bound internally to a safe limit). (implemented `_cap_max_new_tokens` with deterministic generation)
+### Phase 3 – Improvements and polish
 
-Architecture-specific coverage (models below must be supported)
-- [x] Salesforce/blip-vqa-base (BLIP)
-  - [x] Load: `BlipProcessor` + `BlipForQuestionAnswering`; predict via `generate` + decode.
-- [x] llava-hf/llava-1.5-7b-hf (LLaVA)
-  - [x] Load: `LlavaProcessor` + `LlavaForConditionalGeneration`.
-  - [x] Ensure a single image token in question via `_ensure_image_tokens()`; `generate` + decode.
-- [x] Qwen/Qwen-VL-Chat (Qwen-VL)
-  - [x] Load: `AutoProcessor(..., trust_remote_code=True)` + `AutoModelForCausalLM(..., trust_remote_code=True)`.
-  - [x] Prefer `model.chat(processor, image, question)`; if unsupported, return {} with logs (avoid streaming generator imports).
-- [x] google/gemma-3-1b-it (Gemma3)
-  - [x] Try `pipeline("image-text-to-text", trust_remote_code=True)` first; short-circuit if text returned.
-  - [x] Else load as VLM (ImageTextToText/CausalLM); if unsupported, return {} with logs. Strip `num_crops`.
-- [x] HuggingFaceM4/idefics2-8b (Idefics2)
-  - [x] Ensure prompt includes correct count of image tokens; do one format pass + capped retries; avoid hangs.
-- [x] openbmb/MiniCPM-Llama3-V-2_5 (MiniCPM-V)
-  - [x] Load: `AutoModel`/`AutoTokenizer` with `trust_remote_code`; unify dtype to device; patch generation (GenerationMixin).
-  - [x] Prefer `model.chat(image, msgs, tokenizer)`; else `_minicpm_manual_decode(question, max_len)`; else {} with logs.
-- [x] 01-ai/Yi-VL-6B (Yi-VL)
-  - [x] On state_dict size mismatch, avoid incompatible legacy fallbacks; log reason; return {} quickly.
-- [x] OpenGVLab/InternVL2-8B (InternVL2)
-  - [x] Detect InternVL; avoid VQA pipeline. Load via `AutoProcessor` + trust-remote model (or `InternVLChat`).
-  - [x] Prefer chat-style inference; ensure image tokens; cap tokens on CPU/MPS; {} with logs on failure.
-- [x] microsoft/kosmos-2-patch14-224 (Kosmos-2)
-  - [x] Detect kosmos-2; avoid VQA pipeline. Load `AutoProcessor` (Kosmos2Processor) + model (trust_remote_code if needed).
-  - [x] Encode via processor with images+text; ensure image token; drop processor-only kwargs; generate/decode; {} on failure.
-- [x] microsoft/Florence-2-base-ft (Florence-2)
-  - [x] Detect florence-2; avoid VQA pipeline. Load `AutoProcessor` + `Florence2ForConditionalGeneration` (or appropriate trust-remote auto class).
-  - [x] Use task prompt token for VQA (e.g., `<VQA>` + question); encode via processor; strip processor-only kwargs; bounded generation; decode.
-- [x] google/paligemma-3b-pt-224 (Paligemma)
-  - [x] Implement `_safe_call` (fix current runtime). Detect paligemma; avoid VQA pipeline.
-  - [x] Load `AutoProcessor` + trust-remote model (ImageTextToText/CausalLM/Vision2Seq). Ensure image token; strip `num_crops`.
-- [x] THUDM/cogvlm2-llama3-chat-19B (CogVLM2)
-  - [x] Detect cogvlm/cogvlm2; avoid VQA pipeline. Load via `AutoProcessor` + trust-remote model; prefer chat API.
-  - [x] Ensure image tokens; cap tokens; encode/generate/decode appropriately; {} with logs on failure.
+- Align backend `InferenceRequest`/`InferenceResponse` with frontend types by making `intent_id` optional in TS and adding fields like `task`, `options`, `task_output`, `error`, `runtime_ms_model`, `resolved_model_id`, `backend`.
+- Update `useTextGenerationStream` to parse backend `error` events into `{ tokens, metrics, error: { message, details } }` instead of returning `'stream_error'`.
+- Normalize logging namespaces so everything logs through `app.*`, with third-party loggers configured once in `configure_logging`.
+- Replace per-request environment variable reads in hub helpers and registry/device code with a static configuration module imported at startup.
+- Pass explicit limits to `api.list_models` (when possible) inside `_fetch_models`, and assert/log when manual iteration hits the configured cap.
+- Add explicit return type hints for router functions (`models_status`, `unload_model`, `stream_inference`, `stream_text_to_image`, `stream_tts`, `preloaded_meta`, `enrich_models`).
+- Unify `ModelEnriched`/`ModelSummary.cardData` definitions to avoid shadowing and ensure a single authoritative field.
+- Document the SSE event contract in router docstrings and mirror it in typed frontend helpers/`RunRecord.streaming*` fields.
+- Add focused tests for `models_preloaded.json`/`enrich_cache.json` disk persistence, TTL, and corruption scenarios.
+- Rename ambiguous frontend variables/state (e.g. `m`, generic `data`) to descriptive names like `explorerState`, `inferenceResult`, `streamingMetrics`.
+- Block the “Run” action when `extraArgsJson` is invalid, showing an inline error instead of silently sending `{}`.
+- Guarantee `buildInferenceRequest` never sends empty `inputs` by adding a final validation step matching the backend guard.
 
-Generic VLM path hardening
-- [x] Drop processor-only kwargs (e.g., `num_crops`) before `generate()` for all VLMs.
-- [x] Decode priority: `processor.batch_decode` > `processor.decode` > model tokenizer.
-- [x] If builder returns pipeline text, short-circuit and return it.
-- [x] If builder signals `_skip_generation`, return {} quickly with a helpful log message. (returns {})
+### Phase 4 – Structural refactors
 
-Targeted unit tests
-- [x] `_ensure_image_tokens` – exact insertion/count behavior.
-- [x] VLM input-building – formatting, capped retries, stripping processor-only kwargs.
-
-Validation (green-before-done)
-- [x] Static checks: no syntax/type errors; imports consistent.
-- [ ] Focused integration runs per model (no hangs, no API errors; {} allowed where unsupported).
-- [ ] Run full `tests/integration/test_multimodal.py` and confirm all listed models meet expectations.
+- Split `app/routers/inference.py` into focused modules (HTTP, SSE, metadata) to keep files under ~200 lines and separate concerns.
+- Extract Hugging Face Hub access/caching into `app/core/hub_client.py` with pure functions (`list_popular_models`, `get_model_meta`, `enrich_models`).
+- Introduce a domain layer (e.g. `TaskDispatcher`/`InferenceService`) around `REGISTRY.predict`/`SUPPORTED_TASKS` to centralize task routing, validation, and output normalization.
+- Make caching helpers pure/state-driven so disk I/O is isolated and unit tests can cover cache transitions without touching the network.
+- Ensure sync vs async boundaries are respected by running heavy `REGISTRY.predict` calls inside thread pools when invoked from async endpoints.
+- Consolidate frontend API interaction into a typed client layer that wraps `/api/inference`, `/api/models/*`, `/api/intents`, and SSE endpoints, exposing reusable hooks.
+- Add a lightweight state management layer (or structured React Query usage) to normalize models, intents, gated flags, and runs across `ExplorerFilters`, `ModelsGrid`, `RunPanel`, and `RunsDrawer`.
+- Expand automated tests for streaming behavior (token order, `done` metrics, TTS chunking) and concurrent cache access, using real models where feasible.
+- Document the full architecture (registry, device handling, runners, routers, task taxonomy, frontend flows) to speed onboarding and keep future work aligned.
+- Define shared `ErrorResponse`/`ModelMeta` schemas reused across backend Pydantic models and frontend TS types, including streaming errors and model listings.
+- Provide a deterministic `ModelRegistry` test mode/fixture that disables eviction and background async loading so real-model tests stay reproducible.

@@ -1,7 +1,8 @@
 import logging
 import os
-from typing import Any, Dict, Optional
-from fastapi import APIRouter, HTTPException
+from typing import Any, Dict, List, Optional
+from dataclasses import asdict, is_dataclass
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from huggingface_hub import HfApi
 from huggingface_hub.utils import HfHubHTTPError
@@ -10,11 +11,22 @@ from app.core.device import ensure_task_supported
 from app.core.registry import REGISTRY, PIPELINE_TO_TASK
 from app.core.runners import SUPPORTED_TASKS
 from app.core.tasks import get_output_model_for_task
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 import uuid
 import time
 import json
 import base64
+from app.config import HF_META_RETRIES, HF_META_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT
+from app.routers.models import ModelSummary
+from app.schemas_pb2 import (
+    ErrorResponse,
+    InferenceErrorPayload,
+    InferenceResponsePayload,
+    InferenceResult,
+    ModelMeta,
+    TaskOutputMetadata,
+)
+from datetime import datetime
 
 router = APIRouter(prefix="/api", tags=["inference"])
 log = logging.getLogger("app.inference")
@@ -33,6 +45,7 @@ class InferenceResponse(BaseModel):
     runtime_ms: Optional[int] = None
     model_id: Optional[str] = None
     model_meta: Optional[dict] = None
+    error: Optional[ErrorResponse] = None
 
 # Full model enrichment helper using model_info with expand list (now with retries & fallback)
 def _fetch_full_model_meta(model_id: str) -> Optional[dict]:
@@ -42,32 +55,13 @@ def _fetch_full_model_meta(model_id: str) -> Optional[dict]:
         "author","cardData","config","createdAt","lastModified","likes","trendingScore",
         "downloads","pipeline_tag","library_name","sha","tags","siblings","gated","private"
     ]
-    retries = int(os.getenv("HF_META_RETRIES", "2"))
-    timeout = float(os.getenv("HF_META_TIMEOUT", "10"))
+    retries = HF_META_RETRIES
+    timeout = HF_META_TIMEOUT_SECONDS
     last_err: Exception | None = None
     for attempt in range(1, retries + 2):  # initial + retries
         try:
             info = api.model_info(model_id, expand=expand_fields, timeout=timeout)
-            meta = {
-                "id": getattr(info, "modelId", None) or model_id,
-                "modelId": getattr(info, "modelId", None),
-                "author": getattr(info, "author", None),
-                "gated": getattr(info, "gated", None),
-                "private": getattr(info, "private", None),
-                "lastModified": getattr(info, "lastModified", None),
-                "createdAt": getattr(info, "createdAt", None),
-                "likes": getattr(info, "likes", None),
-                "trendingScore": getattr(info, "trendingScore", None),
-                "downloads": getattr(info, "downloads", None),
-                "pipeline_tag": getattr(info, "pipeline_tag", None),
-                "library_name": getattr(info, "library_name", None),
-                "sha": getattr(info, "sha", None),
-                "tags": getattr(info, "tags", None),
-                "config": getattr(info, "config", None),
-                "cardData": getattr(info, "cardData", None),
-                "siblings": [ {"rfilename": s.rfilename} for s in getattr(info, "siblings", []) ] if getattr(info, "siblings", None) else None,
-            }
-            meta["_id"] = getattr(info, "_id", None)
+            meta = _build_model_meta(info, model_id)
             return meta
         except (HfHubHTTPError, socket.timeout, ConnectionError, OSError, Exception) as e:  # broad catch for transient issues
             last_err = e
@@ -82,7 +76,7 @@ def _fetch_full_model_meta(model_id: str) -> Optional[dict]:
             m = listed_models[0]
             return {
                 "id": model_id,
-                "modelId": model_id,
+                "model_id": model_id,
                 "likes": getattr(m, "likes", None),
                 "downloads": getattr(m, "downloads", None),
                 "pipeline_tag": getattr(m, "pipeline_tag", None),
@@ -90,83 +84,136 @@ def _fetch_full_model_meta(model_id: str) -> Optional[dict]:
                 "gated": getattr(m, "gated", None),
                 "private": getattr(m, "private", None),
                 "fallback": True,
+                "last_modified": None,
+                "created_at": None,
+                "trending_score": None,
+                "library_name": None,
+                "sha": None,
+                "config": None,
+                "card_data": None,
+                "siblings": None,
             }
     except Exception as e2:
-        log.debug(f"Fallback list_models failed for {model_id}: {e2}")
+        raise RuntimeError(f"Fallback list_models failed for {model_id}: {e2}")
     log.warning(f"Model meta unavailable for {model_id}; proceeding without enrichment (last error: {last_err})")
     return None
+
+def _to_serializable(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, (list, tuple)):
+        return [_to_serializable(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _to_serializable(v) for k, v in value.items()}
+    if is_dataclass(value):
+        return _to_serializable(asdict(value))
+    if hasattr(value, "to_dict") and callable(getattr(value, "to_dict")):
+        return _to_serializable(value.to_dict())
+    obj_dict = getattr(value, "__dict__", None)
+    if obj_dict:
+        # Skip private / callable attributes
+        serializable = {k: v for k, v in obj_dict.items() if not k.startswith("_") and not callable(v)}
+        if serializable:
+            return _to_serializable(serializable)
+    return value
+
+def _build_model_meta(info, model_id):
+    meta = {
+        "id": getattr(info, "modelId", None) or model_id,
+        "model_id": getattr(info, "modelId", None),
+        "author": getattr(info, "author", None),
+        "gated": getattr(info, "gated", None),
+        "private": getattr(info, "private", None),
+        "last_modified": _to_serializable(getattr(info, "lastModified", None)),
+        "created_at": _to_serializable(getattr(info, "createdAt", None)),
+        "likes": getattr(info, "likes", None),
+        "trending_score": getattr(info, "trendingScore", None),
+        "downloads": getattr(info, "downloads", None),
+        "pipeline_tag": getattr(info, "pipeline_tag", None),
+        "library_name": getattr(info, "library_name", None),
+        "sha": getattr(info, "sha", None),
+        "tags": _to_serializable(getattr(info, "tags", None)),
+        "config": _to_serializable(getattr(info, "config", None)),
+        "card_data": _to_serializable(getattr(info, "cardData", None)),
+        "siblings": _to_serializable(getattr(info, "siblings", None)),
+    }
+    return meta
+
+def _required_fields_for_task(task: str) -> List[str]:
+    mapping = {
+        "text-generation": ["text"],
+        "text-to-image": ["text"],
+        "image-classification": ["image_base64"],
+        "image-to-text": ["image_base64"],
+        "object-detection": ["image_base64"],
+        "image-segmentation": ["image_base64"],
+        "depth-estimation": ["image_base64"],
+        "image-to-image": ["image_base64"],
+        "automatic-speech-recognition": ["audio_base64"],
+        "text-to-speech": ["text"],
+    }
+    return mapping.get(task, [])
 
 # Placeholder store for future model handles / pooling / concurrency limits
 # For now we simply echo request; real inference integration will plug into HF Inference Endpoints or local pipelines.
 
-@router.post("/inference", response_model=InferenceResponse)
-async def run_inference(req: InferenceRequest, include_model_meta: bool = True) -> InferenceResponse:
-    """Inference endpoint dispatching to local runners (text, vision/audio)."""
+@router.post("/inference", response_model=InferenceResponsePayload | InferenceErrorPayload)
+async def run_inference(req: InferenceRequest, include_model_meta: bool = True):
     if not req.inputs:
-        raise HTTPException(status_code=400, detail="inputs object cannot be empty")
-    provided = {k: ("<bytes>" if isinstance(v, str) and v.startswith("data:") else v) for k, v in req.inputs.items()}
-    result: Dict[str, Any] = {
-        "echo": provided,
-        "info": {
+        return _error_response(status.HTTP_422_UNPROCESSABLE_ENTITY, code="invalid_request", message="inputs object cannot be empty")
+    task = req.task
+    if not task and req.inputs.get("_task"):
+        task = str(req.inputs.get("_task"))
+    meta_raw = _fetch_full_model_meta(req.model_id) if include_model_meta else None
+    meta = ModelMeta(**meta_raw) if meta_raw else None
+    if task is None and meta and meta.pipeline_tag in PIPELINE_TO_TASK:
+        task = PIPELINE_TO_TASK[meta.pipeline_tag]
+    if not task:
+        return _error_response(status.HTTP_400_BAD_REQUEST, code="missing_task", message="task must be provided or resolvable from model metadata")
+    try:
+        ensure_task_supported(task)
+    except RuntimeError as exc:
+        return _error_response(status.HTTP_400_BAD_REQUEST, code="device_unsupported", message=str(exc))
+    required_fields = _required_fields_for_task(task)
+    missing = [field for field in required_fields if field not in req.inputs or not req.inputs[field]]
+    if missing:
+        return _error_response(status.HTTP_422_UNPROCESSABLE_ENTITY, code="missing_inputs", message="Required inputs missing", details={"missing": missing})
+    if task not in SUPPORTED_TASKS:
+        return _error_response(status.HTTP_501_NOT_IMPLEMENTED, code="task_not_supported", message="Task is not supported by backend", details={"task": task})
+    try:
+        pred = REGISTRY.predict(task=task, model_id=req.model_id, inputs=req.inputs, options=req.options or {})
+    except RuntimeError as exc:
+        return _error_response(status.HTTP_500_INTERNAL_SERVER_ERROR, code="inference_failed", message=str(exc), details={"task": task, "model_id": req.model_id})
+    output_model = get_output_model_for_task(task)
+    raw_output = pred["output"]
+    task_output: Any = raw_output
+    if output_model is not None:
+        try:
+            parsed = output_model.model_validate(raw_output)
+            task_output = parsed.model_dump()
+        except Exception:
+            task_output = raw_output
+    metadata = TaskOutputMetadata(task=task, runtime_ms_model=pred["runtime_ms"], resolved_model_id=pred.get("resolved_model_id"), backend=pred.get("backend"))
+    inference_result = InferenceResult(
+        task_output=task_output,
+        metadata=metadata,
+        echo={k: ("<bytes>" if isinstance(v, str) and v.startswith("data:") else v) for k, v in req.inputs.items()},
+        info={
             "model_id": req.model_id,
             "intent_id": req.intent_id or "",
             "input_type": req.input_type,
             "received_fields": list(req.inputs.keys()),
-        }
-    }
-    meta: dict | None = None
-    if include_model_meta:
-        meta = _fetch_full_model_meta(req.model_id)
-        if meta is None:
-            log.warning(f"Model meta unavailable for {req.model_id}; proceeding without enrichment")
-    # Device suitability enforcement
-    try:
-        ensure_task_supported(req.task or (meta.get("pipeline_tag") if meta else None))
-    except RuntimeError as e:
-        result["task_output"] = {}
-        result["error"] = {"message": str(e)}
-        return InferenceResponse(result=result, runtime_ms=0, model_id=req.model_id, model_meta=meta)
-
-    task = req.task
-    if not task and meta and meta.get("pipeline_tag") in PIPELINE_TO_TASK:
-        task = PIPELINE_TO_TASK[meta.get("pipeline_tag")]
-
-    if task and task in SUPPORTED_TASKS:
-        try:
-            pred = REGISTRY.predict(task=task, model_id=req.model_id, inputs=req.inputs, options=req.options or {})
-            output_model = get_output_model_for_task(task)
-            raw_output = pred["output"]
-            if output_model is not None:
-                try:
-                    parsed = output_model.model_validate(raw_output)
-                    task_output = parsed.model_dump()
-                except Exception:
-                    task_output = raw_output
-            else:
-                task_output = raw_output
-            # Preserve backend and other runner-level metadata if present
-            if isinstance(raw_output, dict) and "backend" in raw_output:
-                task_output.setdefault("backend", raw_output["backend"])
-            result["task_output"] = task_output
-            result["task"] = task
-            result["runtime_ms_model"] = pred["runtime_ms"]
-            result["resolved_model_id"] = pred.get("resolved_model_id")
-            if "backend" in pred:
-                result["backend"] = pred["backend"]
-        except Exception as e:
-            result.setdefault("task_output", {})
-            result["task"] = task
-            # Use repr(e) to surface non-empty diagnostic even if __str__ is empty
-            result["error"] = {"message": f"inference_failed: {repr(e)}"}
-    else:
-        # Task is unknown or not yet implemented in the backend runners
-        result["task_output"] = {}
-        if task:
-            result["task"] = str(task)
-            result["error"] = {"message": f"task_not_implemented: {task}"}
-        else:
-            result["error"] = {"message": "task_not_provided"}
-    return InferenceResponse(result=result, runtime_ms=0, model_id=req.model_id, model_meta=meta)
+        },
+    )
+    payload = InferenceResponsePayload(
+        result=inference_result,
+        runtime_ms=pred.get("runtime_ms"),
+        model_id=req.model_id,
+        model_meta=meta,
+    )
+    return JSONResponse(content=payload.model_dump())
 
 @router.get("/models/status")
 async def models_status():
@@ -211,11 +258,12 @@ async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50,
         for i, tok in enumerate(tokens):
             if first_token_latency_ms is None:
                 first_token_latency_ms = int((time.time() - start_time) * 1000)
-            payload = {"index": i, "text": tok}
+            payload = {"type": "token", "index": i, "text": tok}
             yield f"event: token\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
         total_ms = int((time.time() - start_time) * 1000)
         tps = round(len(tokens) / (max(total_ms, 1) / 1000.0), 2) if tokens else 0.0
         done_payload = {
+            "type": "done",
             "tokens": len(tokens),
             "runtime_ms": total_ms,
             "first_token_latency_ms": first_token_latency_ms,
@@ -340,3 +388,36 @@ async def stream_tts(model_id: str, text: str):
         yield f"event: done\nid: {corr_id}\ndata: {json.dumps(done_payload)}\n\n"
 
     return StreamingResponse(event_iter(), media_type="text/event-stream")
+
+
+def _fetch_models(limit: int) -> List[ModelSummary]:
+    api = HfApi()
+    results: List[ModelSummary] = []
+    try:
+        iterator = api.list_models(sort="downloads", direction=-1, limit=limit)
+        for info in iterator:
+            m = ModelSummary(
+                id=info.modelId,
+                model_id=info.modelId,
+                author=info.author,
+                likes=info.likes,
+                downloads=info.downloads,
+                pipeline_tag=info.pipeline_tag,
+                tags=info.tags,
+                gated=info.gated,
+                private=info.private,
+                last_modified=info.lastModified,
+                created_at=info.createdAt,
+                card_data=info.cardData,
+                config=info.config,
+                sha=info.sha,
+                siblings=[s.rfilename for s in info.siblings] if info.siblings else None,
+            )
+            results.append(m)
+    except HfHubHTTPError as e:
+        raise RuntimeError(f"Failed to list models: {e}")
+    return results
+
+def _error_response(status_code: int, *, code: str, message: str, details: Optional[Dict[str, Any]] = None) -> JSONResponse:
+    payload = InferenceErrorPayload(error=ErrorResponse(code=code, message=message, details=details))
+    return JSONResponse(status_code=status_code, content=payload.model_dump())

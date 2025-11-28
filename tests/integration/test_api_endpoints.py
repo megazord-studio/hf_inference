@@ -61,11 +61,7 @@ def test_inference_unknown_task_returns_clear_error(client):
         "options": {},
     }
     resp = client.post("/api/inference", json=payload, params={"include_model_meta": False})
-    assert resp.status_code == 200
-    data = resp.json()["result"]
-    assert data.get("task") == "non-existing-task-xyz"
-    err = data.get("error")
-    assert isinstance(err, dict)
-    msg = err.get("message", "")
-    assert msg.startswith("task_not_implemented:"), msg
-    assert isinstance(data.get("task_output"), dict)
+    assert resp.status_code == 501
+    data = resp.json()
+    assert data["error"]["code"] == "task_not_supported"
+    assert data["error"].get("details", {}).get("task") == "non-existing-task-xyz"

@@ -1,16 +1,16 @@
 import logging
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from app.routers.models import router as models_router
 from app.routers.intents import router as intents_router
 import app.routers.inference as inference_module
 from app.core.device import startup_log
+from app.config import LOG_LEVEL
 
 
 def configure_logging() -> None:
-    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
+    level = LOG_LEVEL
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -47,7 +47,7 @@ app.include_router(inference_module.router)
 @app.get("/{full_path:path}")
 async def spa_catch_all(full_path: str):  # type: ignore[unused-argument]
     if full_path.startswith("api"):
-        return {"detail": "Not found"}
+        raise HTTPException(status_code=404, detail="Not found")
     index_path = os.path.join(BASE_DIR, "static", "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)

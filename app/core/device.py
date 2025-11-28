@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import logging
 from typing import Optional, Dict, Set
+from app.config import DEVICE_FORCE, DEVICE_MAX_GPU_MEM_GB
 
 log = logging.getLogger("app.device")
 
@@ -55,8 +56,8 @@ def device_capabilities() -> Dict[str, Optional[object]]:
         "mps": False,
         "gpu_name": None,
         "memory_gb": None,
-        "force_device": os.getenv("FORCE_DEVICE"),
-        "max_gpu_mem_gb": os.getenv("MAX_GPU_MEM_GB"),
+        "force_device": DEVICE_FORCE,
+        "max_gpu_mem_gb": DEVICE_MAX_GPU_MEM_GB,
     }
     if torch is None:
         return caps
@@ -122,7 +123,7 @@ def ensure_task_supported(task: Optional[str]) -> None:
 def startup_log() -> None:
     caps = device_capabilities()
     force = caps.get("force_device")
-    prefer = force or "auto"
+    prefer = (DEVICE_FORCE or "auto").lower()
     dev = select_device(prefer)
     dev_str = str(dev) if dev else "cpu (torch missing)"
     log.info(

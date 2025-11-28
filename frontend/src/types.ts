@@ -1,3 +1,5 @@
+import type { InferenceResponsePayload, ErrorResponse, ModelMeta, TaskOutputMetadata, InferenceResult } from '../generated/contracts_pb';
+
 export type InputType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'multimodal';
 
 export interface Intent {
@@ -22,43 +24,11 @@ export interface ModelSummary {
 
 export interface InferenceRequest {
   model_id: string;
-  intent_id: string;
+  intent_id?: string;
   input_type: InputType;
-  inputs: Record<string, unknown>; // may contain text, image_base64, extra_args
-}
-
-export interface InferenceResponse {
-  result: unknown;
-  runtime_ms?: number;
-  model_id?: string;
-  model_meta?: Record<string, unknown>;
-}
-
-export interface CurlExampleResponse {
-  command: string;
-}
-
-export interface RunRecord {
-  id: string;
-  createdAt: string;
-  inputType: InputType;
-  intent: Intent;
-  model: ModelSummary;
-  inputText: string;
-  result?: unknown;
-  curl?: string;
-  requestInputs?: Record<string, unknown>; // debug: inputs sent to backend
-  runtime_ms?: number;
-  model_meta?: Record<string, unknown>; // enriched model metadata from backend
-  streaming?: boolean;
-  streamingTokens?: string[]; // incremental tokens for streaming runs
-  streamingMetrics?: {
-    tokens?: number;
-    runtime_ms?: number;
-    first_token_latency_ms?: number;
-    tokens_per_second?: number;
-  };
-  streamingError?: string;
+  task?: string;
+  inputs: Record<string, unknown>;
+  options?: Record<string, unknown>;
 }
 
 // Goal-oriented taxonomy additions (non-breaking)
@@ -91,4 +61,51 @@ export interface GoalSelectionState {
   selectedGoalCategory?: string | null;
   selectedGoalSubcategory?: string | null;
   preferences: GoalPreferences;
+}
+
+export interface StreamingErrorEvent {
+  type: 'error';
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export interface StreamingTokenEvent {
+  type: 'token';
+  index: number;
+  text: string;
+}
+
+export interface StreamingProgressEvent {
+  type: 'progress';
+  [key: string]: unknown;
+}
+
+export interface StreamingDoneEvent {
+  type: 'done';
+  [key: string]: unknown;
+}
+
+export interface RunRecord {
+  id: string;
+  createdAt: string;
+  inputType: InputType;
+  intent: Intent;
+  model: ModelSummary;
+  inputText: string;
+  result?: InferenceResult['task_output'];
+  curl?: string;
+  requestInputs?: Record<string, unknown>;
+  runtime_ms?: number;
+  model_meta?: ModelMeta;
+  streaming?: boolean;
+  streamingTokens?: string[];
+  streamingMetrics?: {
+    tokens?: number;
+    runtime_ms?: number;
+    first_token_latency_ms?: number;
+    tokens_per_second?: number;
+  };
+  streamingError?: string;
+  error?: ErrorResponse;
 }

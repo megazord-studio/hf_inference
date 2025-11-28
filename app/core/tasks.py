@@ -167,13 +167,14 @@ class RetrievalTaskOutput(BaseModel):
 TASK_TO_OUTPUT_MODEL: Dict[str, Type[BaseModel]] = {}
 
 for t in TEXT_TASKS_RUNNERS:
-    # Let text-generation outputs (including ONNX metadata) pass through raw.
     if t == "text-generation":
         continue
     if t in {"text-classification"}:
         TASK_TO_OUTPUT_MODEL[t] = TextClassificationOutput
     elif t in {"feature-extraction", "embedding"}:
         TASK_TO_OUTPUT_MODEL[t] = EmbeddingOutput
+    elif t == "summarization":
+        TASK_TO_OUTPUT_MODEL[t] = TextGenerationOutput
 
 for t in VISION_GEN_TASKS:
     TASK_TO_OUTPUT_MODEL[t] = VisionGenerationOutput

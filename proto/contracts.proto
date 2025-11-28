@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package hf.inference;
+
+import "google/protobuf/struct.proto";
+
+message ErrorResponse {
+  string code = 1;
+  string message = 2;
+  google.protobuf.Struct details = 3;
+}
+
+message TaskOutputMetadata {
+  string task = 1;
+  int32 runtime_ms_model = 2;
+  string resolved_model_id = 3;
+  string backend = 4;
+}
+
+message InferenceResult {
+  google.protobuf.Struct task_output = 1;
+  google.protobuf.Struct echo = 2;
+  google.protobuf.Struct info = 3;
+  TaskOutputMetadata metadata = 4;
+}
+
+message ModelMeta {
+  string id = 1;
+  string model_id = 2;
+  string author = 3;
+  bool gated = 4;
+  bool private = 5;
+  string last_modified = 6;
+  string created_at = 7;
+  int64 likes = 8;
+  double trending_score = 9;
+  int64 downloads = 10;
+  string pipeline_tag = 11;
+  string library_name = 12;
+  string sha = 13;
+  repeated string tags = 14;
+  google.protobuf.Struct config = 15;
+  google.protobuf.Struct card_data = 16;
+  repeated google.protobuf.Struct siblings = 17;
+  bool fallback = 18;
+}
+
+message ModelSummary {
+  string id = 1;
+  string pipeline_tag = 2;
+  repeated string tags = 3;
+  bool gated = 4;
+  int64 likes = 5;
+  int64 downloads = 6;
+  google.protobuf.Struct card_data = 7;
+}
+
+message InferenceResponsePayload {
+  InferenceResult result = 1;
+  int32 runtime_ms = 2;
+  string model_id = 3;
+  ModelMeta model_meta = 4;
+  ErrorResponse error = 5;
+}
+
+message InferenceErrorPayload {
+  ErrorResponse error = 1;
+}
+
+message StreamingEvent {
+  string type = 1;
+  string version = 2;
+  string correlation_id = 3;
+  string task = 4;
+  string model_id = 5;
+  google.protobuf.Struct payload = 6;
+  google.protobuf.Struct error = 7;
+}

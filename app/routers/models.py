@@ -5,10 +5,12 @@ from fastapi import APIRouter, Query, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from huggingface_hub import HfApi
+from huggingface_hub.utils import HfHubHTTPError
 import logging
+from app.config import HUB_LIST_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT
 
 router = APIRouter(prefix="/api", tags=["models"])
-log = logging.getLogger("uvicorn.error")
+log = logging.getLogger("app.models")
 
 class ModelSummary(BaseModel):
     id: str
@@ -197,12 +199,11 @@ def _persist_enrich_cache_to_disk() -> None:
 
 
 def _fetch_models(limit: int) -> List[ModelSummary]:
-    token = os.getenv("HF_TOKEN")
-    api = HfApi(token=token) if token else HfApi()
+    api = HfApi()
     results: List[ModelSummary] = []
     try:
-        for info in api.list_models(sort="downloads", direction=-1):  # type: ignore
-        # for info in api.list_models(sort="downloads", direction=-1, expand=["gated"]):  # type: ignore
+        iterator = api.list_models(sort="downloads", direction=-1, limit=limit)
+        for info in iterator:
             mid = getattr(info, "modelId", None)
             if not mid:
                 continue
@@ -217,8 +218,8 @@ def _fetch_models(limit: int) -> List[ModelSummary]:
             ))
             if len(results) >= limit:
                 break
-    except Exception as e:  # network or rate-limit errors
-        log.warning(f"Failed to list models from HF Hub: {e}")
+    except HfHubHTTPError as e:  # network or rate-limit errors
+        raise RuntimeError(f"Failed to list models from HF Hub: {e}")
     return results
 
 def _prewarm_cache() -> None:
@@ -334,8 +335,7 @@ def _enrich_single_model(model_id: str) -> ModelMetaLite:
     Uses model_info (no expand) to avoid heavy timeouts; falls back to a
     lightweight list_models search if needed. Designed for small UI batches.
     """
-    token = os.getenv("HF_TOKEN")
-    api = HfApi(token=token) if token else HfApi()
+    api = HfApi()
     try:
         info = api.model_info(model_id)
         gv = getattr(info, "gated", None)
@@ -373,7 +373,7 @@ async def enrich_models(
       re-render.
     """
     global _ENRICH_CACHE, _ENRICH_TS
-    max_batch = int(os.getenv("ENRICH_MODELS_MAX", "128"))
+    max_batch = MODEL_ENRICH_BATCH_LIMIT
     ids = models[:max_batch]
     now = time.time()
 

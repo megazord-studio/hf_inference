@@ -213,7 +213,12 @@ export function RunPanel({ m }: RunPanelProps) {
                 {/* Unified pretty response */}
                 <div className="rounded-md border border-base-300 bg-base-200 p-3">
                   <div className="text-[11px] font-semibold mb-1">Response</div>
-                  {run.streaming ? (
+                  {run.error ? (
+                    <div className="text-error text-[12px]">
+                      <p className="font-mono">{run.error.code}: {run.error.message}</p>
+                      {run.error.details && <pre className="text-[10px] whitespace-pre-wrap">{JSON.stringify(run.error.details, null, 2)}</pre>}
+                    </div>
+                  ) : run.streaming ? (
                     <div className="space-y-2">
                       <div className="text-[11px] font-mono whitespace-pre-wrap leading-relaxed max-h-72 overflow-auto">
                         {run.streamingTokens?.join('') || ''}

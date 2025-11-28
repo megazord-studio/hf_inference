@@ -239,13 +239,17 @@ export function useModelExplorer() {
   const buildInferenceRequest = (): InferenceRequest | null => {
     if (!canRun || !selectedModel) return null;
     const inputs = buildInputs();
+    if (!Object.keys(inputs).length) {
+      return null;
+    }
     return {
       model_id: selectedModel.id,
-      intent_id: runIntent?.id || '',
+      intent_id: runIntent?.id,
       input_type: primaryInputType,
       inputs,
       task: selectedTask || undefined,
-    } as any;
+      options: parseExtraArgs(),
+    };
   };
 
   const runModel = () => {
@@ -286,6 +290,10 @@ export function useModelExplorer() {
     if (!body) return;
     inference.mutate(body, {
       onSuccess: (data) => {
+        if (!data.result) {
+          setRuns(prev => [...prev, newRunFromError(data.error)]);
+          return;
+        }
         const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
         const newRun: RunRecord = {
           id,
@@ -294,10 +302,25 @@ export function useModelExplorer() {
           intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] },
           model: selectedModel,
           inputText: textInput,
-          result: data.result,
+          result: data.result.task_output,
           runtime_ms: data.runtime_ms,
           requestInputs: body.inputs,
           model_meta: data.model_meta,
+          error: data.error,
+        };
+        setRuns(prev => [...prev, newRun]);
+        setSelectedRunId(id);
+      },
+      onError: (err: any) => {
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+        const newRun: RunRecord = {
+          id,
+          createdAt: new Date().toISOString(),
+          inputType: primaryInputType,
+          intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] },
+          model: selectedModel,
+          inputText: textInput,
+          error: err,
         };
         setRuns(prev => [...prev, newRun]);
         setSelectedRunId(id);
@@ -390,6 +413,16 @@ export function useModelExplorer() {
     })();
   }, [visibleModels]);
 
+  const newRunFromError = (err: any): RunRecord => ({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+    createdAt: new Date().toISOString(),
+    inputType: primaryInputType,
+    intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] },
+    model: selectedModel!,
+    inputText: textInput,
+    error: err,
+  });
+
   return {
     // Modality state
     selectedInputModalities, toggleInputModality,
@@ -429,3 +462,4 @@ export function useModelExplorer() {
 }
 
 export type UseModelExplorerReturn = ReturnType<typeof useModelExplorer>;
+

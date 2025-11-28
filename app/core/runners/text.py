@@ -16,6 +16,7 @@ try:
         AutoModelForCausalLM,
         AutoTokenizer,
         AutoModelForSequenceClassification,
+        AutoModelForSeq2SeqLM,
         pipeline,
         TextIteratorStreamer,
     )
@@ -24,7 +25,7 @@ except Exception as e:  # pragma: no cover
     log.warning(f"Transformers or sentence-transformers import failed: {e}")
     torch = None
 
-TEXT_TASKS = {"text-generation", "text-classification", "embedding"}
+TEXT_TASKS = {"text-generation", "text-classification", "embedding", "summarization"}
 
 class TextGenerationRunner(BaseRunner):
     def load(self) -> int:
@@ -115,10 +116,41 @@ class EmbeddingRunner(BaseRunner):
         vec = self.model.encode([text])[0]
         return {"embedding": vec.tolist(), "dim": len(vec)}
 
+class SummarizationRunner(BaseRunner):
+    def load(self) -> int:
+        if torch is None:
+            raise RuntimeError("torch unavailable")
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_id).to(self.device)
+        if hasattr(self.model, "eval"):
+            self.model.eval()
+        return sum(p.numel() for p in self.model.parameters())
+
+    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+        text = inputs.get("text") or ""
+        if not text:
+            return {"summary_text": ""}
+        max_new = int(options.get("max_new_tokens", 60))
+        min_new = int(options.get("min_new_tokens", 10))
+        do_sample = bool(options.get("do_sample", False))
+        temperature = float(options.get("temperature", 1.0))
+        inputs_tok = self.tokenizer(text, return_tensors="pt", truncation=True).to(self.model.device)
+        gen_kwargs = {
+            "max_new_tokens": max_new,
+            "min_new_tokens": min_new,
+            "do_sample": do_sample,
+            "temperature": temperature,
+        }
+        with torch.no_grad():
+            output_ids = self.model.generate(**inputs_tok, **gen_kwargs)
+        summary = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        return {"summary_text": summary.strip(), "generation_kwargs": gen_kwargs}
+
 _TASK_TO_RUNNER: Dict[str, Type[BaseRunner]] = {
     "text-generation": TextGenerationRunner,
     "text-classification": TextClassificationRunner,
     "embedding": EmbeddingRunner,
+    "summarization": SummarizationRunner,
 }
 
 
@@ -129,6 +161,7 @@ __all__ = [
     "TextGenerationRunner",
     "TextClassificationRunner",
     "EmbeddingRunner",
+    "SummarizationRunner",
     "runner_for_task",
     "TEXT_TASKS",
 ]
