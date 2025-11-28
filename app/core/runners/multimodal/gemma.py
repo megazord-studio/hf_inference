@@ -15,6 +15,7 @@ from .tokenizer import get_tokenizer
 from .utils import cap_max_new_tokens
 from .utils import is_cuda
 from .utils import move_to_device
+from .utils import resolve_max_new_tokens
 from .utils import safe_call
 
 log = logging.getLogger("app.runners.multimodal")
@@ -60,14 +61,15 @@ def try_gemma_pipeline(
         log.info("gemma pipeline build failed: %s", e)
         return None
 
-    gen_max = cap_max_new_tokens(int(options.get("max_length", 16)), device)
+    resolved, user_override = resolve_max_new_tokens(options, device, default=16)
+    gen_max = resolved if user_override else cap_max_new_tokens(resolved, device)
     prompt = format_gemma_chat_prompt(question, 1, processor, model_id)
     if not prompt:
         tokenizer = get_tokenizer(processor=processor)
         prompt = ensure_image_tokens(question or "", 1, tokenizer)
 
     try:
-        log.info("gemma: calling pipeline with capped max_new_tokens=%d", gen_max)
+        log.info("gemma: calling pipeline with max_new_tokens=%d (user_override=%s)", gen_max, user_override)
         result_any = pl(
             images=[image],
             text=prompt,
