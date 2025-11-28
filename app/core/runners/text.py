@@ -4,14 +4,19 @@ KISS: minimal dependencies; rely on transformers / sentence-transformers.
 """
 from __future__ import annotations
 import logging
-from typing import Dict, Any, Type
+from typing import Dict, Any, Type, Optional
+import types
+from typing import Any as _AnyType
 
 from .base import BaseRunner
 
 log = logging.getLogger("app.runners.text")
 
+torch: _AnyType | None = None
+
 try:
-    import torch
+    import torch as _torch
+    torch = _torch
     from transformers import (
         AutoModelForCausalLM,
         AutoTokenizer,
@@ -40,13 +45,15 @@ class TextGenerationRunner(BaseRunner):
         return sum(p.numel() for p in self.model.parameters())
 
     def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+        if torch is None:
+            raise RuntimeError("torch unavailable")
         prompt = inputs.get("text") or ""
+        if not prompt:
+            return {"text": ""}
         max_new = int(options.get("max_new_tokens", 50))
         temperature = float(options.get("temperature", 1.0))
         top_p = float(options.get("top_p", 1.0))
         stream = bool(options.get("_stream", False))
-        if not prompt:
-            return {"text": ""}
         gen_kwargs = {
             "max_new_tokens": max_new,
             "do_sample": temperature != 0.0 or top_p < 1.0,
@@ -64,7 +71,7 @@ class TextGenerationRunner(BaseRunner):
             t = threading.Thread(target=_generate)
             t.start()
             # Collect all tokens (blocking) for non-SSE call fallback
-            collected = []
+            collected: list[str] = []
             for piece in streamer:
                 collected.append(piece)
             text = (prompt + ''.join(collected)).strip()
@@ -99,12 +106,15 @@ class EmbeddingRunner(BaseRunner):
             raise RuntimeError("torch unavailable")
         self.model = SentenceTransformer(self.model_id)
         self._loaded = True
-        # Robust param count across sentence-transformers versions
-        base = getattr(self.model, 'auto_model', None) or getattr(self.model, 'model', None)
+        base: Optional[Any] = getattr(self.model, 'auto_model', None) or getattr(self.model, 'model', None)
         if base is None:
             try:
-                # Fallback: aggregate over all modules' parameters
-                return sum(p.numel() for p in self.model._modules.values() if hasattr(p, 'parameters'))
+                total = 0
+                for module in self.model._modules.values():
+                    if hasattr(module, 'parameters'):
+                        for p in module.parameters():
+                            total += p.numel()
+                return total
             except Exception:
                 return 0
         return sum(p.numel() for p in base.parameters())
@@ -120,6 +130,7 @@ class SummarizationRunner(BaseRunner):
     def load(self) -> int:
         if torch is None:
             raise RuntimeError("torch unavailable")
+        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_id).to(self.device)
         if hasattr(self.model, "eval"):
@@ -127,6 +138,8 @@ class SummarizationRunner(BaseRunner):
         return sum(p.numel() for p in self.model.parameters())
 
     def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+        if torch is None:
+            raise RuntimeError("torch unavailable")
         text = inputs.get("text") or ""
         if not text:
             return {"summary_text": ""}
@@ -135,12 +148,7 @@ class SummarizationRunner(BaseRunner):
         do_sample = bool(options.get("do_sample", False))
         temperature = float(options.get("temperature", 1.0))
         inputs_tok = self.tokenizer(text, return_tensors="pt", truncation=True).to(self.model.device)
-        gen_kwargs = {
-            "max_new_tokens": max_new,
-            "min_new_tokens": min_new,
-            "do_sample": do_sample,
-            "temperature": temperature,
-        }
+        gen_kwargs = {"max_new_tokens": max_new, "min_new_tokens": min_new, "do_sample": do_sample, "temperature": temperature}
         with torch.no_grad():
             output_ids = self.model.generate(**inputs_tok, **gen_kwargs)
         summary = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)

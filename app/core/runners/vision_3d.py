@@ -68,7 +68,7 @@ def _build_preview(
 
 
 def _procedural_from_image(img: Image.Image) -> Dict[str, Any]:
-    r, g, b = img.getpixel((0, 0))
+    r, g, b = img.getpixel((0, 0))  # type: ignore
     preview = _build_preview(color=(r, g, b))
     obj_bytes = _build_obj_bytes()
     return _package_obj_bytes(obj_bytes, preview, meta={"vertices": 8, "faces": 6, "backend": "procedural"})
@@ -83,21 +83,17 @@ def _procedural_from_text(prompt: str) -> Dict[str, Any]:
     return _package_obj_bytes(obj_bytes, preview, meta)
 
 
-def _export_obj(vertices: Any, faces: Any) -> bytes:
+def _export_obj(vertices: list[list[float]], faces: list[list[int]]) -> bytes:
     from io import StringIO
     buf = StringIO()
     buf.write(OBJ_HEADER)
-    try:
-        verts_iter = vertices.tolist() if hasattr(vertices, "tolist") else vertices
-    except Exception:
-        verts_iter = vertices
-    try:
-        faces_iter = faces.tolist() if hasattr(faces, "tolist") else faces
-    except Exception:
-        faces_iter = faces
-    for v in verts_iter:
+    for v in vertices:
+        if len(v) < 3:
+            continue
         buf.write(f"v {float(v[0])} {float(v[1])} {float(v[2])}\n")
-    for f in faces_iter:
+    for f in faces:
+        if len(f) < 3:
+            continue
         i, j, k = int(f[0]) + 1, int(f[1]) + 1, int(f[2]) + 1
         buf.write(f"f {i} {j} {k}\n")
     return buf.getvalue().encode("utf-8")
@@ -129,6 +125,7 @@ def _package_3d_output(model_out: Any, fallback_preview: Image.Image | None = No
     if isinstance(model_out, list) and model_out:
         model_out = model_out[0]
     if isinstance(model_out, dict):
+        mesh_path = model_out.get("mesh_file")
         if isinstance(model_out.get("obj_bytes"), (bytes, bytearray)):
             obj_bytes = bytes(model_out["obj_bytes"])
         elif isinstance(model_out.get("obj"), str):
@@ -141,11 +138,35 @@ def _package_3d_output(model_out: Any, fallback_preview: Image.Image | None = No
                     "meta": meta,
                 }
             obj_bytes = s.encode("utf-8")
-        elif isinstance(model_out.get("mesh_file"), str):
-            with open(model_out["mesh_file"], "rb") as f:
-                obj_bytes = f.read()
+        elif isinstance(mesh_path, str):  # guard mesh file access
+            try:
+                with open(mesh_path, "rb") as f:
+                    obj_bytes = f.read()
+            except Exception as e:
+                raise RuntimeError(f"vision_3d: mesh_file read failed: {e}")
         elif "vertices" in model_out and "faces" in model_out:
-            obj_bytes = _export_obj(model_out["vertices"], model_out["faces"])
+            v = model_out["vertices"]
+            f = model_out["faces"]
+            # Normalize potential tensor/ndarray to Python lists
+            try:
+                if hasattr(v, "tolist"):
+                    v = v.tolist()
+                if hasattr(f, "tolist"):
+                    f = f.tolist()
+            except Exception:
+                pass
+            # Ensure concrete list-of-lists with correct element types; guard None/scalars
+            v_base = v if isinstance(v, (list, tuple)) else []
+            f_base = f if isinstance(f, (list, tuple)) else []
+            v_seq: list[list[float]] = []
+            for row in v_base:
+                if isinstance(row, (list, tuple)) and len(row) >= 3:
+                    v_seq.append([float(row[0]), float(row[1]), float(row[2])])
+            f_seq: list[list[int]] = []
+            for row in f_base:
+                if isinstance(row, (list, tuple)) and len(row) >= 3:
+                    f_seq.append([int(row[0]), int(row[1]), int(row[2])])
+            obj_bytes = _export_obj(v_seq, f_seq)
     elif isinstance(model_out, (bytes, bytearray)):
         obj_bytes = bytes(model_out)
     elif isinstance(model_out, str):

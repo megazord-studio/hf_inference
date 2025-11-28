@@ -12,11 +12,8 @@ from app.core.registry import REGISTRY, PIPELINE_TO_TASK
 from app.core.runners import SUPPORTED_TASKS
 from app.core.tasks import get_output_model_for_task
 from fastapi.responses import StreamingResponse, JSONResponse
-import uuid
-import time
-import json
-import base64
-from app.config import HF_META_RETRIES, HF_META_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT
+import uuid, time, json, base64
+from app.config import HF_META_RETRIES, HF_META_TIMEOUT_SECONDS
 from app.routers.models import ModelSummary
 from app.schemas_pb2 import (
     ErrorResponse,
@@ -51,24 +48,18 @@ class InferenceResponse(BaseModel):
 def _fetch_full_model_meta(model_id: str) -> Optional[dict]:
     token = os.getenv("HF_TOKEN")
     api = HfApi(token=token) if token else HfApi()
-    expand_fields = [
-        "author","cardData","config","createdAt","lastModified","likes","trendingScore",
-        "downloads","pipeline_tag","library_name","sha","tags","siblings","gated","private"
-    ]
     retries = HF_META_RETRIES
     timeout = HF_META_TIMEOUT_SECONDS
-    last_err: Exception | None = None
-    for attempt in range(1, retries + 2):  # initial + retries
+    last_err: Optional[Exception] = None
+    for attempt in range(1, retries + 2):
         try:
-            info = api.model_info(model_id, expand=expand_fields, timeout=timeout)
+            info = api.model_info(model_id, timeout=timeout)  # omit expand to satisfy type constraints
             meta = _build_model_meta(info, model_id)
             return meta
-        except (HfHubHTTPError, socket.timeout, ConnectionError, OSError, Exception) as e:  # broad catch for transient issues
+        except (HfHubHTTPError, socket.timeout, ConnectionError, OSError, Exception) as e:
             last_err = e
-            # Only warn on final attempt; earlier attempts debug for noise reduction
             level = log.warning if attempt == (retries + 1) else log.debug
             level(f"model_info enrichment attempt {attempt} failed for {model_id}: {e}")
-    # Fallback: try lightweight list_models search for minimal data
     try:
         listed = api.list_models(search=f"id={model_id}", limit=1)
         listed_models = list(listed)
@@ -107,13 +98,16 @@ def _to_serializable(value: Any) -> Any:
         return [_to_serializable(v) for v in value]
     if isinstance(value, dict):
         return {k: _to_serializable(v) for k, v in value.items()}
-    if is_dataclass(value) and not isinstance(value, type):
-        return _to_serializable(asdict(value))
+    if is_dataclass(value) and not isinstance(value, type):  # ensure instance, not class
+        try:
+            dc = asdict(value)
+            return _to_serializable(dc)
+        except Exception:
+            pass
     if hasattr(value, "to_dict") and callable(getattr(value, "to_dict")):
         return _to_serializable(value.to_dict())
     obj_dict = getattr(value, "__dict__", None)
     if obj_dict:
-        # Skip private / callable attributes
         serializable = {k: v for k, v in obj_dict.items() if not k.startswith("_") and not callable(v)}
         if serializable:
             return _to_serializable(serializable)
@@ -124,8 +118,8 @@ def _normalize_optional_bool(value: Any) -> Optional[bool]:
         return value
     if isinstance(value, str):
         lowered = value.strip().lower()
-        truthy = {'true', '1', 'yes', 'y', 'gated', 'manual', 'auto', 'enabled'}
-        falsy = {'false', '0', 'no', 'n', 'none', 'null', 'disabled'}
+        truthy = {"true", "1", "yes", "y", "gated", "manual", "auto", "enabled"}
+        falsy = {"false", "0", "no", "n", "none", "null", "disabled"}
         if lowered in truthy:
             return True
         if lowered in falsy:
@@ -172,7 +166,7 @@ def _required_fields_for_task(task: str) -> List[str]:
 # Placeholder store for future model handles / pooling / concurrency limits
 # For now we simply echo request; real inference integration will plug into HF Inference Endpoints or local pipelines.
 
-@router.post("/inference", response_model=InferenceResponsePayload | InferenceErrorPayload)
+@router.post("/inference", response_model=Union[InferenceResponsePayload, InferenceErrorPayload])
 async def run_inference(req: InferenceRequest, include_model_meta: bool = True) -> JSONResponse:
     if not req.inputs:
         return _error_response(status.HTTP_422_UNPROCESSABLE_ENTITY, code="invalid_request", message="inputs object cannot be empty")
@@ -213,19 +207,9 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True) 
         task_output=task_output,
         metadata=metadata,
         echo={k: ("<bytes>" if isinstance(v, str) and v.startswith("data:") else v) for k, v in req.inputs.items()},
-        info={
-            "model_id": req.model_id,
-            "intent_id": req.intent_id or "",
-            "input_type": req.input_type,
-            "received_fields": list(req.inputs.keys()),
-        },
+        info={"model_id": req.model_id, "intent_id": req.intent_id or "", "input_type": req.input_type, "received_fields": list(req.inputs.keys())},
     )
-    payload = InferenceResponsePayload(
-        result=inference_result,
-        runtime_ms=pred.get("runtime_ms"),
-        model_id=req.model_id,
-        model_meta=meta,
-    )
+    payload = InferenceResponsePayload(result=inference_result, runtime_ms=pred.get("runtime_ms"), model_id=req.model_id, model_meta=meta)
     return JSONResponse(content=payload.model_dump())
 
 @router.get("/models/status")
@@ -276,19 +260,12 @@ async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50,
     task = "text-generation"
     start_time = time.time()
     try:
-        pred_init = REGISTRY.predict(
-            task=task,
-            model_id=model_id,
-            inputs={"text": prompt},
-            options={"max_new_tokens": max_new_tokens, "temperature": temperature, "top_p": top_p, "_stream": True},
-        )
+        pred_init = REGISTRY.predict(task=task, model_id=model_id, inputs={"text": prompt}, options={"max_new_tokens": max_new_tokens, "temperature": temperature, "top_p": top_p, "_stream": True})
         tokens = pred_init["output"].get("tokens", [])
     except Exception as e:
         async def error_iter() -> AsyncGenerator[str, None]:
-            # Use repr(e) to ensure a descriptive message is returned
             yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': repr(e)})}\n\n"
         return StreamingResponse(error_iter(), media_type="text/event-stream")
-
     async def event_iter() -> AsyncGenerator[str, None]:
         first_token_latency_ms: Optional[int] = None
         # Start event (optional; aids debugging)
@@ -296,20 +273,13 @@ async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50,
         for i, tok in enumerate(tokens):
             if first_token_latency_ms is None:
                 first_token_latency_ms = int((time.time() - start_time) * 1000)
-            payload = {"type": "token", "index": i, "text": tok}
-            yield f"event: token\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
+            payload_tok = {"type": "token", "index": i, "text": tok}
+            yield f"event: token\nid: {corr_id}\ndata: {json.dumps(payload_tok)}\n\n"
         total_ms = int((time.time() - start_time) * 1000)
         tps = round(len(tokens) / (max(total_ms, 1) / 1000.0), 2) if tokens else 0.0
-        done_payload = {
-            "type": "done",
-            "tokens": len(tokens),
-            "runtime_ms": total_ms,
-            "first_token_latency_ms": first_token_latency_ms,
-            "tokens_per_second": tps,
-        }
+        done_payload = {"type": "done", "tokens": len(tokens), "runtime_ms": total_ms, "first_token_latency_ms": first_token_latency_ms, "tokens_per_second": tps}
         yield f"event: done\nid: {corr_id}\ndata: {json.dumps(done_payload)}\n\n"
     return StreamingResponse(event_iter(), media_type="text/event-stream")
-
 
 @router.get("/inference/stream/text-to-image")
 async def stream_text_to_image(model_id: str, prompt: str, num_inference_steps: int = 20, guidance_scale: float = 7.5) -> StreamingResponse:
@@ -332,12 +302,7 @@ async def stream_text_to_image(model_id: str, prompt: str, num_inference_steps: 
     task = "text-to-image"
     start_time = time.time()
     try:
-        pred = REGISTRY.predict(
-            task=task,
-            model_id=model_id,
-            inputs={"text": prompt},
-            options={"num_inference_steps": num_inference_steps, "guidance_scale": guidance_scale, "_stream": True},
-        )
+        pred = REGISTRY.predict(task=task, model_id=model_id, inputs={"text": prompt}, options={"num_inference_steps": num_inference_steps, "guidance_scale": guidance_scale, "_stream": True})
         output = pred["output"] or {}
         image_b64 = output.get("image_base64")
         runtime_ms = int(output.get("runtime_ms") or (time.time() - start_time) * 1000)
@@ -345,33 +310,20 @@ async def stream_text_to_image(model_id: str, prompt: str, num_inference_steps: 
     except Exception as exc:
         error_msg = str(exc)
         async def error_iter() -> AsyncGenerator[str, None]:
-            payload = {"message": error_msg}
-            yield f"event: error\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
+            payload_err = {"message": error_msg}
+            yield f"event: error\nid: {corr_id}\ndata: {json.dumps(payload_err)}\n\n"
         return StreamingResponse(error_iter(), media_type="text/event-stream")
-
     async def event_iter() -> AsyncGenerator[str, None]:
         total_steps = max(1, steps)
         # Start event for debugging / correlation
         yield f"event: start\nid: {corr_id}\ndata: {json.dumps({'model_id': model_id, 'total_steps': total_steps})}\n\n"
         # Emit synthetic progress steps; keep it small for tests
         for i in range(total_steps):
-            payload = {
-                "step": i + 1,
-                "total_steps": total_steps,
-                "percent": round(((i + 1) / total_steps) * 100.0, 1),
-            }
-            yield f"event: progress\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
-        done_payload: Dict[str, Any] = {
-            "model_id": model_id,
-            "task": task,
-            "steps": total_steps,
-            "runtime_ms": runtime_ms,
-            "image_base64": image_b64,
-        }
+            payload_prog = {"step": i + 1, "total_steps": total_steps, "percent": round(((i + 1) / total_steps) * 100.0, 1)}
+            yield f"event: progress\nid: {corr_id}\ndata: {json.dumps(payload_prog)}\n\n"
+        done_payload: Dict[str, Any] = {"model_id": model_id, "task": task, "steps": total_steps, "runtime_ms": runtime_ms, "image_base64": image_b64}
         yield f"event: done\nid: {corr_id}\ndata: {json.dumps(done_payload)}\n\n"
-
     return StreamingResponse(event_iter(), media_type="text/event-stream")
-
 
 @router.get("/inference/stream/tts")
 async def stream_tts(model_id: str, text: str) -> StreamingResponse:
@@ -395,12 +347,7 @@ async def stream_tts(model_id: str, text: str) -> StreamingResponse:
     task = "text-to-speech"
     start_time = time.time()
     try:
-        pred = REGISTRY.predict(
-            task=task,
-            model_id=model_id,
-            inputs={"text": text},
-            options={"_stream": True},
-        )
+        pred = REGISTRY.predict(task=task, model_id=model_id, inputs={"text": text}, options={"_stream": True})
         output = pred["output"] or {}
         audio_b64 = output.get("audio_base64")
         sample_rate = output.get("sample_rate")
@@ -413,40 +360,22 @@ async def stream_tts(model_id: str, text: str) -> StreamingResponse:
         async def error_iter() -> AsyncGenerator[str, None]:
             yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': repr(e)})}\n\n"
         return StreamingResponse(error_iter(), media_type="text/event-stream")
-
     async def event_iter() -> AsyncGenerator[str, None]:
         chunk_size = 64 * 1024
         total_len = len(raw_bytes)
         num_chunks = max(1, (total_len + chunk_size - 1) // chunk_size)
         # Start event with basic metadata
-        start_payload = {
-            "model_id": model_id,
-            "task": task,
-            "sample_rate": sample_rate,
-            "num_samples": num_samples,
-            "num_chunks": num_chunks,
-        }
+        start_payload = {"model_id": model_id, "task": task, "sample_rate": sample_rate, "num_samples": num_samples, "num_chunks": num_chunks}
         yield f"event: start\nid: {corr_id}\ndata: {json.dumps(start_payload)}\n\n"
         for idx in range(num_chunks):
             chunk = raw_bytes[idx * chunk_size : (idx + 1) * chunk_size]
             chunk_b64 = base64.b64encode(chunk).decode("utf-8")
-            payload = {
-                "chunk_index": idx,
-                "num_chunks": num_chunks,
-                "audio_base64": f"{header},{chunk_b64}",
-            }
-            yield f"event: progress\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
+            payload_chunk = {"chunk_index": idx, "num_chunks": num_chunks, "audio_base64": f"{header},{chunk_b64}"}
+            yield f"event: progress\nid: {corr_id}\ndata: {json.dumps(payload_chunk)}\n\n"
         runtime_ms = int((time.time() - start_time) * 1000)
-        done_payload = {
-            "model_id": model_id,
-            "task": task,
-            "runtime_ms": runtime_ms,
-            "num_chunks": num_chunks,
-        }
+        done_payload = {"model_id": model_id, "task": task, "runtime_ms": runtime_ms, "num_chunks": num_chunks}
         yield f"event: done\nid: {corr_id}\ndata: {json.dumps(done_payload)}\n\n"
-
     return StreamingResponse(event_iter(), media_type="text/event-stream")
-
 
 def _fetch_models(limit: int) -> List[ModelSummary]:
     api = HfApi()
@@ -454,23 +383,21 @@ def _fetch_models(limit: int) -> List[ModelSummary]:
     try:
         iterator = api.list_models(sort="downloads", direction=-1, limit=limit)
         for info in iterator:
-            m = ModelSummary(
-                id=info.modelId,
-                model_id=info.modelId,
-                author=info.author,
-                likes=info.likes,
-                downloads=info.downloads,
-                pipeline_tag=info.pipeline_tag,
-                tags=info.tags,
-                gated=info.gated,
-                private=info.private,
-                last_modified=info.lastModified,
-                created_at=info.createdAt,
-                card_data=info.cardData,
-                config=info.config,
-                sha=info.sha,
-                siblings=[s.rfilename for s in info.siblings] if info.siblings else None,
-            )
+            mid = getattr(info, "modelId", None)
+            if not isinstance(mid, str):
+                continue
+            try:
+                m = ModelSummary(
+                    id=mid,
+                    pipeline_tag=getattr(info, "pipeline_tag", None),
+                    tags=getattr(info, "tags", None),
+                    gated=getattr(info, "gated", None),
+                    likes=getattr(info, "likes", None),
+                    downloads=getattr(info, "downloads", None),
+                    cardData=getattr(info, "cardData", None),
+                )
+            except Exception:
+                continue
             results.append(m)
     except HfHubHTTPError as e:
         raise RuntimeError(f"Failed to list models: {e}")

@@ -6,7 +6,7 @@ is constructed at load time and lives entirely in RAM.
 """
 from __future__ import annotations
 
-from typing import Dict, Any, Type, Set, List
+from typing import Dict, Any, Type, Set, List, Optional
 import logging
 
 import torch
@@ -21,17 +21,15 @@ RETRIEVAL_TASKS: Set[str] = {"visual-document-retrieval"}
 
 
 class VisualDocumentRetrievalRunner(BaseRunner):
-    """Visual document retrieval over an in-memory corpus.
+    """Visual document retrieval over an in-memory corpus."""
 
-    Two modes are supported based on the HF model_id:
-    - If the model is CLIP-compatible (CLIPModel + CLIPImageProcessor), we use
-      get_image_features + a random in-memory corpus to rank docs.
-    - If the model is a zero-shot image classification model, we treat its
-      class labels as the in-memory "documents" and use its predicted scores
-      as retrieval scores.
-
-    If neither mode applies, load() fails with a clear RuntimeError.
-    """
+    # Attribute annotations for mypy clarity
+    processor: Any
+    model: Any
+    corpus_emb: Optional[torch.Tensor]
+    _mode: str
+    doc_ids: List[str]
+    num_docs: int
 
     def load(self) -> int:
         model_id = self.model_id
@@ -70,7 +68,11 @@ class VisualDocumentRetrievalRunner(BaseRunner):
             # Build a tiny in-memory corpus: random unit vectors representing docs.
             self.num_docs = 5
             try:
-                hidden = int(self.model.visual_projection.out_features)
+                # Use getattr to avoid mypy accessing attribute on a union type without narrowing
+                visual_proj = getattr(self.model, "visual_projection", None)
+                if visual_proj is None or not hasattr(visual_proj, "out_features"):
+                    raise RuntimeError("visual_document_retrieval_missing_projection")
+                hidden = int(getattr(visual_proj, "out_features"))
             except Exception as e:
                 raise RuntimeError(f"visual_document_retrieval_missing_projection:{e}") from e
 
@@ -93,6 +95,7 @@ class VisualDocumentRetrievalRunner(BaseRunner):
             id2label = self.model.config.id2label
             self.doc_ids = [id2label[i] for i in sorted(id2label.keys())]
             self.num_docs = len(self.doc_ids)
+            self.corpus_emb = None  # not used in classification mode
 
         self._backend = "hf-visual-retrieval"
         self._loaded = True
@@ -100,9 +103,10 @@ class VisualDocumentRetrievalRunner(BaseRunner):
 
     def _encode_image_clip(self, image: Image.Image) -> torch.Tensor:
         enc = self.processor(images=image, return_tensors="pt")
-        enc = {k: (v.to(self.model.device) if hasattr(v, "to") else v) for k, v in enc.items()}
+        # enc is BatchFeature (dict-like); cast to dict of tensors for mypy by comprehension
+        enc_dict = {k: (v.to(self.model.device) if hasattr(v, "to") else v) for k, v in enc.items()}
         with torch.no_grad():
-            out = self.model.get_image_features(**enc)
+            out = self.model.get_image_features(**enc_dict)
         emb = torch.nn.functional.normalize(out, dim=-1)
         return emb[0]
 
@@ -110,9 +114,9 @@ class VisualDocumentRetrievalRunner(BaseRunner):
         from torch.nn.functional import softmax
 
         enc = self.processor(images=image, return_tensors="pt")
-        enc = {k: (v.to(self.model.device) if hasattr(v, "to") else v) for k, v in enc.items()}
+        enc_dict = {k: (v.to(self.model.device) if hasattr(v, "to") else v) for k, v in enc.items()}
         with torch.no_grad():
-            out = self.model(**enc)
+            out = self.model(**enc_dict)
         logits = out.logits[0]
         return softmax(logits, dim=-1)
 
@@ -127,6 +131,8 @@ class VisualDocumentRetrievalRunner(BaseRunner):
         k = max(1, min(k, self.num_docs))
 
         if getattr(self, "_mode", None) == "clip":
+            if self.corpus_emb is None:
+                raise RuntimeError("visual_document_retrieval_corpus_missing")
             q = self._encode_image_clip(image)  # (D,)
             sims = torch.matmul(self.corpus_emb, q)  # (N,)
             values, indices = torch.topk(sims, k)
@@ -134,7 +140,7 @@ class VisualDocumentRetrievalRunner(BaseRunner):
             scores = self._scores_zshot_cls(image)  # (num_labels,)
             values, indices = torch.topk(scores, k)
 
-        results = []
+        results: List[Dict[str, Any]] = []
         for score, idx in zip(values.tolist(), indices.tolist()):
             doc_id = self.doc_ids[int(idx)]
             results.append({"doc_id": doc_id, "score": float(score)})

@@ -4,16 +4,19 @@ from __future__ import annotations
 import base64
 import io
 import logging
-from typing import Any
+from typing import Any, Tuple
 
 try:
     import soundfile as sf
-except Exception:
+except Exception:  # pragma: no cover
     sf = None
 
+# Single definition of np to avoid redefinition warning
+np: Any
 try:
-    import numpy as np
-except Exception:
+    import numpy as _np
+    np = _np
+except Exception:  # pragma: no cover
     np = None
 
 log = logging.getLogger("app.runners.audio")
@@ -26,14 +29,20 @@ def decode_base64_audio(b64: str) -> io.BytesIO:
     return io.BytesIO(audio_bytes)
 
 
-def resample_audio(audio: Any, sr: int, target_sr: int) -> tuple:
-    """Resample audio to target sample rate using linear interpolation."""
+def resample_audio(audio: Any, sr: int, target_sr: int) -> Tuple[Any, int]:
+    """Resample audio to target sample rate using linear interpolation.
+
+    Returns (audio_data, sample_rate). If numpy is unavailable or parameters are
+    invalid, returns original audio unchanged.
+    """
     if target_sr is None or sr == target_sr or sr <= 0:
+        return audio, sr
+    if np is None:  # numpy unavailable
         return audio, sr
 
     ratio = target_sr / sr
-    new_len = int(len(audio) * ratio)
-    if new_len < 2 or new_len >= 10000000:
+    new_len = int(len(audio) * ratio) if hasattr(audio, "__len__") else 0
+    if new_len < 2 or new_len >= 10_000_000:
         return audio, sr
 
     try:
@@ -47,11 +56,16 @@ def resample_audio(audio: Any, sr: int, target_sr: int) -> tuple:
 
 
 def normalize_audio(data: Any) -> Any:
-    """Normalize audio to mono float32."""
+    """Normalize audio to mono float32. If numpy unavailable, return input as-is."""
+    if np is None:
+        return data
     if not isinstance(data, np.ndarray):
-        data = np.array(data)
+        try:
+            data = np.array(data)
+        except Exception:
+            return data
 
-    # Convert to mono
+    # Convert to mono heuristics
     if hasattr(data, "ndim") and data.ndim == 2:
         if data.shape[0] <= 8 and data.shape[0] <= data.shape[1]:
             data = data[0]
@@ -63,15 +77,15 @@ def normalize_audio(data: Any) -> Any:
         data = data.reshape(-1)
 
     # Convert to float
-    if not np.issubdtype(data.dtype, np.floating):
+    if hasattr(data, "dtype") and not np.issubdtype(data.dtype, np.floating):
         data = data.astype(np.float32)
 
     return data
 
 
 def get_target_sample_rate(processor: Any) -> int:
-    """Get target sample rate from processor."""
+    """Get target sample rate from processor or fallback to 16000."""
     target_sr = getattr(processor, "sampling_rate", None)
     if target_sr is None and hasattr(processor, "feature_extractor"):
         target_sr = getattr(processor.feature_extractor, "sampling_rate", None)
-    return target_sr if target_sr is not None else 16000
+    return int(target_sr) if target_sr is not None else 16000
