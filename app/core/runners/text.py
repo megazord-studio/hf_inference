@@ -15,7 +15,6 @@ try:
     from transformers import (
         AutoModelForCausalLM,
         AutoTokenizer,
-        AutoModelForSequenceClassification,
         AutoModelForSeq2SeqLM,
         pipeline,
         TextIteratorStreamer,
@@ -40,7 +39,7 @@ class TextGenerationRunner(BaseRunner):
             self.model.eval()
         return sum(p.numel() for p in self.model.parameters())
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         prompt = inputs.get("text") or ""
         max_new = int(options.get("max_new_tokens", 50))
         temperature = float(options.get("temperature", 1.0))
@@ -58,7 +57,8 @@ class TextGenerationRunner(BaseRunner):
         if stream and 'TextIteratorStreamer' in globals():  # streaming path
             streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
             import threading
-            def _generate():
+
+            def _generate() -> None:
                 with torch.no_grad():
                     self.model.generate(input_ids, streamer=streamer, **gen_kwargs)
             t = threading.Thread(target=_generate)
@@ -85,7 +85,7 @@ class TextClassificationRunner(BaseRunner):
         m = self.pipe.model
         return sum(p.numel() for p in m.parameters())
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         text = inputs.get("text") or ""
         if not text:
             return {"labels": []}
@@ -104,12 +104,12 @@ class EmbeddingRunner(BaseRunner):
         if base is None:
             try:
                 # Fallback: aggregate over all modules' parameters
-                return sum(p.numel() for p in self.model._modules.values() if hasattr(p, 'parameters'))  # type: ignore[attr-defined]
+                return sum(p.numel() for p in self.model._modules.values() if hasattr(p, 'parameters'))
             except Exception:
                 return 0
         return sum(p.numel() for p in base.parameters())
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         text = inputs.get("text") or ""
         if not text:
             return {"embedding": []}
@@ -126,7 +126,7 @@ class SummarizationRunner(BaseRunner):
             self.model.eval()
         return sum(p.numel() for p in self.model.parameters())
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         text = inputs.get("text") or ""
         if not text:
             return {"summary_text": ""}

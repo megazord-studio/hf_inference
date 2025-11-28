@@ -117,17 +117,19 @@ class DepthEstimationRunner(BaseRunner):
 class _DummyProcessor:
     """Dummy processor for fallback."""
 
-    def __call__(self, images, return_tensors="pt"):
+    def __call__(self, images: Any, return_tensors: str = "pt") -> Dict[str, Any]:
+        _ = return_tensors  # unused but matches expected signature
+        _ = images
         return {"pixel_values": torch.randn(1, 3, 32, 32)}
 
 
 class _DummyDepthModel(torch.nn.Module):
     """Dummy depth model for fallback."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.device = torch.device("cpu")
 
-    def forward(self, pixel_values):
+    def forward(self, pixel_values: torch.Tensor) -> Any:
         predicted_depth = torch.rand(1, 1, 32, 32)
         return type("Out", (), {"predicted_depth": predicted_depth})()

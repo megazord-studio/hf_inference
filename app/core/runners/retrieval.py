@@ -33,7 +33,7 @@ class VisualDocumentRetrievalRunner(BaseRunner):
     If neither mode applies, load() fails with a clear RuntimeError.
     """
 
-    def load(self) -> int:  # type: ignore[override]
+    def load(self) -> int:
         model_id = self.model_id
         if not model_id:
             raise RuntimeError("visual_document_retrieval_missing_model_id")
@@ -116,7 +116,7 @@ class VisualDocumentRetrievalRunner(BaseRunner):
         logits = out.logits[0]
         return softmax(logits, dim=-1)
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore[override]
+    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
         img_b64 = inputs.get("image_base64")
         if not isinstance(img_b64, str) or not img_b64.strip():
             raise RuntimeError("visual_document_retrieval_missing_image")

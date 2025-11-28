@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from huggingface_hub import HfApi
 from huggingface_hub.utils import HfHubHTTPError
 import logging
-from app.config import HUB_LIST_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT, HUB_LIST_LIMIT
+from app.config import MODEL_ENRICH_BATCH_LIMIT, HUB_LIST_LIMIT
 
 router = APIRouter(prefix="/api", tags=["models"])
 log = logging.getLogger("app.models")
@@ -355,7 +355,7 @@ def _enrich_single_model(model_id: str) -> ModelMetaLite:
         )
     except Exception:
         try:
-            for m in api.list_models(search=f"id={model_id}", limit=1):  # type: ignore
+            for m in api.list_models(search=f"id={model_id}", limit=1):
                 gv = getattr(m, "gated", None)
                 return ModelMetaLite(
                     id=model_id,

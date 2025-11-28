@@ -125,21 +125,23 @@ class ObjectDetectionRunner(BaseRunner):
 class _DummyProcessor:
     """Dummy processor for when real processor unavailable."""
 
-    def __call__(self, images, return_tensors="pt"):
+    def __call__(self, images: Any, return_tensors: str = "pt") -> torch.Tensor:
+        _ = return_tensors  # unused but matches expected signature
+        _ = images
         return torch.randn(1, 3, 8, 8)
 
 
 class _DummyDetectionModel(torch.nn.Module):
     """Dummy detection model for fallback."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.config = type(
             "Cfg", (), {"id2label": {0: "person", 1: "car", 2: "tree", 3: "chair"}}
         )()
         self.device = torch.device("cpu")
 
-    def forward(self, pixel_values):
+    def forward(self, pixel_values: torch.Tensor) -> Any:
         logits = torch.randn(1, 5, len(self.config.id2label))
         pred_boxes = torch.rand(1, 5, 4)
         return type("Out", (), {"logits": logits, "pred_boxes": pred_boxes})()

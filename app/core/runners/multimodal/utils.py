@@ -97,6 +97,8 @@ def resolve_max_new_tokens(
         if key not in opts:
             continue
         value = opts.get(key)
+        if value is None:
+            continue
         try:
             parsed = int(value)
         except (TypeError, ValueError):
@@ -111,7 +113,7 @@ def resolve_max_new_tokens(
     return max(1, fallback), False
 
 
-def safe_call(fn, error_msg: Optional[str] = None):
+def safe_call(fn: Any, error_msg: Optional[str] = None) -> Any:
     """Execute a function safely, returning None on error."""
     try:
         return fn()

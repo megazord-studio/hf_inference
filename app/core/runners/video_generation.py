@@ -219,19 +219,18 @@ def _make_dummy_frames_from_image(
 class TextToVideoRunner(BaseRunner):
     """Text-to-video using SD text-to-image or text-to-video pipeline."""
 
-    def load(self) -> int:  # type: ignore[override]
+    def load(self) -> int:
         log.info("video_generation: get_or_create_sd_pipeline(text) model_id=%s (may download)", self.model_id)
         shared = get_or_create_sd_pipeline(self.model_id, self.device, mode="text")
         self.pipe = shared.get("pipe_text")
         if not self.pipe:
             raise RuntimeError("text_to_video_init_failed")
-        self._backend = "sd-text-to-video"
         self._loaded = True
         return sum(p.numel() for p in self.pipe.unet.parameters()) if hasattr(self.pipe, "unet") else 0
 
     def predict(
         self, inputs: Dict[str, Any], options: Dict[str, Any]
-    ) -> Dict[str, Any]:  # type: ignore[override]
+    ) -> Dict[str, Any]:
         if not getattr(self, "pipe", None):
             raise RuntimeError("text_to_video_pipeline_unavailable")
 
@@ -285,19 +284,18 @@ class TextToVideoRunner(BaseRunner):
 class ImageToVideoRunner(BaseRunner):
     """Image-to-video using SD img2img or img2video pipeline."""
 
-    def load(self) -> int:  # type: ignore[override]
+    def load(self) -> int:
         log.info("video_generation: get_or_create_sd_pipeline(img2img) model_id=%s (may download)", self.model_id)
         shared = get_or_create_sd_pipeline(self.model_id, self.device, mode="img2img")
         self.pipe = shared.get("pipe_img2img")
         if not self.pipe:
             raise RuntimeError(f"image_to_video_init_failed:{self.model_id}")
-        self._backend = "sd-image-to-video"
         self._loaded = True
         return sum(p.numel() for p in self.pipe.unet.parameters()) if hasattr(self.pipe, "unet") else 0
 
     def predict(
         self, inputs: Dict[str, Any], options: Dict[str, Any]
-    ) -> Dict[str, Any]:  # type: ignore[override]
+    ) -> Dict[str, Any]:
         if not getattr(self, "pipe", None):
             raise RuntimeError("image_to_video_pipeline_unavailable")
 

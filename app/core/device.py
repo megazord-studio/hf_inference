@@ -15,7 +15,7 @@ image-to-video, image-to-3d, text-to-3d, video-generation.
 from __future__ import annotations
 import os
 import logging
-from typing import Optional, Dict, Set
+from typing import Any, Optional, Dict, Set
 from app.config import DEVICE_FORCE, DEVICE_MAX_GPU_MEM_GB
 
 log = logging.getLogger("app.device")
@@ -35,12 +35,12 @@ _try_torch_done = False
 _torch = None  # lazy torch import reference
 
 
-def _lazy_import_torch():
+def _lazy_import_torch() -> Any:
     global _try_torch_done, _torch
     if _try_torch_done:
         return _torch
     try:
-        import torch  # type: ignore
+        import torch
         _torch = torch
     except Exception as e:  # ImportError or other
         log.warning(f"Torch not available: {e}")
@@ -65,14 +65,14 @@ def device_capabilities() -> Dict[str, Optional[object]]:
     if torch.cuda.is_available():
         caps["cuda"] = True
         try:
-            props = torch.cuda.get_device_properties(0)  # type: ignore
+            props = torch.cuda.get_device_properties(0)
             caps["gpu_name"] = props.name
             caps["memory_gb"] = round(props.total_memory / (1024**3), 2)
         except Exception as e:
             log.debug(f"Could not read CUDA properties: {e}")
     # MPS check (Apple Silicon)
     try:
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():  # type: ignore
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             caps["mps"] = True
             if not caps.get("gpu_name"):
                 caps["gpu_name"] = "Apple MPS"
@@ -91,7 +91,7 @@ def select_device(prefer: str = "auto") -> Optional[object]:
     prefer = prefer.lower()
     if prefer == "cuda" and torch.cuda.is_available():
         return torch.device("cuda:0")
-    if prefer == "mps" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():  # type: ignore
+    if prefer == "mps" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
     if prefer == "cpu":
         return torch.device("cpu")
@@ -99,7 +99,7 @@ def select_device(prefer: str = "auto") -> Optional[object]:
     if prefer == "auto":
         if torch.cuda.is_available():
             return torch.device("cuda:0")
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():  # type: ignore
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             return torch.device("mps")
         return torch.device("cpu")
     # unknown prefer -> fallback auto

@@ -8,9 +8,7 @@ These tests verify that:
 """
 import json
 import os
-import tempfile
 import time
-from unittest.mock import patch
 
 import pytest
 

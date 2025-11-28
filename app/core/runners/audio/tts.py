@@ -170,6 +170,9 @@ class TextToSpeechRunner(BaseRunner):
         speaker = options.get("speaker")
         language = options.get("language")
 
+        if self.tts is None:
+            raise RuntimeError("Coqui TTS model not loaded")
+
         try:
             wav = self.tts.tts(text, speaker=speaker, language=language)
         except Exception as e:

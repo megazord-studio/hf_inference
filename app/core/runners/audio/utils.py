@@ -74,4 +74,4 @@ def get_target_sample_rate(processor: Any) -> int:
     target_sr = getattr(processor, "sampling_rate", None)
     if target_sr is None and hasattr(processor, "feature_extractor"):
         target_sr = getattr(processor.feature_extractor, "sampling_rate", None)
-    return target_sr
+    return target_sr if target_sr is not None else 16000

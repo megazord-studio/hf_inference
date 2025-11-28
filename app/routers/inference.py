@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 from dataclasses import asdict, is_dataclass
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -18,7 +18,6 @@ import json
 import base64
 from app.config import HF_META_RETRIES, HF_META_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT
 from app.routers.models import ModelSummary
-from collections.abc import Iterable
 from app.schemas_pb2 import (
     ErrorResponse,
     InferenceErrorPayload,
@@ -108,7 +107,7 @@ def _to_serializable(value: Any) -> Any:
         return [_to_serializable(v) for v in value]
     if isinstance(value, dict):
         return {k: _to_serializable(v) for k, v in value.items()}
-    if is_dataclass(value):
+    if is_dataclass(value) and not isinstance(value, type):
         return _to_serializable(asdict(value))
     if hasattr(value, "to_dict") and callable(getattr(value, "to_dict")):
         return _to_serializable(value.to_dict())
@@ -133,7 +132,7 @@ def _normalize_optional_bool(value: Any) -> Optional[bool]:
             return False
     return None
 
-def _build_model_meta(info, model_id):
+def _build_model_meta(info: Any, model_id: str) -> Dict[str, Any]:
     meta = {
         "id": getattr(info, "modelId", None) or model_id,
         "model_id": getattr(info, "modelId", None),
@@ -285,12 +284,12 @@ async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50,
         )
         tokens = pred_init["output"].get("tokens", [])
     except Exception as e:
-        async def error_iter():
+        async def error_iter() -> AsyncGenerator[str, None]:
             # Use repr(e) to ensure a descriptive message is returned
             yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': repr(e)})}\n\n"
         return StreamingResponse(error_iter(), media_type="text/event-stream")
 
-    async def event_iter():
+    async def event_iter() -> AsyncGenerator[str, None]:
         first_token_latency_ms: Optional[int] = None
         # Start event (optional; aids debugging)
         yield f"event: start\nid: {corr_id}\ndata: {json.dumps({'model_id': model_id, 'token_count_planned': len(tokens)})}\n\n"
@@ -345,12 +344,12 @@ async def stream_text_to_image(model_id: str, prompt: str, num_inference_steps: 
         steps = int(output.get("num_inference_steps") or num_inference_steps)
     except Exception as exc:
         error_msg = str(exc)
-        async def error_iter():
+        async def error_iter() -> AsyncGenerator[str, None]:
             payload = {"message": error_msg}
             yield f"event: error\nid: {corr_id}\ndata: {json.dumps(payload)}\n\n"
         return StreamingResponse(error_iter(), media_type="text/event-stream")
 
-    async def event_iter():
+    async def event_iter() -> AsyncGenerator[str, None]:
         total_steps = max(1, steps)
         # Start event for debugging / correlation
         yield f"event: start\nid: {corr_id}\ndata: {json.dumps({'model_id': model_id, 'total_steps': total_steps})}\n\n"
@@ -411,11 +410,11 @@ async def stream_tts(model_id: str, text: str) -> StreamingResponse:
         header, data = audio_b64.split(",", 1)
         raw_bytes = base64.b64decode(data)
     except Exception as e:
-        async def error_iter():
+        async def error_iter() -> AsyncGenerator[str, None]:
             yield f"event: error\nid: {corr_id}\ndata: {json.dumps({'message': repr(e)})}\n\n"
         return StreamingResponse(error_iter(), media_type="text/event-stream")
 
-    async def event_iter():
+    async def event_iter() -> AsyncGenerator[str, None]:
         chunk_size = 64 * 1024
         total_len = len(raw_bytes)
         num_chunks = max(1, (total_len + chunk_size - 1) // chunk_size)
