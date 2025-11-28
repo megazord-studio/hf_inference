@@ -18,6 +18,7 @@ import json
 import base64
 from app.config import HF_META_RETRIES, HF_META_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT
 from app.routers.models import ModelSummary
+from collections.abc import Iterable
 from app.schemas_pb2 import (
     ErrorResponse,
     InferenceErrorPayload,
@@ -119,13 +120,26 @@ def _to_serializable(value: Any) -> Any:
             return _to_serializable(serializable)
     return value
 
+def _normalize_optional_bool(value: Any) -> Optional[bool]:
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        truthy = {'true', '1', 'yes', 'y', 'gated', 'manual', 'auto', 'enabled'}
+        falsy = {'false', '0', 'no', 'n', 'none', 'null', 'disabled'}
+        if lowered in truthy:
+            return True
+        if lowered in falsy:
+            return False
+    return None
+
 def _build_model_meta(info, model_id):
     meta = {
         "id": getattr(info, "modelId", None) or model_id,
         "model_id": getattr(info, "modelId", None),
         "author": getattr(info, "author", None),
-        "gated": getattr(info, "gated", None),
-        "private": getattr(info, "private", None),
+        "gated": _normalize_optional_bool(getattr(info, "gated", None)),
+        "private": _normalize_optional_bool(getattr(info, "private", None)),
         "last_modified": _to_serializable(getattr(info, "lastModified", None)),
         "created_at": _to_serializable(getattr(info, "createdAt", None)),
         "likes": getattr(info, "likes", None),

@@ -83,6 +83,34 @@ def cap_max_new_tokens(requested: int, device: Any) -> int:
     return max(1, min(requested, safe_cap))
 
 
+def resolve_max_new_tokens(
+    options: Optional[Dict[str, Any]], device: Any, default: int = 32
+) -> tuple[int, bool]:
+    """Resolve max_new_tokens and indicate if it originated from the user.
+
+    Returns a tuple of (value, is_user_override). User-provided values are never
+    capped here so downstream callers can decide whether to apply device caps.
+    """
+
+    opts = options or {}
+    for key in ("max_new_tokens", "max_length"):
+        if key not in opts:
+            continue
+        value = opts.get(key)
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            log.debug("resolve_max_new_tokens ignoring invalid %s=%s", key, value)
+            continue
+        return max(1, parsed), True
+
+    try:
+        fallback = int(default)
+    except (TypeError, ValueError):
+        fallback = 32
+    return max(1, fallback), False
+
+
 def safe_call(fn, error_msg: Optional[str] = None):
     """Execute a function safely, returning None on error."""
     try:

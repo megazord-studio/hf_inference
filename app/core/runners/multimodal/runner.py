@@ -41,6 +41,7 @@ from .predictors import predict_qwen_vl
 from .predictors import predict_vlm
 from .predictors import predict_yi_vl
 from .utils import cap_max_new_tokens
+from .utils import resolve_max_new_tokens
 from .utils import require
 
 log = logging.getLogger("app.runners.multimodal")
@@ -99,7 +100,8 @@ class ImageTextToTextRunner(BaseRunner):
         )
         question = inputs.get("text") or options.get("question") or "What is shown?"
         enc = self.processor(image, question, return_tensors="pt").to(self.device)
-        max_len = cap_max_new_tokens(int(options.get("max_length", 32)), self.device)
+        requested, user_override = resolve_max_new_tokens(options, self.device, default=32)
+        max_len = requested if user_override else cap_max_new_tokens(requested, self.device)
 
         with torch.no_grad():
             seq = self.model.generate(

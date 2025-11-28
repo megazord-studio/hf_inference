@@ -18,6 +18,7 @@ from .tokenizer import ensure_image_tokens
 from .tokenizer import get_tokenizer
 from .tokenizer import strip_processor_only_kwargs
 from .utils import cap_max_new_tokens
+from .utils import resolve_max_new_tokens
 from .utils import is_cuda
 from .utils import move_to_device
 from .utils import require
@@ -35,7 +36,8 @@ def predict_blip(
 ) -> Dict[str, Any]:
     """Predict using BLIP model."""
     enc = processor(image, question, return_tensors="pt").to(device)
-    max_len = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+    resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+    max_len = resolved if user_override else cap_max_new_tokens(resolved, device)
     with torch.no_grad():
         out = model.generate(**enc, max_length=max_len, do_sample=False, num_beams=1)
     answer = processor.decode(out[0], skip_special_tokens=True)
@@ -55,7 +57,8 @@ def predict_llava(
         tokenizer = get_tokenizer(processor=processor, model=model)
         question = ensure_image_tokens(question, 1, tokenizer)
         enc = processor(images=image, text=question, return_tensors="pt").to(device)
-        max_tokens = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
 
         with torch.no_grad():
             out = model.generate(
@@ -119,7 +122,8 @@ def predict_qwen_vl(
         k: (v.to(device) if hasattr(v, "to") and device else v)
         for k, v in tok(question, return_tensors="pt").items()
     }
-    max_tokens = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+    resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+    max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
 
     with torch.no_grad():
         out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
@@ -145,7 +149,8 @@ def predict_minicpm(
 
     chat = getattr(model, "chat", None)
     msgs = [{"role": "user", "content": question}]
-    max_tokens = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+    resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+    max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
 
     if callable(chat):
         try:
@@ -199,7 +204,8 @@ def predict_vlm(
 
     try:
         log.info("vlm: starting generate with keys=%s", list(enc.keys()))
-        max_tokens = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
         with torch.no_grad():
             out = model.generate(
                 **enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1
@@ -246,7 +252,8 @@ def predict_yi_vl(
         question = ensure_image_tokens(question, 1, tokenizer)
         enc = processor(text=question, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
-        max_tokens = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
 
         with torch.no_grad():
             out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
@@ -286,7 +293,8 @@ def predict_internvl(
         question = ensure_image_tokens(question, 1, tokenizer)
         enc = processor(text=question, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
-        max_tokens = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
 
         with torch.no_grad():
             out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
@@ -319,7 +327,8 @@ def predict_kosmos2(
         enc = processor(text=question, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
         strip_processor_only_kwargs(enc, model_id)
-        max_tokens = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
 
         with torch.no_grad():
             out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
@@ -352,7 +361,8 @@ def predict_florence2(
         enc = processor(text=task_prompt, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
         strip_processor_only_kwargs(enc, model_id)
-        max_tokens = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
 
         with torch.no_grad():
             out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
@@ -393,7 +403,8 @@ def predict_cogvlm(
         question = ensure_image_tokens(question, 1, tokenizer)
         enc = processor(text=question, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
-        max_tokens = cap_max_new_tokens(int(options.get("max_length", 32)), device)
+        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
+        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
 
         with torch.no_grad():
             out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
