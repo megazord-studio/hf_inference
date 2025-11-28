@@ -9,6 +9,7 @@ HF_META_RETRIES = 2
 HF_META_TIMEOUT_SECONDS = 10.0
 HUB_LIST_TIMEOUT_SECONDS = 30.0
 MODEL_ENRICH_BATCH_LIMIT = 128
+HUB_LIST_LIMIT = 50000  # Explicit max limit for api.list_models calls
 
 # Registry resource limits
 REGISTRY_MAX_LOADED_MODELS = 1000

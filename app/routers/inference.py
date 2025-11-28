@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from dataclasses import asdict, is_dataclass
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -16,7 +16,7 @@ import uuid
 import time
 import json
 import base64
-from app.config import HF_META_RETRIES, HF_META_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT
+from app.config import HF_META_RETRIES, HF_META_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT, HUB_LIST_LIMIT
 from app.routers.models import ModelSummary
 from app.schemas_pb2 import (
     ErrorResponse,
@@ -160,7 +160,7 @@ def _required_fields_for_task(task: str) -> List[str]:
 # For now we simply echo request; real inference integration will plug into HF Inference Endpoints or local pipelines.
 
 @router.post("/inference", response_model=InferenceResponsePayload | InferenceErrorPayload)
-async def run_inference(req: InferenceRequest, include_model_meta: bool = True):
+async def run_inference(req: InferenceRequest, include_model_meta: bool = True) -> JSONResponse:
     if not req.inputs:
         return _error_response(status.HTTP_422_UNPROCESSABLE_ENTITY, code="invalid_request", message="inputs object cannot be empty")
     task = req.task
@@ -216,23 +216,48 @@ async def run_inference(req: InferenceRequest, include_model_meta: bool = True):
     return JSONResponse(content=payload.model_dump())
 
 @router.get("/models/status")
-async def models_status():
+async def models_status() -> Dict[str, Any]:
     """Expose runtime status for all loaded models, including load time and errors."""
     return {"loaded": REGISTRY.list_loaded()}
 
 @router.delete("/models/{task}/{model_id}")
-async def unload_model(task: str, model_id: str):
+async def unload_model(task: str, model_id: str) -> Dict[str, str]:
     ok = REGISTRY.unload(task, model_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Model not loaded")
     return {"unloaded": f"{model_id}:{task}"}
 
 @router.get("/inference/stream")
-async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50, temperature: float = 1.0, top_p: float = 1.0):
-    """Server-Sent Events streaming for text generation (manual SSE implementation).
+async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50, temperature: float = 1.0, top_p: float = 1.0) -> StreamingResponse:
+    """Server-Sent Events streaming for text generation.
 
-    Emits events: token, done (and optionally error). Uses a simple synchronous generation
-    followed by incremental emission to keep implementation deterministic for tests.
+    SSE Event Contract (version 1.0):
+    ---------------------------------
+    All events include: event type, correlation id, and JSON data payload.
+
+    Events emitted:
+      - start: Initial metadata
+          data: {model_id: string, token_count_planned: int}
+      - token: Individual generated token
+          data: {type: "token", index: int, text: string}
+      - done: Generation complete with metrics
+          data: {type: "done", tokens: int, runtime_ms: int,
+                 first_token_latency_ms: int, tokens_per_second: float}
+      - error: Error occurred
+          data: {message: string}
+
+    Example:
+        event: start
+        id: <uuid>
+        data: {"model_id": "gpt2", "token_count_planned": 10}
+
+        event: token
+        id: <uuid>
+        data: {"type": "token", "index": 0, "text": "Hello"}
+
+        event: done
+        id: <uuid>
+        data: {"type": "done", "tokens": 10, "runtime_ms": 150}
     """
     corr_id = str(uuid.uuid4())
     task = "text-generation"
@@ -274,12 +299,21 @@ async def stream_inference(model_id: str, prompt: str, max_new_tokens: int = 50,
 
 
 @router.get("/inference/stream/text-to-image")
-async def stream_text_to_image(model_id: str, prompt: str, num_inference_steps: int = 20, guidance_scale: float = 7.5):
-    """SSE streaming for text-to-image diffusion with synthetic progress events.
+async def stream_text_to_image(model_id: str, prompt: str, num_inference_steps: int = 20, guidance_scale: float = 7.5) -> StreamingResponse:
+    """SSE streaming for text-to-image diffusion with progress events.
 
-    We run a single blocking diffusion call, then emit a sequence of `progress`
-    events followed by a final `done` event containing the generated image. This
-    keeps the implementation deterministic for tests without complex callbacks.
+    SSE Event Contract (version 1.0):
+    ---------------------------------
+    Events emitted:
+      - start: Initial metadata
+          data: {model_id: string, total_steps: int}
+      - progress: Diffusion step progress
+          data: {step: int, total_steps: int, percent: float}
+      - done: Generation complete with image
+          data: {model_id: string, task: string, steps: int,
+                 runtime_ms: int, image_base64: string}
+      - error: Error occurred
+          data: {message: string}
     """
     corr_id = str(uuid.uuid4())
     task = "text-to-image"
@@ -327,11 +361,22 @@ async def stream_text_to_image(model_id: str, prompt: str, num_inference_steps: 
 
 
 @router.get("/inference/stream/tts")
-async def stream_tts(model_id: str, text: str):
-    """SSE streaming for text-to-speech using simple chunked audio.
+async def stream_tts(model_id: str, text: str) -> StreamingResponse:
+    """SSE streaming for text-to-speech with chunked audio delivery.
 
-    We generate a full TTS waveform via REGISTRY.predict, then split the
-    base64-encoded WAV bytes into chunks and emit them as progress events.
+    SSE Event Contract (version 1.0):
+    ---------------------------------
+    Events emitted:
+      - start: Initial metadata
+          data: {model_id: string, task: string, sample_rate: int,
+                 num_samples: int, num_chunks: int}
+      - progress: Audio chunk
+          data: {chunk_index: int, num_chunks: int, audio_base64: string}
+      - done: Generation complete
+          data: {model_id: string, task: string, runtime_ms: int,
+                 num_chunks: int}
+      - error: Error occurred
+          data: {message: string}
     """
     corr_id = str(uuid.uuid4())
     task = "text-to-speech"

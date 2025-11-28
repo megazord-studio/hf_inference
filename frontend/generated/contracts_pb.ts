@@ -13,13 +13,6 @@ export interface TaskOutputMetadata {
   backend?: string | null;
 }
 
-export interface InferenceResult {
-  task_output: Record<string, unknown> | null;
-  echo: Record<string, unknown> | null;
-  info: Record<string, unknown> | null;
-  metadata: TaskOutputMetadata | null;
-}
-
 export interface ModelMeta {
   id: string | null;
   model_id?: string | null;
@@ -51,6 +44,13 @@ export interface ModelSummary {
   card_data?: Record<string, unknown> | null;
 }
 
+export interface InferenceResult {
+  task_output: Record<string, unknown> | null;
+  echo: Record<string, unknown> | null;
+  info: Record<string, unknown> | null;
+  metadata: TaskOutputMetadata | null;
+}
+
 export interface InferenceResponsePayload {
   result?: InferenceResult | null;
   runtime_ms?: number | null;
@@ -71,4 +71,58 @@ export interface StreamingEvent {
   model_id?: string | null;
   payload?: Record<string, unknown> | null;
   error?: Record<string, unknown> | null;
+}
+
+export interface StreamingTokenPayload {
+  type?: string | null;
+  index?: number | null;
+  text?: string | null;
+}
+
+export interface StreamingProgressPayload {
+  type?: string | null;
+  step?: number | null;
+  total_steps?: number | null;
+  percent?: number | null;
+  chunk_index?: number | null;
+  num_chunks?: number | null;
+  audio_base64?: string | null;
+}
+
+export interface StreamingDonePayload {
+  type?: string | null;
+  tokens?: number | null;
+  runtime_ms?: number | null;
+  first_token_latency_ms?: number | null;
+  tokens_per_second?: number | null;
+  model_id?: string | null;
+  task?: string | null;
+  steps?: number | null;
+  image_base64?: string | null;
+  num_chunks?: number | null;
+}
+
+export interface StreamingErrorPayload {
+  type?: string | null;
+  message?: string | null;
+  code?: string | null;
+  details?: Record<string, unknown> | null;
+}
+
+export interface TaskCategory {
+  id?: string | null;
+  label?: string | null;
+  description?: string | null;
+  tasks: string[];
+}
+
+export interface TaskInfo {
+  id?: string | null;
+  label?: string | null;
+  description?: string | null;
+  input?: string | null;
+  output?: string | null;
+  aliases: string[];
+  category?: string | null;
+  supported?: boolean | null;
 }
