@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Union
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -47,8 +47,8 @@ app.include_router(intents_router)
 app.include_router(inference_module.router)
 
 # SPA catch-all (only if path not starting with /api)
-@app.get("/{full_path:path}")
-async def spa_catch_all(full_path: str) -> Union[FileResponse, dict]:
+@app.get("/{full_path:path}", response_model=None)
+async def spa_catch_all(full_path: str) -> Any:
     if full_path.startswith("api"):
         raise HTTPException(status_code=404, detail="Not found")
     index_path = os.path.join(BASE_DIR, "static", "index.html")
