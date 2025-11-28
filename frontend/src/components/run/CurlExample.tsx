@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Code, Clipboard, CheckCircle2, ChevronRight } from 'lucide-react';
 
 interface CurlExampleProps {
@@ -7,12 +7,16 @@ interface CurlExampleProps {
 
 export function CurlExample({ command }: CurlExampleProps) {
   const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(command);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
+  const handleCopy = useCallback(async () => {
+    if (!navigator?.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch (error) {
+      console.error('Failed to copy curl command', error);
+    }
+  }, [command]);
 
   return (
     <details className="mt-2 rounded-md border border-base-300 bg-base-100 p-3">
@@ -26,7 +30,7 @@ export function CurlExample({ command }: CurlExampleProps) {
         <button
           type="button"
           className="btn btn-xxs btn-outline gap-1"
-          onClick={handleCopy}
+          onClick={() => void handleCopy()}
         >
           {copied ? <CheckCircle2 className="w-3 h-3" /> : <Clipboard className="w-3 h-3" />}
         </button>
@@ -35,4 +39,3 @@ export function CurlExample({ command }: CurlExampleProps) {
     </details>
   );
 }
-

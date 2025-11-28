@@ -1,4 +1,4 @@
-import type { InferenceResponsePayload, ErrorResponse, ModelMeta, TaskOutputMetadata, InferenceResult } from '../generated/contracts_pb';
+import type { ErrorResponse, ModelMeta, InferenceResult } from '../generated/contracts_pb';
 
 export type InputType = 'text' | 'image' | 'audio' | 'video' | 'document' | 'multimodal';
 
@@ -50,40 +50,22 @@ export interface GoalCategory {
   subcategories: GoalSubcategory[];
 }
 
-export interface GoalPreferences {
-  qualityBias?: boolean;      // prefer higher likes
-  speedBias?: boolean;        // prefer higher downloads
-  openSourceOnly?: boolean;   // exclude gated models
-  popularityFloorBoost?: number; // dynamic min likes boost
-}
-
-export interface GoalSelectionState {
-  selectedGoalCategory?: string | null;
-  selectedGoalSubcategory?: string | null;
-  preferences: GoalPreferences;
-}
-
-export interface StreamingErrorEvent {
-  type: 'error';
-  code: string;
-  message: string;
-  details?: Record<string, unknown>;
-}
-
 export interface StreamingTokenEvent {
   type: 'token';
-  index: number;
   text: string;
-}
-
-export interface StreamingProgressEvent {
-  type: 'progress';
-  [key: string]: unknown;
 }
 
 export interface StreamingDoneEvent {
   type: 'done';
-  [key: string]: unknown;
+  tokens?: number;
+  runtime_ms?: number;
+  first_token_latency_ms?: number;
+  tokens_per_second?: number;
+}
+
+export interface StreamingErrorEvent {
+  type: 'error';
+  message: string;
 }
 
 export interface RunRecord {

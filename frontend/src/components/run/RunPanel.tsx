@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Image as ImageIcon, Type as TextIcon, Code, Play, Loader2, Clipboard, CheckCircle2, ChevronRight, HelpCircle } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Image as ImageIcon, Type as TextIcon, Play, Loader2, Clipboard, CheckCircle2, ChevronRight, HelpCircle } from 'lucide-react';
 import { tasksInfo } from '../../constants/tasksCatalog';
 import type { UseModelExplorerReturn } from '../../hooks/useModelExplorer';
 import { CurlExample } from './CurlExample';
@@ -18,7 +18,18 @@ export function RunPanel({ m }: RunPanelProps) {
     }
   }, [m.selectedRunId]);
   const [copied, setCopied] = useState(false);
-  const copyOutput = () => { if (!run?.result) return; navigator.clipboard.writeText(typeof run.result==='string'?run.result:JSON.stringify(run.result, null, 2)); setCopied(true); setTimeout(()=>setCopied(false),1500); };
+  const copyOutput = useCallback(async () => {
+    if (!run?.result || !navigator?.clipboard) return;
+    try {
+      const text = typeof run.result === 'string' ? run.result : JSON.stringify(run.result, null, 2);
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error('Failed to copy output');
+      console.error('Failed to copy output', err);
+    }
+  }, [run]);
   // const [showRaw, setShowRaw] = useState(false); // removed raw toggle
 
   // Derive capabilities from modelTasks (descriptions & IO hints)
@@ -45,20 +56,9 @@ export function RunPanel({ m }: RunPanelProps) {
   const combinedImageHint = unique(imageHints)[0];
   const combinedExtraArgsHint = unique(extraArgsHints)[0];
 
-  const modalityIcons = (
-    <span className="flex gap-1 items-center">
-      {m.requiresImage && <ImageIcon className="w-3 h-3 text-info"/>}
-      {m.requiresText && <TextIcon className="w-3 h-3 text-success"/>}
-    </span>
-  );
-
-  const modelMeta: any = run ? (run as any).model_meta || (run.result as any)?.model_meta : undefined;
-
-  const streamingActive = m.streamEnabled && m.selectedTask === 'text-generation';
-
-  // Derive viewport gated flag for selected model
-  const selectedGated = m.selectedModel ? (m.gatedById?.[m.selectedModel.id] ?? (m.selectedModel as any).gated) : undefined;
-  const showGatedBadge = selectedGated === true || (typeof selectedGated === 'string' && selectedGated.trim().toLowerCase() !== 'none');
+   // Derive viewport gated flag for selected model
+   const selectedGated = m.selectedModel ? (m.gatedById?.[m.selectedModel.id] ?? m.selectedModel.gated) : undefined;
+   const showGatedBadge = selectedGated === true || (typeof selectedGated === 'string' && selectedGated.trim().toLowerCase() !== 'none');
 
   return (
     <div className="card bg-base-100 shadow-sm border border-base-300">
@@ -207,7 +207,7 @@ export function RunPanel({ m }: RunPanelProps) {
                     <span className="badge badge-xs badge-outline" title="Latency">{run.runtime_ms ?? '—'} ms</span>
                   </div>
                   <div className="flex gap-2">
-                    <button className="btn btn-xxs btn-outline" onClick={copyOutput}>{copied? <CheckCircle2 className="w-3 h-3" /> : <Clipboard className="w-3 h-3" />}</button>
+                    <button className="btn btn-xxs btn-outline" onClick={() => void copyOutput()}>{copied? <CheckCircle2 className="w-3 h-3" /> : <Clipboard className="w-3 h-3" />}</button>
                   </div>
                 </div>
                 {/* Unified pretty response */}
@@ -238,20 +238,6 @@ export function RunPanel({ m }: RunPanelProps) {
                   )}
                 </div>
                 {/* Collapsible meta */}
-                {modelMeta && (
-                  <details className="rounded-md border border-base-300 bg-base-100 p-3">
-                    <summary className="cursor-pointer text-[11px] font-semibold flex items-center gap-1"><ChevronRight className="w-3 h-3" /> Model meta</summary>
-                    <div className="mt-2 space-y-2">
-                      <div className="flex flex-wrap gap-2 text-[10px]">
-                        {modelMeta.likes !== undefined && <span className="badge badge-outline" title="Likes">❤ {modelMeta.likes}</span>}
-                        {modelMeta.downloads !== undefined && <span className="badge badge-outline" title="Downloads">⬇ {modelMeta.downloads}</span>}
-                        {modelMeta.trendingScore !== undefined && <span className="badge badge-outline" title="Trending score">🔥 {modelMeta.trendingScore}</span>}
-                        {modelMeta.pipeline_tag && <span className="badge badge-outline" title="Pipeline">{modelMeta.pipeline_tag}</span>}
-                      </div>
-                      <pre className="text-[10px] whitespace-pre-wrap leading-relaxed max-h-72 overflow-auto">{JSON.stringify(modelMeta, null, 2)}</pre>
-                    </div>
-                  </details>
-                )}
                 {/* Request inputs & curl (secondary) */}
                 <div className="flex flex-col gap-2">
                   {run.requestInputs && (

@@ -11,7 +11,7 @@ interface ModelCardProps {
 
 export function ModelCard({ model, taskLabel, selected, onSelect, gatedOverride }: ModelCardProps) {
   const hfUrl = `https://huggingface.co/${model.id}`;
-  const gv = gatedOverride !== undefined ? gatedOverride : (model as any).gated;
+  const gv = gatedOverride ?? model.gated;
   const isGated = gv === true || (typeof gv === 'string' && gv.trim().toLowerCase() !== 'none');
 
   return (

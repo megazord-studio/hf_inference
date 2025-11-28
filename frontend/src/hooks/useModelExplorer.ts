@@ -1,42 +1,52 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { useInference } from '../api/hooks';
-import { useTextGenerationStream } from '../api/hooks';
+import { useTextGenerationStream, type TextGenerationStreamResult } from '../api/hooks';
 import type { InputType, OutputType, ModelSummary, Intent, RunRecord, InferenceRequest } from '../types';
+import type { ErrorResponse } from '../../generated/contracts_pb';
 import { taskModalities } from '../constants/taskModalities';
 import { tasksInfo } from '../constants/tasksCatalog';
 import Fuse from 'fuse.js';
+import { BackendError } from '../api/hooks';
+
+const ALL_INPUT_MODALITIES: InputType[] = ['text','image','audio','video','document'];
+const ALL_OUTPUT_MODALITIES: OutputType[] = ['text','image','audio','video','embedding','boxes','mask','depth','3d'];
+
+const randomId = () => `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+
+const buildRunPlaceholderIntent = (): Intent => ({ id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] });
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 // Minimal modality + run model explorer state container
 export function useModelExplorer() {
   // Modality chips
   const [selectedInputModalities, setSelectedInputModalities] = useState<InputType[]>([]);
   const [selectedOutputModalities, setSelectedOutputModalities] = useState<OutputType[]>([]);
-  const ALL_INPUT_MODALITIES: InputType[] = ['text','image','audio','video','document'];
-  const ALL_OUTPUT_MODALITIES: OutputType[] = ['text','image','audio','video','embedding','boxes','mask','depth','3d'];
 
   // Models & intents
   const modelsQuery = useQuery<ModelSummary[]>({
-    queryKey: ['preloaded-models'],
-    queryFn: async () => (await api.get('/models/preloaded', { params: { limit: 50000 } })).data,
-    staleTime: 60*60*1000,
-  });
+     queryKey: ['preloaded-models'],
+     queryFn: async () => (await api.get<ModelSummary[]>('/models/preloaded', { params: { limit: 50000 } })).data,
+     staleTime: 60*60*1000,
+   });
   const intentsQuery = useQuery<Intent[]>({
     queryKey: ['intents'],
-    queryFn: async () => (await api.get('/intents')).data,
+    queryFn: async () => (await api.get<Intent[]>('/intents')).data,
     staleTime: 60*60*1000,
   });
-  const allModels = modelsQuery.data || [];
-  const allIntents = intentsQuery.data || [];
+  const allModels = useMemo<ModelSummary[]>(() => modelsQuery.data ?? [], [modelsQuery.data]);
+  const allIntents = useMemo<Intent[]>(() => intentsQuery.data ?? [], [intentsQuery.data]);
 
   // Selected model
   const [selectedModel, setSelectedModel] = useState<ModelSummary | null>(null);
   const selectModel = (m: ModelSummary) => setSelectedModel(m);
 
   // Derive tasks for selection (OR semantics)
-  const tasksFromIO = useMemo(() => {
-    if (!selectedInputModalities.length && !selectedOutputModalities.length) return [] as string[];
+  const tasksFromIO = useMemo<string[]>(() => {
+    if (!selectedInputModalities.length && !selectedOutputModalities.length) return [];
     const multiInputs = selectedInputModalities.length > 1;
     const matches: string[] = [];
     for (const [task, tm] of Object.entries(taskModalities)) {
@@ -49,7 +59,7 @@ export function useModelExplorer() {
   }, [selectedInputModalities, selectedOutputModalities]);
 
   // Filter models by pipeline_tag inside tasksFromIO
-  const filteredModels = useMemo(() => {
+  const filteredModels = useMemo<ModelSummary[]>(() => {
     if (!tasksFromIO.length) return allModels;
     return allModels.filter(m => m.pipeline_tag && tasksFromIO.includes(m.pipeline_tag));
   }, [allModels, tasksFromIO]);
@@ -74,10 +84,10 @@ export function useModelExplorer() {
     return fuse.search(searchQuery.trim()).map(r => r.item);
   }, [sortedModels, fuse, searchQuery]);
   const visibleModels = useMemo(() => searchedModels.slice(0, modelChunkSize), [searchedModels, modelChunkSize]);
-  const loadMoreModels = () => setModelChunkSize(s => Math.min(filteredModels.length, s + 60));
+  const loadMoreModels = useCallback(() => setModelChunkSize(s => Math.min(filteredModels.length, s + 60)), [filteredModels.length]);
 
-  // Availability (disable impossible combos after selection in other group)
-  const isInputComboViable = (inputs: InputType[], outputs: OutputType[]) => {
+  // Availability helpers
+  const isInputComboViable = useCallback((inputs: InputType[], outputs: OutputType[]) => {
     for (const tm of Object.values(taskModalities)) {
       if (inputs.length > 1 && !tm.multiInputSupport) continue;
       if (!inputs.every(i => tm.input.includes(i))) continue;
@@ -85,8 +95,8 @@ export function useModelExplorer() {
       return true;
     }
     return false;
-  };
-  const isOutputComboViable = (inputs: InputType[], outputs: OutputType[]) => {
+  }, []);
+  const isOutputComboViable = useCallback((inputs: InputType[], outputs: OutputType[]) => {
     for (const tm of Object.values(taskModalities)) {
       if (inputs.length > 1 && !tm.multiInputSupport) continue;
       if (!inputs.every(i => tm.input.includes(i))) continue;
@@ -94,7 +104,7 @@ export function useModelExplorer() {
       return true;
     }
     return false;
-  };
+  }, []);
 
   const availableInputModalities = useMemo(() => {
     if (!selectedInputModalities.length && !selectedOutputModalities.length) return ALL_INPUT_MODALITIES;
@@ -105,7 +115,7 @@ export function useModelExplorer() {
       if (isInputComboViable(next, selectedOutputModalities)) candidates.push(m);
     }
     return candidates;
-  }, [selectedInputModalities, selectedOutputModalities]);
+  }, [selectedInputModalities, selectedOutputModalities, isInputComboViable]);
 
   const availableOutputModalities = useMemo(() => {
     if (!selectedInputModalities.length && !selectedOutputModalities.length) return ALL_OUTPUT_MODALITIES;
@@ -116,15 +126,15 @@ export function useModelExplorer() {
       if (isOutputComboViable(selectedInputModalities, nextOut)) candidates.push(o);
     }
     return candidates;
-  }, [selectedInputModalities, selectedOutputModalities]);
+  }, [selectedInputModalities, selectedOutputModalities, isOutputComboViable]);
 
-  const toggleInputModality = (m: InputType) => setSelectedInputModalities(prev => prev.includes(m) ? prev.filter(x => x!==m) : [...prev, m]);
-  const toggleOutputModality = (m: OutputType) => setSelectedOutputModalities(prev => prev.includes(m) ? prev.filter(x => x!==m) : [...prev, m]);
-  const clearFilters = () => { setSelectedInputModalities([]); setSelectedOutputModalities([]); setModelChunkSize(60); };
+  const toggleInputModality = useCallback((m: InputType) => setSelectedInputModalities(prev => prev.includes(m) ? prev.filter(x => x!==m) : [...prev, m]), []);
+  const toggleOutputModality = useCallback((m: OutputType) => setSelectedOutputModalities(prev => prev.includes(m) ? prev.filter(x => x!==m) : [...prev, m]), []);
+  const clearFilters = useCallback(() => { setSelectedInputModalities([]); setSelectedOutputModalities([]); setModelChunkSize(60); }, []);
 
   // Model tasks (from pipeline_tag + tag intersection with known tasks)
-  const modelTasks = useMemo(() => {
-    if (!selectedModel) return [] as string[];
+  const modelTasks = useMemo<string[]>(() => {
+    if (!selectedModel) return [];
     const set = new Set<string>();
     if (selectedModel.pipeline_tag) set.add(selectedModel.pipeline_tag);
     if (selectedModel.tags) {
@@ -135,8 +145,8 @@ export function useModelExplorer() {
   }, [selectedModel]);
 
   // Candidate intents (those whose hf_tasks intersect model tasks OR pipeline tag)
-  const candidateIntents = useMemo(() => {
-    if (!selectedModel) return [] as Intent[];
+  const candidateIntents = useMemo<Intent[]>(() => {
+    if (!selectedModel) return [];
     return allIntents.filter(it => it.hf_tasks.some(t => t === selectedModel.pipeline_tag || modelTasks.includes(t)));
   }, [selectedModel, allIntents, modelTasks]);
 
@@ -144,11 +154,19 @@ export function useModelExplorer() {
   const [runIntentId, setRunIntentId] = useState<string | null>(null);
   const runIntent = useMemo(() => runIntentId ? allIntents.find(i => i.id === runIntentId) : undefined, [runIntentId, allIntents]);
   // Ensure default intent when model selected
-  if (selectedModel && !runIntentId && candidateIntents.length) setRunIntentId(candidateIntents[0].id);
+  useEffect(() => {
+    if (selectedModel && !runIntentId && candidateIntents.length) {
+      setRunIntentId(candidateIntents[0].id);
+    }
+  }, [selectedModel, runIntentId, candidateIntents]);
 
-  // Selected task
-  const [selectedTask, setSelectedTask] = useState<string | null>(null);
-  if (selectedModel && !selectedTask && modelTasks.length) setSelectedTask(modelTasks[0]);
+   // Selected task
+   const [selectedTask, setSelectedTask] = useState<string | null>(null);
+   useEffect(() => {
+     if (selectedModel && !selectedTask && modelTasks.length) {
+       setSelectedTask(modelTasks[0]);
+     }
+   }, [selectedModel, selectedTask, modelTasks]);
 
   // Input states
   const [textInput, setTextInput] = useState('');
@@ -156,27 +174,50 @@ export function useModelExplorer() {
   const [audioB64, setAudioB64] = useState<string | null>(null);
   const [videoB64, setVideoB64] = useState<string | null>(null);
   const [documentB64, setDocumentB64] = useState<string | null>(null);
-  const handleGenericFile = (file: File, setter: (v:string)=>void) => new Promise<void>((resolve, reject) => {
+  const handleGenericFile = useCallback((file: File, setter: (value: string) => void) => new Promise<void>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = () => { const r = reader.result; if (typeof r === 'string') setter(r); resolve(); };
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.onload = () => {
+      const r = reader.result;
+      if (typeof r === 'string') {
+        setter(r);
+        resolve();
+        return;
+      }
+      reject(new Error('Expected base64 string result'));
+    };
     reader.readAsDataURL(file);
-  });
-  const handleImageFile = (file: File) => handleGenericFile(file, v=>setImageB64(v));
-  const handleAudioFile = (file: File) => handleGenericFile(file, v=>setAudioB64(v));
-  const handleVideoFile = (file: File) => handleGenericFile(file, v=>setVideoB64(v));
-  const handleDocumentFile = (file: File) => handleGenericFile(file, v=>setDocumentB64(v));
+  }), []);
+  const handleImageFile = useCallback((file: File) => handleGenericFile(file, v=>setImageB64(v)), [handleGenericFile]);
+  const handleAudioFile = useCallback((file: File) => handleGenericFile(file, v=>setAudioB64(v)), [handleGenericFile]);
+  const handleVideoFile = useCallback((file: File) => handleGenericFile(file, v=>setVideoB64(v)), [handleGenericFile]);
+  const handleDocumentFile = useCallback((file: File) => handleGenericFile(file, v=>setDocumentB64(v)), [handleGenericFile]);
   const [extraArgsJson, setExtraArgsJson] = useState<string>('{}');
   const [extraArgsError, setExtraArgsError] = useState<string | null>(null);
-  const parseExtraArgs = () => {
-    try { if (!extraArgsJson.trim()) return {}; const o = JSON.parse(extraArgsJson); if (typeof o === 'object') { setExtraArgsError(null); return o; } setExtraArgsError('Must be JSON object'); return {}; } catch(e:any){ setExtraArgsError(e.message); return {}; }
-  };
+  const parseExtraArgs = useCallback((): Record<string, unknown> => {
+     if (!extraArgsJson.trim()) {
+       setExtraArgsError(null);
+       return {};
+     }
+     try {
+       const parsed: unknown = JSON.parse(extraArgsJson);
+       if (isRecord(parsed)) {
+         setExtraArgsError(null);
+         return { ...parsed };
+       }
+       setExtraArgsError('Must be JSON object');
+       return {};
+     } catch (error) {
+       setExtraArgsError(error instanceof Error ? error.message : 'Invalid JSON');
+       return {};
+     }
+  }, [extraArgsJson]);
 
   // Determine required modalities from taskModalities dynamically
-  const effectiveTasks = selectedTask ? [selectedTask] : (runIntent ? runIntent.hf_tasks : []);
+  const effectiveTasks = useMemo(() => (selectedTask ? [selectedTask] : (runIntent ? runIntent.hf_tasks : [])), [selectedTask, runIntent]);
   const requiredInputsSet = useMemo(() => {
     const s = new Set<InputType>();
-    effectiveTasks.forEach(t => { const tm = taskModalities[t]; if (tm) tm.input.forEach(i => s.add(i as InputType)); });
+    effectiveTasks.forEach(t => { const tm = taskModalities[t]; if (tm) tm.input.forEach(i => s.add(i)); });
     return s;
   }, [effectiveTasks]);
   const requiresImage = requiredInputsSet.has('image');
@@ -194,6 +235,10 @@ export function useModelExplorer() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [latestCurl, setLatestCurl] = useState<string | null>(null);
+  const clearRuns = useCallback(() => {
+    setRuns([]);
+    setSelectedRunId(null);
+  }, []);
 
   // Inference hooks
   const inference = useInference();
@@ -204,20 +249,20 @@ export function useModelExplorer() {
   const primaryInputType: InputType = requiresImage ? 'image' : requiresAudio ? 'audio' : requiresVideo ? 'video' : requiresDocument ? 'document' : 'text';
 
   // Evaluate readiness: explicit combo tasks need all listed combo inputs; otherwise at least one among allowed modalities
-  const provided: Record<InputType, boolean> = {
-    text: !!textInput.trim(),
-    image: !!imageB64,
-    audio: !!audioB64,
-    video: !!videoB64,
-    document: !!documentB64,
-    multimodal: false,
-  };
+  const provided = useMemo<Record<InputType, boolean>>(() => ({
+     text: !!textInput.trim(),
+     image: !!imageB64,
+     audio: !!audioB64,
+     video: !!videoB64,
+     document: !!documentB64,
+     multimodal: false,
+  }), [textInput, imageB64, audioB64, videoB64, documentB64]);
   const allowedModalities = Array.from(requiredInputsSet);
   const hasAtLeastOne = allowedModalities.some(m => provided[m]);
   const allComboSatisfied = combinationRequired ? (provided['text'] && provided['image']) : true;
   const canRun = !!(selectedModel && (runIntent || selectedTask) && allComboSatisfied && (combinationRequired ? true : hasAtLeastOne));
 
-  const buildInputs = () => {
+  const buildInputs = useCallback(() => {
     const inputs: Record<string, unknown> = {};
     // For combo tasks include only combo modalities if present; else include any provided among allowed set
     if (combinationRequired) {
@@ -231,48 +276,59 @@ export function useModelExplorer() {
       if (requiresDocument && provided.document) inputs.document_base64 = documentB64;
     }
     const extra = parseExtraArgs();
-    if (selectedTask) (extra as any)._task = selectedTask;
+    if (selectedTask) (extra)._task = selectedTask;
     if (Object.keys(extra).length) inputs.extra_args = extra;
     return inputs;
-  };
+  }, [combinationRequired, provided, textInput, imageB64, audioB64, videoB64, documentB64, requiresText, requiresImage, requiresAudio, requiresVideo, requiresDocument, parseExtraArgs, selectedTask]);
 
-  const buildInferenceRequest = (): InferenceRequest | null => {
-    if (!canRun || !selectedModel) return null;
-    const inputs = buildInputs();
-    if (!Object.keys(inputs).length) {
-      return null;
-    }
-    return {
-      model_id: selectedModel.id,
-      intent_id: runIntent?.id,
-      input_type: primaryInputType,
-      inputs,
-      task: selectedTask || undefined,
-      options: parseExtraArgs(),
-    };
-  };
+  const buildInferenceRequest = useCallback((): InferenceRequest | null => {
+     if (!canRun || !selectedModel) return null;
+     const inputs = buildInputs();
+     if (!Object.keys(inputs).length) {
+       return null;
+     }
+     return {
+       model_id: selectedModel.id,
+       intent_id: runIntent?.id,
+       input_type: primaryInputType,
+       inputs,
+       task: selectedTask || undefined,
+       options: parseExtraArgs(),
+     };
+   }, [buildInputs, canRun, parseExtraArgs, primaryInputType, runIntent?.id, selectedModel, selectedTask]);
 
-  const runModel = () => {
+   const newRunFromError = useCallback((err: ErrorResponse | undefined): RunRecord => ({
+     id: randomId(),
+     createdAt: new Date().toISOString(),
+     inputType: primaryInputType,
+     intent: runIntent || buildRunPlaceholderIntent(),
+     model: selectedModel!,
+     inputText: textInput,
+     error: err,
+   }), [primaryInputType, runIntent, selectedModel, textInput]);
+
+   const runModel = useCallback(() => {
     if (!canRun || !selectedModel) return;
     const inputs = buildInputs();
     const isTextGen = selectedTask === 'text-generation' && !requiresImage && !requiresAudio && !requiresVideo && !requiresDocument;
     if (isTextGen && streamEnabled && textInput.trim()) {
-      streamGen.mutate({
-        model_id: selectedModel.id,
-        prompt: textInput.trim(),
-        params: {
-          max_new_tokens: (inputs.extra_args as any)?.max_new_tokens || 50,
-          temperature: (inputs.extra_args as any)?.temperature || 1.0,
-          top_p: (inputs.extra_args as any)?.top_p || 1.0,
-        },
-      }, {
-        onSuccess: (data) => {
-          const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+      const extraArgs = (inputs.extra_args as Record<string, unknown> | undefined) ?? {};
+      void streamGen.mutateAsync({
+         model_id: selectedModel.id,
+         prompt: textInput.trim(),
+         params: {
+           max_new_tokens: typeof extraArgs.max_new_tokens === 'number' ? extraArgs.max_new_tokens : 50,
+           temperature: typeof extraArgs.temperature === 'number' ? extraArgs.temperature : 1.0,
+           top_p: typeof extraArgs.top_p === 'number' ? extraArgs.top_p : 1.0,
+         },
+       })
+         .then((data: TextGenerationStreamResult) => {
+          const id = randomId();
           const newRun: RunRecord = {
             id,
             createdAt: new Date().toISOString(),
             inputType: primaryInputType,
-            intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] },
+            intent: runIntent || buildRunPlaceholderIntent(),
             model: selectedModel,
             inputText: textInput,
             streaming: true,
@@ -282,71 +338,85 @@ export function useModelExplorer() {
           };
           setRuns(prev => [...prev, newRun]);
           setSelectedRunId(id);
-        },
-      });
+        })
+        .catch((error: unknown) => {
+          const backendPayload = error instanceof BackendError ? error.payload : undefined;
+          const id = randomId();
+          const newRun: RunRecord = {
+            id,
+            createdAt: new Date().toISOString(),
+            inputType: primaryInputType,
+            intent: runIntent || buildRunPlaceholderIntent(),
+            model: selectedModel,
+            inputText: textInput,
+            error: backendPayload,
+          };
+          setRuns(prev => [...prev, newRun]);
+          setSelectedRunId(id);
+        });
       return;
     }
     const body = buildInferenceRequest();
     if (!body) return;
-    inference.mutate(body, {
-      onSuccess: (data) => {
+    void inference.mutateAsync(body)
+      .then((data) => {
         if (!data.result) {
-          setRuns(prev => [...prev, newRunFromError(data.error)]);
+          setRuns(prev => [...prev, newRunFromError(data.error ?? undefined)]);
           return;
         }
-        const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+        const id = randomId();
         const newRun: RunRecord = {
           id,
           createdAt: new Date().toISOString(),
           inputType: primaryInputType,
-          intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] },
+          intent: runIntent || buildRunPlaceholderIntent(),
           model: selectedModel,
           inputText: textInput,
           result: data.result.task_output,
-          runtime_ms: data.runtime_ms,
+          runtime_ms: data.runtime_ms ?? undefined,
           requestInputs: body.inputs,
-          model_meta: data.model_meta,
-          error: data.error,
+          model_meta: data.model_meta ?? undefined,
+          error: data.error ?? undefined,
         };
         setRuns(prev => [...prev, newRun]);
         setSelectedRunId(id);
-      },
-      onError: (err: any) => {
-        const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+      })
+      .catch((err: unknown) => {
+        const errorResponse = err instanceof BackendError ? err.payload : undefined;
+        const id = randomId();
         const newRun: RunRecord = {
           id,
           createdAt: new Date().toISOString(),
           inputType: primaryInputType,
-          intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] },
+          intent: runIntent || buildRunPlaceholderIntent(),
           model: selectedModel,
           inputText: textInput,
-          error: err,
+          error: errorResponse,
         };
         setRuns(prev => [...prev, newRun]);
         setSelectedRunId(id);
-      },
-    });
-  };
+      });
+  }, [buildInputs, buildInferenceRequest, canRun, inference, primaryInputType, requiresAudio, requiresDocument, requiresImage, requiresVideo, runIntent, selectedModel, selectedTask, streamEnabled, streamGen, textInput, newRunFromError]);
 
   const showCurl = () => {
     // No-op now that curl is generated client-side via useEffect; keep for button wiring.
   };
 
   const selectRun = (id: string) => {
-    setSelectedRunId(id);
-    const r = runs.find(rr => rr.id === id);
-    if (r) {
-      setSelectedModel(r.model);
-      setTextInput(r.inputText);
-      setRunIntentId(r.intent.id);
-    }
-  };
+     setSelectedRunId(id);
+     const r = runs.find(rr => rr.id === id);
+     if (r) {
+       setSelectedModel(r.model);
+       setTextInput(r.inputText);
+       setRunIntentId(r.intent.id);
+     }
+   };
 
   // Live-update latestCurl when inputs change, using placeholders for file inputs
   useEffect(() => {
     const body = buildInferenceRequest();
     if (!body) { setLatestCurl(null); return; }
-    const sanitized = { ...body, inputs: { ...body.inputs } } as any;
+    const sanitized = { ...body, inputs: { ...body.inputs } } as InferenceRequest;
     if (sanitized.inputs.image_base64) sanitized.inputs.image_base64 = '@IMAGE_PATH';
     if (sanitized.inputs.audio_base64) sanitized.inputs.audio_base64 = '@AUDIO_PATH';
     if (sanitized.inputs.video_base64) sanitized.inputs.video_base64 = '@VIDEO_PATH';
@@ -361,17 +431,18 @@ export function useModelExplorer() {
       setLatestCurl(null);
     }
   }, [
+    buildInferenceRequest,
+    documentB64,
+    imageB64,
+    audioB64,
+    videoB64,
+    canRun,
+    extraArgsJson,
     selectedModel?.id,
     runIntent?.id,
     primaryInputType,
     selectedTask,
     textInput,
-    imageB64,
-    audioB64,
-    videoB64,
-    documentB64,
-    extraArgsJson,
-    canRun,
   ]);
 
   // Ensure selectedTask aligns with current model's tasks when model changes
@@ -398,30 +469,21 @@ export function useModelExplorer() {
     const toFetch = ids.filter(id => !enrichedIdsRef.current.has(id));
     if (!toFetch.length) return;
     const batch = toFetch.slice(0, 96); // keep requests small
-    (async () => {
-      try {
-        const { data } = await api.post('/models/enrich', batch);
-        const next: Record<string, boolean | undefined> = {};
-        for (const m of data as Array<{ id: string; gated?: boolean }>) {
-          next[m.id] = m.gated;
-          enrichedIdsRef.current.add(m.id);
+    void (async () => {
+       try {
+         const { data } = await api.post<Array<{ id: string; gated?: boolean }>>('/models/enrich', batch);
+         const next: Record<string, boolean | undefined> = {};
+         for (const m of data) {
+           next[m.id] = m.gated;
+           enrichedIdsRef.current.add(m.id);
+         }
+         setGatedById(prev => ({ ...prev, ...next }));
+       } catch {
+          // ignore; we can retry on next visibility change
         }
-        setGatedById(prev => ({ ...prev, ...next }));
-      } catch (e) {
-        // ignore; we can retry on next visibility change
-      }
-    })();
-  }, [visibleModels]);
+     })();
+   }, [visibleModels]);
 
-  const newRunFromError = (err: any): RunRecord => ({
-    id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-    createdAt: new Date().toISOString(),
-    inputType: primaryInputType,
-    intent: runIntent || { id: 'none', label: 'None', description: '', input_types: [], hf_tasks: [] },
-    model: selectedModel!,
-    inputText: textInput,
-    error: err,
-  });
 
   return {
     // Modality state
@@ -442,13 +504,15 @@ export function useModelExplorer() {
     audioB64, handleAudioFile,
     videoB64, handleVideoFile,
     documentB64, handleDocumentFile,
-    extraArgsJson, setExtraArgsJson, extraArgsError,
+    extraArgsJson, setExtraArgsJson,
+    extraArgsError,
     // Execution
     canRun, runModel, showCurl,
     inferencePending: inference.isPending || streamGen.isPending,
     curlPending: false,
     // Runs history
     runs, selectedRunId, selectRun,
+    clearRuns,
     latestCurl,
     // Misc
     tasksFromIO,
@@ -462,4 +526,3 @@ export function useModelExplorer() {
 }
 
 export type UseModelExplorerReturn = ReturnType<typeof useModelExplorer>;
-

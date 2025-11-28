@@ -7,9 +7,10 @@ interface RunsDrawerProps {
   open: boolean;
   onClose: () => void;
   onSelectRun: (id: string) => void;
+  onClearRuns?: () => void;
 }
 
-export function RunsDrawer({ m, open, onClose, onSelectRun }: RunsDrawerProps) {
+export function RunsDrawer({ m, open, onClose, onSelectRun, onClearRuns }: RunsDrawerProps) {
   const [query, setQuery] = useState('');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
@@ -44,7 +45,7 @@ export function RunsDrawer({ m, open, onClose, onSelectRun }: RunsDrawerProps) {
         <span className="text-xs font-semibold">Recent runs ({m.runs.length})</span>
         <div className="flex items-center gap-2">
           {m.runs.length > 0 && (
-            <button className="btn btn-ghost btn-xs" title="Clear all" onClick={m.clearRuns}><Trash2 className="w-3 h-3" /></button>
+            <button className="btn btn-ghost btn-xs" title="Clear all" onClick={() => { setFavorites(new Set()); onClearRuns?.(); }}><Trash2 className="w-3 h-3" /></button>
           )}
           <button className="btn btn-ghost btn-xs" onClick={onClose}>✕</button>
         </div>
@@ -83,8 +84,8 @@ export function RunsDrawer({ m, open, onClose, onSelectRun }: RunsDrawerProps) {
                 {Boolean(run.result) && (
                   <pre className="text-[9px] whitespace-pre-wrap max-h-16 overflow-hidden opacity-70">
                     {(() => {
-                      const raw: string = typeof run.result === 'string' ? run.result : JSON.stringify(run.result as any);
-                      return (raw.slice(0,60) + (raw.length>60 ? '…' : '')) as any;
+                      const raw: string = typeof run.result === 'string' ? run.result : JSON.stringify(run.result ?? {});
+                      return `${raw.slice(0,60)}${raw.length>60 ? '…' : ''}`;
                     })()}
                   </pre>
                 )}

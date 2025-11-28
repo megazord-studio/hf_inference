@@ -20,7 +20,13 @@ function ModelExplorerPage() {
         >Show runs</button>
       )}
       {/* Sliding drawer for recent runs */}
-      <RunsDrawer m={m} open={runsOpen} onClose={() => setRunsOpen(false)} onSelectRun={m.selectRun} />
+      <RunsDrawer
+        m={m}
+        open={runsOpen}
+        onClose={() => setRunsOpen(false)}
+        onSelectRun={m.selectRun}
+        onClearRuns={m.clearRuns}
+      />
 
       {/* Main two-column content shifts when drawer open */}
       <div className={`flex flex-col xl:flex-row gap-4 px-2 pt-10 ${runsOpen ? 'xl:ml-72' : ''}`}>

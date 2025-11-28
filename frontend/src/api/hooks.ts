@@ -1,26 +1,53 @@
 import { useMutation } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import { api } from './client';
-import type { InferenceRequest } from '../types';
+import type {
+  InferenceRequest,
+  StreamingDoneEvent,
+  StreamingErrorEvent,
+  StreamingTokenEvent,
+} from '../types';
 import type {
   InferenceResponsePayload,
   ErrorResponse,
-} from '../generated/contracts_pb';
+} from '../../generated/contracts_pb';
+
+export class BackendError extends Error {
+  constructor(public payload: ErrorResponse) {
+    super(payload.message ?? 'Inference request failed');
+    this.name = 'BackendError';
+  }
+}
+
+export const toBackendError = (payload: ErrorResponse) => new BackendError(payload);
+
+const isAxiosErrorWithBackendPayload = (
+  error: unknown,
+): error is AxiosError<{ error?: ErrorResponse }> =>
+  typeof error === 'object' && error !== null && (error as AxiosError).isAxiosError === true;
+
+export const extractBackendError = (error: unknown): ErrorResponse | null => {
+  if (!isAxiosErrorWithBackendPayload(error)) {
+    return null;
+  }
+  return error.response?.data?.error ?? null;
+};
 
 export function useInference() {
-  return useMutation<InferenceResponsePayload, ErrorResponse | unknown, InferenceRequest>({
+  return useMutation<InferenceResponsePayload, Error, InferenceRequest>({
     mutationFn: async (body) => {
       try {
         const { data } = await api.post<InferenceResponsePayload>('/inference', body);
         if (data.error) {
-          throw data.error;
+          throw toBackendError(data.error);
         }
         return data;
-      } catch (err: any) {
-        const backendError = err?.response?.data?.error;
+      } catch (error: unknown) {
+        const backendError = extractBackendError(error);
         if (backendError) {
-          throw backendError as ErrorResponse;
+          throw toBackendError(backendError);
         }
-        throw err;
+        throw error instanceof Error ? error : new Error('Inference request failed');
       }
     },
   });
@@ -56,6 +83,15 @@ export interface TextGenerationStreamInput {
  * Hook for streaming text generation via SSE.
  * Connects to /api/inference/stream and collects tokens until done.
  */
+const isTokenEvent = (payload: unknown): payload is StreamingTokenEvent =>
+  typeof payload === 'object' && payload !== null && (payload as StreamingTokenEvent).type === 'token';
+
+const isDoneEvent = (payload: unknown): payload is StreamingDoneEvent =>
+  typeof payload === 'object' && payload !== null && (payload as StreamingDoneEvent).type === 'done';
+
+const isErrorEvent = (payload: unknown): payload is StreamingErrorEvent =>
+  typeof payload === 'object' && payload !== null && (payload as StreamingErrorEvent).type === 'error';
+
 export function useTextGenerationStream() {
   return useMutation<TextGenerationStreamResult, Error, TextGenerationStreamInput>({
     mutationFn: async ({ model_id, prompt, params }) => {
@@ -90,32 +126,30 @@ export function useTextGenerationStream() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        buffer = lines.pop() ?? '';
 
         for (const line of lines) {
-          if (line.startsWith('event: error')) {
-            // Next data line contains the error
+          if (!line.startsWith('data: ')) continue;
+          const dataLine = line.slice(6);
+          if (!dataLine.trim()) {
             continue;
           }
-          if (line.startsWith('data: ')) {
-            try {
-              const payload = JSON.parse(line.slice(6));
-              if (payload.type === 'token' && typeof payload.text === 'string') {
-                tokens.push(payload.text);
-              } else if (payload.type === 'done') {
-                metrics = {
-                  tokens: payload.tokens,
-                  runtime_ms: payload.runtime_ms,
-                  first_token_latency_ms: payload.first_token_latency_ms,
-                  tokens_per_second: payload.tokens_per_second,
-                };
-              } else if (payload.message) {
-                // Error event
-                streamError = payload.message;
-              }
-            } catch {
-              // Ignore malformed JSON
+          try {
+            const payload: unknown = JSON.parse(dataLine) as unknown;
+            if (isTokenEvent(payload)) {
+              tokens.push(payload.text);
+            } else if (isDoneEvent(payload)) {
+              metrics = {
+                tokens: payload.tokens,
+                runtime_ms: payload.runtime_ms,
+                first_token_latency_ms: payload.first_token_latency_ms,
+                tokens_per_second: payload.tokens_per_second,
+              };
+            } else if (isErrorEvent(payload)) {
+              streamError = payload.message;
             }
+          } catch (parseError) {
+            console.warn('Malformed SSE payload', parseError);
           }
         }
       }
