@@ -1,4 +1,5 @@
 """Architecture detection for multimodal models."""
+
 from __future__ import annotations
 
 
@@ -12,7 +13,10 @@ def detect_arch(model_id: str) -> str:
         return "llava"
     if any(k in mid for k in ["qwen-vl", "qwen/vl", "qwen-vl-chat"]):
         return "qwen_vl"
-    if any(k in mid for k in ["minicpm", "minicpm-v", "minicpm_v", "minicpm-o", "minicpmv"]):
+    if any(
+        k in mid
+        for k in ["minicpm", "minicpm-v", "minicpm_v", "minicpm-o", "minicpmv"]
+    ):
         return "minicpm_vlm"
     if "yi-vl" in mid or "yi/vl" in mid:
         return "yi_vl"
@@ -24,6 +28,9 @@ def detect_arch(model_id: str) -> str:
         return "florence2"
     if "cogvlm" in mid:
         return "cogvlm"
-    if any(k in mid for k in ["idefics", "paligemma", "vl-", "vision-language", "gemma"]):
+    if any(
+        k in mid
+        for k in ["idefics", "paligemma", "vl-", "vision-language", "gemma"]
+    ):
         return "vlm"
     return "generic_vqa"

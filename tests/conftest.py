@@ -1,7 +1,8 @@
+import os
 import warnings
+
 import pytest
 from fastapi.testclient import TestClient
-import os
 
 from app.main import app
 
@@ -47,7 +48,13 @@ def client() -> TestClient:
 
 @pytest.fixture()
 def infer():
-    def _infer(model_id: str, task: str, input_type: str, inputs: dict, options: dict | None = None):
+    def _infer(
+        model_id: str,
+        task: str,
+        input_type: str,
+        inputs: dict,
+        options: dict | None = None,
+    ):
         payload = {
             "model_id": model_id,
             "intent_id": None,
@@ -57,4 +64,5 @@ def infer():
             "options": options or {},
         }
         return payload
+
     return _infer

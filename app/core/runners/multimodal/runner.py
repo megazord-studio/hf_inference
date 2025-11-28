@@ -36,8 +36,8 @@ from .predictors import predict_qwen_vl
 from .predictors import predict_vlm
 from .predictors import predict_yi_vl
 from .utils import cap_max_new_tokens
-from .utils import resolve_max_new_tokens
 from .utils import require
+from .utils import resolve_max_new_tokens
 
 log = logging.getLogger("app.runners.multimodal")
 
@@ -72,12 +72,16 @@ class ImageTextToTextRunner(BaseRunner):
         self._arch = detect_arch(self.model_id)
         return self._load_by_arch()
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Run prediction using architecture-specific predictor."""
         image = decode_image_base64(
             require(inputs.get("image_base64"), "missing_image")
         )
-        question = inputs.get("text") or options.get("question") or "What is shown?"
+        question = (
+            inputs.get("text") or options.get("question") or "What is shown?"
+        )
         log.info(
             "multimodal.predict start model_id=%s arch=%s",
             self.model_id,
@@ -97,13 +101,23 @@ class ImageTextToTextRunner(BaseRunner):
         image = decode_image_base64(
             require(inputs.get("image_base64"), "missing_image")
         )
-        question = inputs.get("text") or options.get("question") or "What is shown?"
+        question = (
+            inputs.get("text") or options.get("question") or "What is shown?"
+        )
         if self.processor is None:
             yield {"event": "error", "data": "processor_not_loaded"}
             return
-        enc = self.processor(image, question, return_tensors="pt").to(self.device)
-        requested, user_override = resolve_max_new_tokens(options, self.device, default=32)
-        max_len = requested if user_override else cap_max_new_tokens(requested, self.device)
+        enc = self.processor(image, question, return_tensors="pt").to(
+            self.device
+        )
+        requested, user_override = resolve_max_new_tokens(
+            options, self.device, default=32
+        )
+        max_len = (
+            requested
+            if user_override
+            else cap_max_new_tokens(requested, self.device)
+        )
 
         if self.model is None:
             yield {"event": "error", "data": "model_not_loaded"}
@@ -143,10 +157,20 @@ class ImageTextToTextRunner(BaseRunner):
         arch = self._arch or ""
         predictors: Dict[str, Any] = {
             "blip": lambda: predict_blip(
-                image, question, options, self.model, self.processor, self.device
+                image,
+                question,
+                options,
+                self.model,
+                self.processor,
+                self.device,
             ),
             "llava": lambda: predict_llava(
-                image, question, options, self.model, self.processor, self.device
+                image,
+                question,
+                options,
+                self.model,
+                self.processor,
+                self.device,
             ),
             "qwen_vl": lambda: predict_qwen_vl(
                 image,
@@ -158,7 +182,12 @@ class ImageTextToTextRunner(BaseRunner):
                 self.model_id,
             ),
             "minicpm_vlm": lambda: predict_minicpm(
-                image, question, options, self.model, self.tokenizer, self.device
+                image,
+                question,
+                options,
+                self.model,
+                self.tokenizer,
+                self.device,
             ),
             "yi_vl": lambda: predict_yi_vl(
                 image,
@@ -234,19 +263,27 @@ class ImageTextToTextRunner(BaseRunner):
 
     # Loader wrappers that store results on self
     def _load_blip(self) -> int:
-        self.model, self.processor, _, params = load_blip(self.model_id, self.device)
+        self.model, self.processor, _, params = load_blip(
+            self.model_id, self.device
+        )
         return params
 
     def _load_llava(self) -> int:
-        self.model, self.processor, _, params = load_llava(self.model_id, self.device)
+        self.model, self.processor, _, params = load_llava(
+            self.model_id, self.device
+        )
         return params
 
     def _load_qwen_vl(self) -> int:
-        self.model, self.processor, _, params = load_qwen_vl(self.model_id, self.device)
+        self.model, self.processor, _, params = load_qwen_vl(
+            self.model_id, self.device
+        )
         return params
 
     def _load_minicpm(self) -> int:
-        self.model, _, self.tokenizer, params = load_minicpm(self.model_id, self.device)
+        self.model, _, self.tokenizer, params = load_minicpm(
+            self.model_id, self.device
+        )
         return params
 
     def _load_yi_vl(self) -> int:

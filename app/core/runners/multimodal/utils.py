@@ -3,6 +3,7 @@
 Small, focused helper functions for device, dtype, and tensor handling.
 No side effects; purely functional where possible.
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,7 +19,11 @@ log = logging.getLogger("app.runners.multimodal")
 def select_dtype(device: Any) -> torch.dtype:
     """Select appropriate dtype based on device capabilities."""
     if device and getattr(device, "type", None) == "cuda":
-        cc = torch.cuda.get_device_capability(0)[0] if torch.cuda.is_available() else 0
+        cc = (
+            torch.cuda.get_device_capability(0)[0]
+            if torch.cuda.is_available()
+            else 0
+        )
         return torch.bfloat16 if cc >= 8 else torch.float16
     if device and getattr(device, "type", None) == "mps":
         return torch.float16
@@ -46,10 +51,14 @@ def move_to_device(enc: Any, device: Any) -> Dict[str, Any]:
         try:
             enc = dict(enc)
         except Exception:
-            enc = {k: getattr(enc, k) for k in dir(enc) if not k.startswith("_")}
+            enc = {
+                k: getattr(enc, k) for k in dir(enc) if not k.startswith("_")
+            }
     if not device:
         return enc
-    return {k: (v.to(device) if hasattr(v, "to") else v) for k, v in enc.items()}
+    return {
+        k: (v.to(device) if hasattr(v, "to") else v) for k, v in enc.items()
+    }
 
 
 def unify_model_dtype(model: Any, dtype: torch.dtype) -> None:
@@ -102,7 +111,9 @@ def resolve_max_new_tokens(
         try:
             parsed = int(value)
         except (TypeError, ValueError):
-            log.debug("resolve_max_new_tokens ignoring invalid %s=%s", key, value)
+            log.debug(
+                "resolve_max_new_tokens ignoring invalid %s=%s", key, value
+            )
             continue
         return max(1, parsed), True
 

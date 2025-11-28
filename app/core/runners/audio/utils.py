@@ -1,10 +1,12 @@
 """Shared utilities for audio runners."""
+
 from __future__ import annotations
 
 import base64
 import io
 import logging
-from typing import Any, Tuple
+from typing import Any
+from typing import Tuple
 
 try:
     import soundfile as sf
@@ -15,6 +17,7 @@ except Exception:  # pragma: no cover
 np: Any
 try:
     import numpy as _np
+
     np = _np
 except Exception:  # pragma: no cover
     np = None
@@ -46,8 +49,12 @@ def resample_audio(audio: Any, sr: int, target_sr: int) -> Tuple[Any, int]:
         return audio, sr
 
     try:
-        x_old = np.linspace(0.0, 1.0, num=len(audio), endpoint=False, dtype=np.float32)
-        x_new = np.linspace(0.0, 1.0, num=new_len, endpoint=False, dtype=np.float32)
+        x_old = np.linspace(
+            0.0, 1.0, num=len(audio), endpoint=False, dtype=np.float32
+        )
+        x_new = np.linspace(
+            0.0, 1.0, num=new_len, endpoint=False, dtype=np.float32
+        )
         resampled = np.interp(x_new, x_old, audio).astype(np.float32)
         return resampled, target_sr
     except Exception as e:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 
 # Logging
@@ -18,4 +19,3 @@ REGISTRY_MEMORY_LIMIT_MB = 32 * 1024  # 32GB logical budget
 # Device overrides (always-on defaults)
 DEVICE_FORCE = None  # choices: "cuda", "mps", "cpu" or None for auto
 DEVICE_MAX_GPU_MEM_GB = None
-

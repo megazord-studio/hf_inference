@@ -12,11 +12,17 @@ MAX_GPU_MEM_GB=number      (advisory; expose in capabilities)
 GPU-required tasks (heuristic initial list): text-to-image, image-to-image, text-to-video,
 image-to-video, image-to-3d, text-to-3d, video-generation.
 """
+
 from __future__ import annotations
-import os
+
 import logging
-from typing import Any, Optional, Dict, Set
-from app.config import DEVICE_FORCE, DEVICE_MAX_GPU_MEM_GB
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Set
+
+from app.config import DEVICE_FORCE
+from app.config import DEVICE_MAX_GPU_MEM_GB
 
 log = logging.getLogger("app.device")
 
@@ -41,6 +47,7 @@ def _lazy_import_torch() -> Any:
         return _torch
     try:
         import torch
+
         _torch = torch
     except Exception as e:  # ImportError or other
         log.warning(f"Torch not available: {e}")
@@ -72,7 +79,10 @@ def device_capabilities() -> Dict[str, Optional[object]]:
             log.debug(f"Could not read CUDA properties: {e}")
     # MPS check (Apple Silicon)
     try:
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        if (
+            hasattr(torch.backends, "mps")
+            and torch.backends.mps.is_available()
+        ):
             caps["mps"] = True
             if not caps.get("gpu_name"):
                 caps["gpu_name"] = "Apple MPS"
@@ -91,7 +101,11 @@ def select_device(prefer: str = "auto") -> Optional[object]:
     prefer = prefer.lower()
     if prefer == "cuda" and torch.cuda.is_available():
         return torch.device("cuda:0")
-    if prefer == "mps" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    if (
+        prefer == "mps"
+        and hasattr(torch.backends, "mps")
+        and torch.backends.mps.is_available()
+    ):
         return torch.device("mps")
     if prefer == "cpu":
         return torch.device("cpu")
@@ -99,7 +113,10 @@ def select_device(prefer: str = "auto") -> Optional[object]:
     if prefer == "auto":
         if torch.cuda.is_available():
             return torch.device("cuda:0")
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        if (
+            hasattr(torch.backends, "mps")
+            and torch.backends.mps.is_available()
+        ):
             return torch.device("mps")
         return torch.device("cpu")
     # unknown prefer -> fallback auto
@@ -122,17 +139,23 @@ def ensure_task_supported(task: Optional[str]) -> None:
 
 def startup_log() -> None:
     caps = device_capabilities()
-    force = caps.get("force_device")
     prefer = (DEVICE_FORCE or "auto").lower()
     dev = select_device(prefer)
     dev_str = str(dev) if dev else "cpu (torch missing)"
     log.info(
         "Device selection: prefer=%s resolved=%s cuda=%s mps=%s gpu_name=%s memory_gb=%s",
-        prefer, dev_str, caps["cuda"], caps["mps"], caps["gpu_name"], caps["memory_gb"]
+        prefer,
+        dev_str,
+        caps["cuda"],
+        caps["mps"],
+        caps["gpu_name"],
+        caps["memory_gb"],
     )
 
 
-def choose_dtype(param_count: Optional[int], task: Optional[str] = None) -> str:
+def choose_dtype(
+    param_count: Optional[int], task: Optional[str] = None
+) -> str:
     """Heuristic dtype selection based on device capabilities and model size.
 
     For GPU/MPS devices we prefer float16 for large or heavy-task models; for CPU we
@@ -170,6 +193,7 @@ def choose_dtype(param_count: Optional[int], task: Optional[str] = None) -> str:
         return "float16"
     # If even fp16 is close to the limit, still choose float16 but caller may decide to evict
     return "float16"
+
 
 __all__ = [
     "select_device",

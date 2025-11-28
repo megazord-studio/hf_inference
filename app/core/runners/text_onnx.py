@@ -3,17 +3,26 @@
 Loads an ONNX exported GPT2-like model using onnxruntime.
 Simplified: assumes presence of model.onnx and tokenizer.json or vocab files.
 """
+
 from __future__ import annotations
-import os
+
 import logging
-from typing import Any, Dict, List, Optional
+import os
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+
 import numpy as np
+
+from .base import BaseRunner
 
 log = logging.getLogger("app.runners.text_onnx")
 
 ort: Any = None
 try:
     import onnxruntime as _ort
+
     ort = _ort
 except Exception as e:  # pragma: no cover
     log.warning(f"onnxruntime not available: {e}")
@@ -21,6 +30,7 @@ except Exception as e:  # pragma: no cover
 AutoTokenizer: Any = None
 try:
     from transformers import AutoTokenizer as _AutoTokenizer
+
     AutoTokenizer = _AutoTokenizer
 except Exception as e:  # pragma: no cover
     log.warning(f"transformers import failed: {e}")
@@ -30,24 +40,33 @@ hf_hub_download: Any = None
 try:
     from huggingface_hub import HfApi as _HfApi
     from huggingface_hub import hf_hub_download as _hf_hub_download
+
     HfApi = _HfApi
     hf_hub_download = _hf_hub_download
 except Exception as e:  # pragma: no cover
     log.warning(f"huggingface_hub import failed for ONNX runner: {e}")
 
-from .base import BaseRunner
 
 class OnnxTextGenerationRunner(BaseRunner):
     backend = "onnx"
 
     def load(self) -> int:
         if ort is None:
-            raise RuntimeError("onnxruntime unavailable; install onnxruntime or onnxruntime-gpu")
+            raise RuntimeError(
+                "onnxruntime unavailable; install onnxruntime or onnxruntime-gpu"
+            )
         if AutoTokenizer is None:
             raise RuntimeError("transformers unavailable for tokenizer")
-        log.info("onnx: preparing to load model for %s (may download .onnx)", self.model_id)
+        log.info(
+            "onnx: preparing to load model for %s (may download .onnx)",
+            self.model_id,
+        )
         # Candidate filenames we prefer
-        preferred: List[str] = ["model.onnx", "gpt2.onnx", "decoder_model.onnx"]
+        preferred: List[str] = [
+            "model.onnx",
+            "gpt2.onnx",
+            "decoder_model.onnx",
+        ]
         found_path: Optional[str] = None
         # 1) Local search
         for fname in preferred:
@@ -62,30 +81,59 @@ class OnnxTextGenerationRunner(BaseRunner):
                 api = HfApi(token=os.getenv("HF_TOKEN"))
                 files = api.list_repo_files(self.model_id)
                 # Filter .onnx files
-                onnx_files = [f for f in files if f.lower().endswith('.onnx')]
+                onnx_files = [f for f in files if f.lower().endswith(".onnx")]
                 # Choose best match (preferred order else first)
-                match = next((p for p in preferred if p in onnx_files), None) or (onnx_files[0] if onnx_files else None)
+                match = next(
+                    (p for p in preferred if p in onnx_files), None
+                ) or (onnx_files[0] if onnx_files else None)
                 if match:
                     log.info("onnx: downloading %s from hub", match)
-                    found_path = hf_hub_download(self.model_id, filename=match, token=os.getenv("HF_TOKEN"))
+                    found_path = hf_hub_download(
+                        self.model_id,
+                        filename=match,
+                        token=os.getenv("HF_TOKEN"),
+                    )
             except Exception as e:  # pragma: no cover
-                log.warning(f"Could not list/download ONNX files for {self.model_id}: {e}")
+                log.warning(
+                    f"Could not list/download ONNX files for {self.model_id}: {e}"
+                )
         if not found_path:
-            raise RuntimeError(f"No ONNX file found for {self.model_id}; looked for {preferred} or any *.onnx in repo")
-        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if self._cuda_available() else ["CPUExecutionProvider"]
+            raise RuntimeError(
+                f"No ONNX file found for {self.model_id}; looked for {preferred} or any *.onnx in repo"
+            )
+        providers = (
+            ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            if self._cuda_available()
+            else ["CPUExecutionProvider"]
+        )
         try:
-            log.info("onnx: creating inference session for %s (providers=%s)", found_path, providers)
-            self.session = ort.InferenceSession(found_path, providers=providers)
+            log.info(
+                "onnx: creating inference session for %s (providers=%s)",
+                found_path,
+                providers,
+            )
+            self.session = ort.InferenceSession(
+                found_path, providers=providers
+            )
         except Exception as e:
-            raise RuntimeError(f"Failed creating ONNX session for {found_path}: {e}")
-        log.info("onnx: loading tokenizer for %s (may download)", self.model_id)
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, use_fast=True)
+            raise RuntimeError(
+                f"Failed creating ONNX session for {found_path}: {e}"
+            )
+        log.info(
+            "onnx: loading tokenizer for %s (may download)", self.model_id
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_id, use_fast=True
+        )
         self._loaded = True
         return 0  # param count unknown for ONNX fallback
 
     def _maybe_local_file(self, fname: str) -> Optional[str]:
         # First try Hugging Face hub snapshot directory if cached by transformers
-        cache_dir = os.path.join(os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface")), "hub")
+        cache_dir = os.path.join(
+            os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface")),
+            "hub",
+        )
         if os.path.isdir(cache_dir):
             for root, _dirs, files in os.walk(cache_dir):
                 if fname in files and self.model_id.replace("/", "-") in root:
@@ -94,7 +142,9 @@ class OnnxTextGenerationRunner(BaseRunner):
         local = os.path.join(os.getcwd(), fname)
         return local if os.path.isfile(local) else None
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         text = inputs.get("text") or ""
         if not text:
             return {"text": ""}
@@ -110,12 +160,14 @@ class OnnxTextGenerationRunner(BaseRunner):
         def build_feed(ids: List[int]) -> Dict[str, Any]:
             arr = np.array(ids, dtype=np.int64)[None, :]  # shape (1, seq)
             feed: Dict[str, Any] = {}
-            if 'input_ids' in input_names:
-                feed['input_ids'] = arr
-            if 'attention_mask' in input_names:
-                feed['attention_mask'] = np.ones_like(arr, dtype=np.int64)
-            if 'position_ids' in input_names:
-                feed['position_ids'] = np.arange(arr.shape[1], dtype=np.int64)[None, :]
+            if "input_ids" in input_names:
+                feed["input_ids"] = arr
+            if "attention_mask" in input_names:
+                feed["attention_mask"] = np.ones_like(arr, dtype=np.int64)
+            if "position_ids" in input_names:
+                feed["position_ids"] = np.arange(arr.shape[1], dtype=np.int64)[
+                    None, :
+                ]
             # Ignore past_key_values for simplicity (not in exported minimal models)
             return feed
 
@@ -170,7 +222,7 @@ class OnnxTextGenerationRunner(BaseRunner):
                 break
             next_id = sample_next(next_logits)
             input_ids.append(next_id)
-            eos_id = getattr(self.tokenizer, 'eos_token_id', None)
+            eos_id = getattr(self.tokenizer, "eos_token_id", None)
             if eos_id is not None and next_id == eos_id:
                 break
         decoded = self.tokenizer.decode(input_ids, skip_special_tokens=True)
@@ -185,7 +237,7 @@ class OnnxTextGenerationRunner(BaseRunner):
                 "temperature": temperature,
                 "top_p": top_p,
                 "top_k": top_k,
-            }
+            },
         }
 
     def unload(self) -> None:
@@ -193,8 +245,12 @@ class OnnxTextGenerationRunner(BaseRunner):
 
     def _cuda_available(self) -> bool:
         try:
-            return ort and 'CUDAExecutionProvider' in ort.get_available_providers()
+            return (
+                ort
+                and "CUDAExecutionProvider" in ort.get_available_providers()
+            )
         except Exception:
             return False
+
 
 __all__ = ["OnnxTextGenerationRunner"]

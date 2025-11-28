@@ -4,18 +4,25 @@ Implements visual document retrieval using an image-embedding or zero-shot
 classification model and an in-memory corpus of document-like labels. Corpus
 is constructed at load time and lives entirely in RAM.
 """
+
 from __future__ import annotations
 
-from typing import Dict, Any, Type, Set, List, Optional
 import logging
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Type
 
 import torch
-from transformers import CLIPModel, CLIPImageProcessor
 from PIL import Image
+from transformers import CLIPImageProcessor
+from transformers import CLIPModel
 
-from .base import BaseRunner
 from app.core.utils.media import decode_image_base64
 
+from .base import BaseRunner
 
 RETRIEVAL_TASKS: Set[str] = {"visual-document-retrieval"}
 
@@ -39,23 +46,36 @@ class VisualDocumentRetrievalRunner(BaseRunner):
         # Try CLIP path first
         try:
             log = logging.getLogger("app.runners.retrieval")
-            log.info("retrieval: loading CLIP model_id=%s (may download)", model_id)
+            log.info(
+                "retrieval: loading CLIP model_id=%s (may download)", model_id
+            )
             self.processor = CLIPImageProcessor.from_pretrained(model_id)
             self.model = CLIPModel.from_pretrained(model_id)
             self._mode = "clip"
         except Exception:
             # Fallback: treat as zero-shot image classification model
-            from transformers import AutoImageProcessor, AutoModelForImageClassification
+            from transformers import AutoImageProcessor
+            from transformers import AutoModelForImageClassification
+
             try:
                 log = logging.getLogger("app.runners.retrieval")
-                log.info("retrieval: loading zero-shot image classification model_id=%s (may download)", model_id)
+                log.info(
+                    "retrieval: loading zero-shot image classification model_id=%s (may download)",
+                    model_id,
+                )
                 self.processor = AutoImageProcessor.from_pretrained(model_id)
-                self.model = AutoModelForImageClassification.from_pretrained(model_id)
+                self.model = AutoModelForImageClassification.from_pretrained(
+                    model_id
+                )
                 if not getattr(self.model.config, "id2label", None):
-                    raise RuntimeError("visual_document_retrieval_missing_id2label")
+                    raise RuntimeError(
+                        "visual_document_retrieval_missing_id2label"
+                    )
                 self._mode = "zshot_cls"
             except Exception as e:
-                raise RuntimeError(f"visual_document_retrieval_unsupported_model:{model_id}:{e}") from e
+                raise RuntimeError(
+                    f"visual_document_retrieval_unsupported_model:{model_id}:{e}"
+                ) from e
 
         if self.device:
             try:
@@ -70,15 +90,23 @@ class VisualDocumentRetrievalRunner(BaseRunner):
             try:
                 # Use getattr to avoid mypy accessing attribute on a union type without narrowing
                 visual_proj = getattr(self.model, "visual_projection", None)
-                if visual_proj is None or not hasattr(visual_proj, "out_features"):
-                    raise RuntimeError("visual_document_retrieval_missing_projection")
+                if visual_proj is None or not hasattr(
+                    visual_proj, "out_features"
+                ):
+                    raise RuntimeError(
+                        "visual_document_retrieval_missing_projection"
+                    )
                 hidden = int(getattr(visual_proj, "out_features"))
             except Exception as e:
-                raise RuntimeError(f"visual_document_retrieval_missing_projection:{e}") from e
+                raise RuntimeError(
+                    f"visual_document_retrieval_missing_projection:{e}"
+                ) from e
 
             # Use CPU generator for reproducibility, then move tensor to model.device
             cpu_gen = torch.Generator(device="cpu").manual_seed(0)
-            corpus_cpu = torch.randn(self.num_docs, hidden, generator=cpu_gen, device="cpu")
+            corpus_cpu = torch.randn(
+                self.num_docs, hidden, generator=cpu_gen, device="cpu"
+            )
             target_device = getattr(self.model, "device", None)
             if target_device is not None:
                 try:
@@ -89,7 +117,9 @@ class VisualDocumentRetrievalRunner(BaseRunner):
                 corpus = corpus_cpu
             corpus = torch.nn.functional.normalize(corpus, dim=-1)
             self.corpus_emb = corpus  # (N, D)
-            self.doc_ids: List[str] = [f"doc-{i}" for i in range(self.num_docs)]
+            self.doc_ids: List[str] = [
+                f"doc-{i}" for i in range(self.num_docs)
+            ]
         else:
             # Zero-shot classification mode: labels are our "documents".
             id2label = self.model.config.id2label
@@ -104,7 +134,10 @@ class VisualDocumentRetrievalRunner(BaseRunner):
     def _encode_image_clip(self, image: Image.Image) -> torch.Tensor:
         enc = self.processor(images=image, return_tensors="pt")
         # enc is BatchFeature (dict-like); cast to dict of tensors for mypy by comprehension
-        enc_dict = {k: (v.to(self.model.device) if hasattr(v, "to") else v) for k, v in enc.items()}
+        enc_dict = {
+            k: (v.to(self.model.device) if hasattr(v, "to") else v)
+            for k, v in enc.items()
+        }
         with torch.no_grad():
             out = self.model.get_image_features(**enc_dict)
         emb = torch.nn.functional.normalize(out, dim=-1)
@@ -114,13 +147,18 @@ class VisualDocumentRetrievalRunner(BaseRunner):
         from torch.nn.functional import softmax
 
         enc = self.processor(images=image, return_tensors="pt")
-        enc_dict = {k: (v.to(self.model.device) if hasattr(v, "to") else v) for k, v in enc.items()}
+        enc_dict = {
+            k: (v.to(self.model.device) if hasattr(v, "to") else v)
+            for k, v in enc.items()
+        }
         with torch.no_grad():
             out = self.model(**enc_dict)
         logits = out.logits[0]
         return softmax(logits, dim=-1)
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         img_b64 = inputs.get("image_base64")
         if not isinstance(img_b64, str) or not img_b64.strip():
             raise RuntimeError("visual_document_retrieval_missing_image")
@@ -157,4 +195,8 @@ def retrieval_runner_for_task(task: str) -> Type[BaseRunner]:
     return _TASK_TO_RUNNER[task]
 
 
-__all__ = ["RETRIEVAL_TASKS", "retrieval_runner_for_task", "VisualDocumentRetrievalRunner"]
+__all__ = [
+    "RETRIEVAL_TASKS",
+    "retrieval_runner_for_task",
+    "VisualDocumentRetrievalRunner",
+]

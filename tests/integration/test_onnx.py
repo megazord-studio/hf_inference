@@ -12,7 +12,7 @@ def test_onnx_text_generation_fallback(client, model_id):
         "input_type": "text",
         "inputs": {"text": "Hello ONNX"},
         "task": "text-generation",
-        "options": {"max_new_tokens": 5, "temperature": 0.0}
+        "options": {"max_new_tokens": 5, "temperature": 0.0},
     }
     resp = client.post("/api/inference", json=payload)
     assert resp.status_code == 200, resp.text
@@ -31,10 +31,14 @@ def test_onnx_text_generation_fallback(client, model_id):
     # Backend-specific assertions
     if backend == "onnx":
         assert out.get("approximate") is True
-        assert isinstance(out.get("tokens_generated"), int) and out.get("tokens_generated") >= out.get("initial_length", 0)
+        assert isinstance(out.get("tokens_generated"), int) and out.get(
+            "tokens_generated"
+        ) >= out.get("initial_length", 0)
         params = out.get("parameters", {})
         assert params.get("max_new_tokens") == 5
         assert params.get("temperature") == 0.0
     else:  # torch path
         generated = out.get("text", "")
-        assert len(generated) >= len("Hello ONNX"), "Generated text shorter than input prompt"
+        assert len(generated) >= len("Hello ONNX"), (
+            "Generated text shorter than input prompt"
+        )

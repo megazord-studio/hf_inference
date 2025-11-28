@@ -1,6 +1,9 @@
 """Base runner abstraction (Phase 0)."""
+
 from __future__ import annotations
-from typing import Any, Dict
+
+from typing import Any
+from typing import Dict
 
 
 class BaseRunner:
@@ -13,7 +16,9 @@ class BaseRunner:
         """Load model weights. Return param count (approx)."""
         raise NotImplementedError
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         if not self._loaded:
             raise RuntimeError("Model not loaded")
         raise NotImplementedError

@@ -1,22 +1,30 @@
 """Auto-generated from proto/contracts.proto.
 
 Do not edit manually; run `poe generate-contracts` instead."""
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
+
 
 class ErrorResponse(BaseModel):
     code: str
     message: str
     details: Optional[Dict[str, Any]] = None
 
+
 class TaskOutputMetadata(BaseModel):
     task: str
     runtime_ms_model: Optional[int] = None
     resolved_model_id: Optional[str] = None
     backend: Optional[str] = None
+
 
 class ModelMeta(BaseModel):
     id: str
@@ -38,6 +46,7 @@ class ModelMeta(BaseModel):
     siblings: List[Dict[str, Any]] = Field(default_factory=list)
     fallback: Optional[bool] = None
 
+
 class ModelSummary(BaseModel):
     id: Optional[str] = None
     pipeline_tag: Optional[str] = None
@@ -47,11 +56,13 @@ class ModelSummary(BaseModel):
     downloads: Optional[int] = None
     card_data: Optional[Dict[str, Any]] = None
 
+
 class InferenceResult(BaseModel):
     task_output: Dict[str, Any]
     echo: Dict[str, Any]
     info: Dict[str, Any]
     metadata: TaskOutputMetadata
+
 
 class InferenceResponsePayload(BaseModel):
     result: Optional[InferenceResult] = None
@@ -60,8 +71,10 @@ class InferenceResponsePayload(BaseModel):
     model_meta: Optional[ModelMeta] = None
     error: Optional[ErrorResponse] = None
 
+
 class InferenceErrorPayload(BaseModel):
     error: ErrorResponse
+
 
 class StreamingEvent(BaseModel):
     type: Optional[str] = None
@@ -72,10 +85,12 @@ class StreamingEvent(BaseModel):
     payload: Optional[Dict[str, Any]] = None
     error: Optional[Dict[str, Any]] = None
 
+
 class StreamingTokenPayload(BaseModel):
     type: Optional[str] = None
     index: Optional[int] = None
     text: Optional[str] = None
+
 
 class StreamingProgressPayload(BaseModel):
     type: Optional[str] = None
@@ -85,6 +100,7 @@ class StreamingProgressPayload(BaseModel):
     chunk_index: Optional[int] = None
     num_chunks: Optional[int] = None
     audio_base64: Optional[str] = None
+
 
 class StreamingDonePayload(BaseModel):
     type: Optional[str] = None
@@ -98,17 +114,20 @@ class StreamingDonePayload(BaseModel):
     image_base64: Optional[str] = None
     num_chunks: Optional[int] = None
 
+
 class StreamingErrorPayload(BaseModel):
     type: Optional[str] = None
     message: Optional[str] = None
     code: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
 
+
 class TaskCategory(BaseModel):
     id: Optional[str] = None
     label: Optional[str] = None
     description: Optional[str] = None
     tasks: List[str] = Field(default_factory=list)
+
 
 class TaskInfo(BaseModel):
     id: Optional[str] = None
@@ -120,4 +139,20 @@ class TaskInfo(BaseModel):
     category: Optional[str] = None
     supported: Optional[bool] = None
 
-__all__ = ["ErrorResponse", "TaskOutputMetadata", "ModelMeta", "ModelSummary", "InferenceResult", "InferenceResponsePayload", "InferenceErrorPayload", "StreamingEvent", "StreamingTokenPayload", "StreamingProgressPayload", "StreamingDonePayload", "StreamingErrorPayload", "TaskCategory", "TaskInfo"]
+
+__all__ = [
+    "ErrorResponse",
+    "TaskOutputMetadata",
+    "ModelMeta",
+    "ModelSummary",
+    "InferenceResult",
+    "InferenceResponsePayload",
+    "InferenceErrorPayload",
+    "StreamingEvent",
+    "StreamingTokenPayload",
+    "StreamingProgressPayload",
+    "StreamingDonePayload",
+    "StreamingErrorPayload",
+    "TaskCategory",
+    "TaskInfo",
+]

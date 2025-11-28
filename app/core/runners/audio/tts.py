@@ -1,4 +1,5 @@
 """Text-to-Speech runner supporting SpeechT5 and Coqui TTS."""
+
 from __future__ import annotations
 
 import base64
@@ -76,8 +77,12 @@ class TextToSpeechRunner(BaseRunner):
 
         self.processor = SpeechT5Processor.from_pretrained(self.model_id)
         cfg = _config_without_gc(self.model_id)
-        self.model = SpeechT5ForTextToSpeech.from_pretrained(self.model_id, config=cfg)
-        self.vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
+        self.model = SpeechT5ForTextToSpeech.from_pretrained(
+            self.model_id, config=cfg
+        )
+        self.vocoder = SpeechT5HifiGan.from_pretrained(
+            "microsoft/speecht5_hifigan"
+        )
 
         if self.device:
             try:
@@ -87,7 +92,9 @@ class TextToSpeechRunner(BaseRunner):
                 pass
 
         model_device = getattr(self.model, "device", torch.device("cpu"))
-        self.spk_embed = torch.randn(1, 512, dtype=torch.float32, device=model_device)
+        self.spk_embed = torch.randn(
+            1, 512, dtype=torch.float32, device=model_device
+        )
         self.sample_rate = 16000
         self._tts_backend = "speecht5"
         self._loaded = True
@@ -105,7 +112,9 @@ class TextToSpeechRunner(BaseRunner):
                 "or use model_id=microsoft/speecht5_tts"
             )
 
-        mapping = {"coqui/XTTS-v2": "tts_models/multilingual/multi-dataset/xtts_v2"}
+        mapping = {
+            "coqui/XTTS-v2": "tts_models/multilingual/multi-dataset/xtts_v2"
+        }
         tts_name = mapping.get(self.model_id, self.model_id)
 
         attempts = [
@@ -134,7 +143,9 @@ class TextToSpeechRunner(BaseRunner):
         self._loaded = True
         return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         text = inputs.get("text") or ""
         if not text:
             return {"audio_base64": ""}
@@ -165,7 +176,9 @@ class TextToSpeechRunner(BaseRunner):
 
         return self._encode_wav(wav)
 
-    def _predict_coqui(self, text: str, options: Dict[str, Any]) -> Dict[str, Any]:
+    def _predict_coqui(
+        self, text: str, options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Generate speech using Coqui TTS."""
         speaker = options.get("speaker")
         language = options.get("language")

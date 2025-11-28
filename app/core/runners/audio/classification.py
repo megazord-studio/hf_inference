@@ -1,4 +1,5 @@
 """Audio Classification runner."""
+
 from __future__ import annotations
 
 import json
@@ -68,7 +69,9 @@ class AudioClassificationRunner(BaseRunner):
         self._loaded = True
         return sum(p.numel() for p in self.model.parameters())
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         audio_b64 = inputs.get("audio_base64")
         if not audio_b64:
             return {"predictions": []}
@@ -99,8 +102,8 @@ class AudioClassificationRunner(BaseRunner):
             labels = [self.model.config.id2label[i.item()] for i in indices]
             return {
                 "predictions": [
-                    {"label": l, "score": float(v.item())}
-                    for l, v in zip(labels, values)
+                    {"label": lbl, "score": float(v.item())}
+                    for lbl, v in zip(labels, values)
                 ]
             }
         except Exception as e:

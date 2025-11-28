@@ -2,10 +2,15 @@
 
 DRY: centrally encode/decode to keep runners focused on inference only.
 """
+
 from __future__ import annotations
-from typing import Tuple, List
+
+import base64
+import io
+from typing import List
+from typing import Tuple
+
 from PIL import Image
-import base64, io
 
 IMG_PREFIX = "data:image/png;base64,"
 AUDIO_PREFIX = "data:audio/wav;base64,"
@@ -27,10 +32,10 @@ def _strip_data_prefix(data: str) -> str:
 
 def decode_image_base64(data: str) -> Image.Image:
     raw = base64.b64decode(_strip_data_prefix(data))
-    return Image.open(io.BytesIO(raw)).convert('RGB')
+    return Image.open(io.BytesIO(raw)).convert("RGB")
 
 
-def encode_image_base64(img: Image.Image, format: str = 'PNG') -> str:
+def encode_image_base64(img: Image.Image, format: str = "PNG") -> str:
     buf = io.BytesIO()
     img.save(buf, format=format)
     return IMG_PREFIX + base64.b64encode(buf.getvalue()).decode()
@@ -86,7 +91,9 @@ def decode_3d_base64(data: str) -> bytes:
 VIDEO_GIF_PREFIX = "data:image/gif;base64,"
 
 
-def encode_gif_base64(frames: List[Image.Image], duration_ms: int = 200, loop: int = 0) -> str:
+def encode_gif_base64(
+    frames: List[Image.Image], duration_ms: int = 200, loop: int = 0
+) -> str:
     """Encode a small list of PIL Image frames as an animated GIF data URI.
 
     Kept for potential backwards compatibility; main video path uses MP4.
@@ -120,6 +127,7 @@ def decode_gif_base64(data: str) -> List[Image.Image]:
     if not frames:
         frames.append(im.copy().convert("RGB"))
     return frames
+
 
 __all__ = [
     "decode_image_base64",

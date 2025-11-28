@@ -15,8 +15,18 @@ def test_intents_endpoint_shape(client):
 def test_models_preloaded_basic(client, monkeypatch):
     # Patch fetch to avoid heavy network
     from app.routers import models as models_module
+
     def fake_fetch(limit: int):
-        return [models_module.ModelSummary(id=f"model-{i}", pipeline_tag="summarization", likes=10+i, downloads=100+i) for i in range(limit)]
+        return [
+            models_module.ModelSummary(
+                id=f"model-{i}",
+                pipeline_tag="summarization",
+                likes=10 + i,
+                downloads=100 + i,
+            )
+            for i in range(limit)
+        ]
+
     monkeypatch.setattr(models_module, "_fetch_models", fake_fetch)
     r = client.get("/api/models/preloaded?limit=5&refresh=true")
     assert r.status_code == 200
@@ -27,10 +37,15 @@ def test_models_preloaded_basic(client, monkeypatch):
 
 def test_models_cache(client, monkeypatch):
     from app.routers import models as models_module
+
     calls = {"n": 0}
+
     def fake_fetch(limit: int):
         calls["n"] += 1
-        return [models_module.ModelSummary(id="m", pipeline_tag="summarization")]
+        return [
+            models_module.ModelSummary(id="m", pipeline_tag="summarization")
+        ]
+
     monkeypatch.setattr(models_module, "_fetch_models", fake_fetch)
     # First call refreshes
     r1 = client.get("/api/models/preloaded?limit=1&refresh=true")
@@ -43,6 +58,7 @@ def test_models_cache(client, monkeypatch):
 
 def test_models_meta(client, monkeypatch):
     from app.routers import models as models_module
+
     monkeypatch.setattr(models_module, "_CACHE", [])
     monkeypatch.setattr(models_module, "_CACHE_TS", time.time())
     r = client.get("/api/models/preloaded/meta")
@@ -60,8 +76,12 @@ def test_inference_unknown_task_returns_clear_error(client):
         "task": "non-existing-task-xyz",
         "options": {},
     }
-    resp = client.post("/api/inference", json=payload, params={"include_model_meta": False})
+    resp = client.post(
+        "/api/inference", json=payload, params={"include_model_meta": False}
+    )
     assert resp.status_code == 501
     data = resp.json()
     assert data["error"]["code"] == "task_not_supported"
-    assert data["error"].get("details", {}).get("task") == "non-existing-task-xyz"
+    assert (
+        data["error"].get("details", {}).get("task") == "non-existing-task-xyz"
+    )

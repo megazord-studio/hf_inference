@@ -9,18 +9,28 @@ Responsibilities:
 
 DRY & KISS: keep logic straightforward; no side effects outside in-memory state.
 """
-from __future__ import annotations
-import asyncio
-import os
-import time
-import threading
-from concurrent.futures import Future
-from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
-import logging
 
-from app.config import REGISTRY_MAX_LOADED_MODELS, REGISTRY_MEMORY_LIMIT_MB
-from app.core.device import select_device, choose_dtype
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import threading
+import time
+from concurrent.futures import Future
+from dataclasses import dataclass
+from dataclasses import field
+from typing import Any
+from typing import Dict
+from typing import Iterable
+from typing import Optional
+from typing import Tuple
+from typing import Union
+
+from app.config import REGISTRY_MAX_LOADED_MODELS
+from app.config import REGISTRY_MEMORY_LIMIT_MB
+from app.core.device import choose_dtype
+from app.core.device import select_device
 from app.core.runners import get_runner_cls
 
 log = logging.getLogger("app.registry")
@@ -31,14 +41,18 @@ ENV_MAX_LOADED = None
 ENV_MEMORY_LIMIT_MB = None
 
 
-def _read_positive_int(env_name: str, default: Optional[int], *, allow_none: bool = False) -> Optional[int]:
+def _read_positive_int(
+    env_name: str, default: Optional[int], *, allow_none: bool = False
+) -> Optional[int]:
     value = os.getenv(env_name)
     if value is None:
         return default
     try:
         parsed = int(value)
     except ValueError:
-        log.warning("invalid %s value %r; defaulting to %s", env_name, value, default)
+        log.warning(
+            "invalid %s value %r; defaulting to %s", env_name, value, default
+        )
         return default
     if parsed <= 0:
         return None if allow_none else default
@@ -67,7 +81,9 @@ class ModelEntry:
     last_used_at: float = field(default_factory=time.time)
     param_count: Optional[int] = None
     mem_estimate_mb: Optional[float] = None
-    popularity_score: Optional[float] = None  # placeholder (Phase 0 not computed)
+    popularity_score: Optional[float] = (
+        None  # placeholder (Phase 0 not computed)
+    )
     acceleration_profile: Optional[dict] = None  # placeholder for Phase 3
     load_started_at: Optional[float] = None
     load_finished_at: Optional[float] = None
@@ -90,7 +106,9 @@ class ModelRegistry:
         # Create an event loop for background async loads and start the thread.
         # Keep the loop object on `self` so other methods can submit coroutines.
         self._loop = asyncio.new_event_loop()
-        self._loop_thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._loop_thread = threading.Thread(
+            target=self._run_loop, daemon=True
+        )
         self._loop_thread.start()
         # Wait briefly for the background event loop to start to avoid races
         # where run_coroutine_threadsafe() is called before the loop is running.
@@ -100,7 +118,9 @@ class ModelRegistry:
             time.sleep(0.01)
         else:
             log.warning("background asyncio loop did not start within timeout")
-        self._loading_futures: Dict[Tuple[str, str], Union[asyncio.Future[Any], Future[Any], None]] = {}
+        self._loading_futures: Dict[
+            Tuple[str, str], Union[asyncio.Future[Any], Future[Any], None]
+        ] = {}
         # Limit number of concurrent heavy loads
         self._max_concurrent_loads = 2
         self._load_semaphore = asyncio.Semaphore(self._max_concurrent_loads)
@@ -110,7 +130,13 @@ class ModelRegistry:
         self._loop.run_forever()
 
     # --- public API ---
-    def predict(self, task: str, model_id: str, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self,
+        task: str,
+        model_id: str,
+        inputs: Dict[str, Any],
+        options: Dict[str, Any],
+    ) -> Dict[str, Any]:
         # Ensure model is loaded (may block for heavy models)
         entry = self._get_or_load(task, model_id)
         # touch last-used
@@ -151,13 +177,17 @@ class ModelRegistry:
     def _total_mem_used_mb(self) -> float:
         # Sum up known estimates; unknown entries count as 0
         with _LOCK:
-            return sum((e.mem_estimate_mb or 0.0) for e in self._models.values())
+            return sum(
+                (e.mem_estimate_mb or 0.0) for e in self._models.values()
+            )
 
     def _compute_eviction_score(self, entry: ModelEntry, now: float) -> float:
         # Higher score = more eligible for eviction
         age = now - entry.last_used_at
         size = entry.mem_estimate_mb or 0.0
-        error_flag = 1.0 if entry.status == "error" or entry.last_error else 0.0
+        error_flag = (
+            1.0 if entry.status == "error" or entry.last_error else 0.0
+        )
         popularity = entry.popularity_score or 0.0
         # Combine signals: prioritize error and long-unused; penalize popular models
         return age + 0.1 * size + 3600.0 * error_flag - 100.0 * popularity
@@ -169,7 +199,9 @@ class ModelRegistry:
                 f"{mid}:{task}": {
                     "status": e.status,
                     "last_used_s_ago": int(now - e.last_used_at),
-                    "loaded_s_ago": int(now - e.loaded_at) if e.loaded_at else None,
+                    "loaded_s_ago": int(now - e.loaded_at)
+                    if e.loaded_at
+                    else None,
                     "mem_mb": e.mem_estimate_mb,
                     "load_time_ms": e.load_time_ms,
                     "last_error": e.last_error,
@@ -181,7 +213,8 @@ class ModelRegistry:
         with _LOCK:
             # Remove entries matching the exact model_id or variant ending with '/model_id'
             keys_to_remove = [
-                key for key in self._models.keys()
+                key
+                for key in self._models.keys()
                 if key[0] == model_id or key[0].endswith(f"/{model_id}")
             ]
             if not keys_to_remove:
@@ -217,7 +250,9 @@ class ModelRegistry:
             if task in _HEAVY_TASKS:
                 # Use async loading queue for heavy models, blocking caller only while waiting
                 future = self._loading_futures.get(key)
-                if future is None or (hasattr(future, "done") and future.done()):
+                if future is None or (
+                    hasattr(future, "done") and future.done()
+                ):
                     future = asyncio.run_coroutine_threadsafe(
                         self._async_load_model(task, model_id), self._loop
                     )
@@ -244,13 +279,25 @@ class ModelRegistry:
                 runner_cls = get_runner_cls(task)
                 dtype_str = choose_dtype(param_count=None, task=task)
                 try:
-                    runner = runner_cls(model_id=model_id, device=self._device, dtype=dtype_str)  # type: ignore[call-arg]
+                    runner = runner_cls(
+                        model_id=model_id, device=self._device, dtype=dtype_str
+                    )  # type: ignore[call-arg]
                 except TypeError:
                     runner = runner_cls(model_id=model_id, device=self._device)
-                entry = ModelEntry(model_id=model_id, task=task, runner=runner, status="loading")
+                entry = ModelEntry(
+                    model_id=model_id,
+                    task=task,
+                    runner=runner,
+                    status="loading",
+                )
                 entry.load_started_at = time.time()
                 self._models[key] = entry
-                log.info("model registered loading %s:%s (count=%d)", model_id, task, len(self._models))
+                log.info(
+                    "model registered loading %s:%s (count=%d)",
+                    model_id,
+                    task,
+                    len(self._models),
+                )
 
             try:
                 loop = asyncio.get_running_loop()
@@ -264,7 +311,9 @@ class ModelRegistry:
                     return entry.runner.load()
                 except Exception as e:
                     msg = str(e)
-                    raise RuntimeError(f"Failed loading model {model_id} for task {task}: {msg}")
+                    raise RuntimeError(
+                        f"Failed loading model {model_id} for task {task}: {msg}"
+                    )
 
             try:
                 param_count = await loop.run_in_executor(None, _load_runner)
@@ -272,11 +321,20 @@ class ModelRegistry:
                     entry.status = "ready"
                     entry.param_count = param_count
                     entry.load_finished_at = time.time()
-                    entry.load_time_ms = int((entry.load_finished_at - entry.load_started_at) * 1000)
+                    entry.load_time_ms = int(
+                        (entry.load_finished_at - entry.load_started_at) * 1000
+                    )
                     if param_count:
-                        bytes_per_param = 2 if getattr(entry.runner, "dtype", None) in ("float16", "half") else 4
+                        bytes_per_param = (
+                            2
+                            if getattr(entry.runner, "dtype", None)
+                            in ("float16", "half")
+                            else 4
+                        )
                         # Use integer megabyte estimates to keep totals deterministic in tests
-                        entry.mem_estimate_mb = int((param_count * bytes_per_param) / (1024**2))
+                        entry.mem_estimate_mb = int(
+                            (param_count * bytes_per_param) / (1024**2)
+                        )
                     # Ensure runner is marked loaded so BaseRunner.predict() does not raise
                     try:
                         setattr(entry.runner, "_loaded", True)
@@ -286,16 +344,30 @@ class ModelRegistry:
                 # Eviction prefers older/less-used models via _compute_eviction_score,
                 # so the freshly-loaded entry is unlikely to be chosen.
                 self._evict_to_limit(exclude_keys={key})
-                log.info("model ready %s:%s (mem_mb=%s) loaded, total=%d", model_id, task, entry.mem_estimate_mb, len(self._models))
+                log.info(
+                    "model ready %s:%s (mem_mb=%s) loaded, total=%d",
+                    model_id,
+                    task,
+                    entry.mem_estimate_mb,
+                    len(self._models),
+                )
                 return entry
             except Exception as e:
                 with _LOCK:
                     entry.load_finished_at = time.time()
-                    entry.load_time_ms = int((entry.load_finished_at - (entry.load_started_at or entry.load_finished_at)) * 1000)
+                    entry.load_time_ms = int(
+                        (
+                            entry.load_finished_at
+                            - (entry.load_started_at or entry.load_finished_at)
+                        )
+                        * 1000
+                    )
                     msg = str(e)
                     entry.status = "error"
                     entry.last_error = msg[:200]
-                raise RuntimeError(f"Failed loading model {model_id} for task {task}: {e}")
+                raise RuntimeError(
+                    f"Failed loading model {model_id} for task {task}: {e}"
+                )
 
     def _sync_load_model(self, task: str, model_id: str) -> ModelEntry:
         key = (model_id, task)
@@ -307,27 +379,47 @@ class ModelRegistry:
             runner_cls = get_runner_cls(task)
             dtype_str = choose_dtype(param_count=None, task=task)
             try:
-                runner = runner_cls(model_id=model_id, device=self._device, dtype=dtype_str)  # type: ignore[call-arg]
+                runner = runner_cls(
+                    model_id=model_id, device=self._device, dtype=dtype_str
+                )  # type: ignore[call-arg]
             except TypeError:
                 runner = runner_cls(model_id=model_id, device=self._device)
-            entry = ModelEntry(model_id=model_id, task=task, runner=runner, status="loading")
+            entry = ModelEntry(
+                model_id=model_id, task=task, runner=runner, status="loading"
+            )
             entry.load_started_at = time.time()
             self._models[key] = entry
-            log.info("model registered loading %s:%s (count=%d)", model_id, task, len(self._models))
+            log.info(
+                "model registered loading %s:%s (count=%d)",
+                model_id,
+                task,
+                len(self._models),
+            )
         try:
             try:
                 param_count = runner.load()
             except Exception as e:
                 msg = str(e)
-                raise RuntimeError(f"Failed loading model {model_id} for task {task}: {msg}")
+                raise RuntimeError(
+                    f"Failed loading model {model_id} for task {task}: {msg}"
+                )
             with _LOCK:
                 entry.status = "ready"
                 entry.param_count = param_count
                 entry.load_finished_at = time.time()
-                entry.load_time_ms = int((entry.load_finished_at - entry.load_started_at) * 1000)
+                entry.load_time_ms = int(
+                    (entry.load_finished_at - entry.load_started_at) * 1000
+                )
                 if param_count:
-                    bytes_per_param = 2 if getattr(entry.runner, "dtype", None) in ("float16", "half") else 4
-                    entry.mem_estimate_mb = int((param_count * bytes_per_param) / (1024**2))
+                    bytes_per_param = (
+                        2
+                        if getattr(entry.runner, "dtype", None)
+                        in ("float16", "half")
+                        else 4
+                    )
+                    entry.mem_estimate_mb = int(
+                        (param_count * bytes_per_param) / (1024**2)
+                    )
                 # Ensure runner is marked loaded so BaseRunner.predict() does not raise
                 try:
                     setattr(entry.runner, "_loaded", True)
@@ -335,16 +427,30 @@ class ModelRegistry:
                     pass
                 # After a successful load, evict if we are over the count limit.
                 self._evict_to_limit(exclude_keys={key})
-                log.info("model ready %s:%s (mem_mb=%s) loaded, total=%d", model_id, task, entry.mem_estimate_mb, len(self._models))
+                log.info(
+                    "model ready %s:%s (mem_mb=%s) loaded, total=%d",
+                    model_id,
+                    task,
+                    entry.mem_estimate_mb,
+                    len(self._models),
+                )
                 return entry
         except Exception as e:
             with _LOCK:
                 entry.load_finished_at = time.time()
-                entry.load_time_ms = int((entry.load_finished_at - (entry.load_started_at or entry.load_finished_at)) * 1000)
+                entry.load_time_ms = int(
+                    (
+                        entry.load_finished_at
+                        - (entry.load_started_at or entry.load_finished_at)
+                    )
+                    * 1000
+                )
                 msg = str(e)
                 entry.status = "error"
                 entry.last_error = msg[:200]
-            raise RuntimeError(f"Failed loading model {model_id} for task {task}: {e}")
+            raise RuntimeError(
+                f"Failed loading model {model_id} for task {task}: {e}"
+            )
 
     def _evict_one(self) -> None:
         # Evict the single most eligible model based on eviction score
@@ -362,23 +468,37 @@ class ModelRegistry:
             if best_key is not None:
                 mid, mtask = best_key
                 try:
-                    log.info("evicting %s:%s score=%.2f mem=%s", mid, mtask, best_score, self._models[best_key].mem_estimate_mb)
+                    log.info(
+                        "evicting %s:%s score=%.2f mem=%s",
+                        mid,
+                        mtask,
+                        best_score,
+                        self._models[best_key].mem_estimate_mb,
+                    )
                     self._models[best_key].runner.unload()
                 except Exception:
                     log.exception("error unloading model %s:%s", mid, mtask)
                 try:
                     del self._models[best_key]
                 except Exception:
-                    log.exception("failed deleting model entry %s:%s from registry", mid, mtask)
+                    log.exception(
+                        "failed deleting model entry %s:%s from registry",
+                        mid,
+                        mtask,
+                    )
 
-    def _evict_to_limit(self, exclude_keys: Optional[Iterable[Tuple[str, str]]] = None) -> None:
+    def _evict_to_limit(
+        self, exclude_keys: Optional[Iterable[Tuple[str, str]]] = None
+    ) -> None:
         """Evict models while either count or estimated memory exceeds limits."""
         protected = set(exclude_keys or ())
         while True:
             with _LOCK:
                 now = time.time()
                 total_count = len(self._models)
-                total_mem = sum((e.mem_estimate_mb or 0.0) for e in self._models.values())
+                total_mem = sum(
+                    (e.mem_estimate_mb or 0.0) for e in self._models.values()
+                )
                 mem_limit = self._memory_limit_mb
                 over_count = total_count > self._max_loaded
                 over_mem = mem_limit is not None and total_mem > mem_limit
@@ -398,7 +518,10 @@ class ModelRegistry:
                     mem_limit if mem_limit is not None else "inf",
                 )
                 break
-            candidates.sort(key=lambda item: (item[2], item[1].mem_estimate_mb or 0.0), reverse=True)
+            candidates.sort(
+                key=lambda item: (item[2], item[1].mem_estimate_mb or 0.0),
+                reverse=True,
+            )
             best_key = candidates[0][0]
             with _LOCK:
                 entry = self._models.get(best_key)
@@ -412,7 +535,10 @@ class ModelRegistry:
                         mtask,
                         len(self._models),
                         self._max_loaded,
-                        sum((e.mem_estimate_mb or 0.0) for e in self._models.values()),
+                        sum(
+                            (e.mem_estimate_mb or 0.0)
+                            for e in self._models.values()
+                        ),
                         mem_limit if mem_limit is not None else "inf",
                     )
                     entry.runner.unload()
@@ -422,7 +548,11 @@ class ModelRegistry:
                     try:
                         del self._models[best_key]
                     except Exception:
-                        log.exception("failed deleting model entry %s:%s from registry", mid, mtask)
+                        log.exception(
+                            "failed deleting model entry %s:%s from registry",
+                            mid,
+                            mtask,
+                        )
 
     def _ensure_limits(self) -> None:
         self._evict_to_limit()

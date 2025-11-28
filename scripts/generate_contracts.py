@@ -7,13 +7,15 @@ This script keeps `app/schemas_pb2.py` and `frontend/generated/contracts_pb.ts`
 in sync with `proto/contracts.proto`, ensuring the protobuf definition is the
 single source of truth for shared contracts.
 """
+
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-import re
-import textwrap
-from typing import Any, Dict, List, Optional, Set
+from typing import Dict
+from typing import List
+from typing import Set
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROTO_PATH = REPO_ROOT / "proto" / "contracts.proto"
@@ -55,11 +57,13 @@ REQUIRED_FIELDS = {
 
 MESSAGE_NAMES: Set[str] = set()
 
+
 @dataclass
 class FieldDef:
     name: str
     type_name: str
     repeated: bool = False
+
 
 @dataclass
 class MessageDef:
@@ -90,7 +94,9 @@ def parse_proto() -> List[MessageDef]:
             continue
         repeated, type_name, field_name = match.groups()
         current.fields.append(
-            FieldDef(name=field_name, type_name=type_name, repeated=bool(repeated))
+            FieldDef(
+                name=field_name, type_name=type_name, repeated=bool(repeated)
+            )
         )
     return messages
 
@@ -114,7 +120,9 @@ def _py_type(message: str, field: FieldDef) -> str:
 def _ts_type(message: str, field: FieldDef) -> str:
     base = TS_TYPE_MAP.get(field.type_name)
     if base is None:
-        base = field.type_name if field.type_name in MESSAGE_NAMES else "unknown"
+        base = (
+            field.type_name if field.type_name in MESSAGE_NAMES else "unknown"
+        )
     annotated = f"{base}[]" if field.repeated else base
     return annotated
 
@@ -133,14 +141,14 @@ def generate_python(messages: List[MessageDef]) -> None:
     imports = ["Any", "Dict", "List", "Optional"]
     imports = [name for name in imports if name in needed_types]
 
-    header = textwrap.dedent(
-        """Auto-generated from proto/contracts.proto.
-
-        Do not edit manually; run `poe generate-contracts` instead."""
-    ).strip()
-
-    needs_field = any(field.repeated for msg in messages for field in msg.fields)
-    pydantic_import = "from pydantic import BaseModel, Field" if needs_field else "from pydantic import BaseModel"
+    needs_field = any(
+        field.repeated for msg in messages for field in msg.fields
+    )
+    pydantic_import = (
+        "from pydantic import BaseModel, Field"
+        if needs_field
+        else "from pydantic import BaseModel"
+    )
 
     lines = [
         '"""Auto-generated from proto/contracts.proto.\n\nDo not edit manually; run `poe generate-contracts` instead."""',
@@ -162,7 +170,9 @@ def generate_python(messages: List[MessageDef]) -> None:
         for field in message.fields:
             annotation = _py_type(message.name, field)
             if field.repeated:
-                lines.append(f"    {field.name}: {annotation} = Field(default_factory=list)")
+                lines.append(
+                    f"    {field.name}: {annotation} = Field(default_factory=list)"
+                )
             elif _is_required(message.name, field):
                 lines.append(f"    {field.name}: {annotation}")
             else:
@@ -176,7 +186,9 @@ def generate_python(messages: List[MessageDef]) -> None:
 
 
 def generate_ts(messages: List[MessageDef]) -> None:
-    header = "// Auto-generated from proto/contracts.proto. Do not edit manually."
+    header = (
+        "// Auto-generated from proto/contracts.proto. Do not edit manually."
+    )
     lines = [header, ""]
     for message in messages:
         lines.append(f"export interface {message.name} {{")

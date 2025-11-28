@@ -2,6 +2,7 @@
 
 Exports the main runner and task set for use by the registry.
 """
+
 from typing import Set
 from typing import Type
 
@@ -19,4 +20,8 @@ def multimodal_runner_for_task(task: str) -> Type[BaseRunner]:
     return _TASK_MAP[task]
 
 
-__all__ = ["MULTIMODAL_TASKS", "multimodal_runner_for_task", "ImageTextToTextRunner"]
+__all__ = [
+    "MULTIMODAL_TASKS",
+    "multimodal_runner_for_task",
+    "ImageTextToTextRunner",
+]

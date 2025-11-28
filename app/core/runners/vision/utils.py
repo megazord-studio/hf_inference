@@ -1,10 +1,10 @@
 """Shared utilities for vision runners."""
+
 from __future__ import annotations
 
 import base64
 import io
 import logging
-from typing import Any
 
 from PIL import Image
 

@@ -1,4 +1,5 @@
 """Extended audio runners - audio-to-audio, text-to-audio, VAD, etc."""
+
 from __future__ import annotations
 
 import base64
@@ -33,7 +34,9 @@ class AudioToAudioRunner(BaseRunner):
         self._loaded = True
         return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         b64 = inputs.get("audio_base64")
         if not b64:
             raise RuntimeError("audio_to_audio_missing_input")
@@ -66,7 +69,9 @@ class TextToAudioRunner(BaseRunner):
         self._loaded = True
         return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         text = inputs.get("text") or ""
         if not text:
             raise RuntimeError("text_to_audio_missing_text")
@@ -103,7 +108,9 @@ class AudioTextToTextRunner(BaseRunner):
         self._loaded = True
         return sum(p.numel() for p in self.model.parameters())
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         b64 = inputs.get("audio_base64")
         if not b64:
             raise RuntimeError("audio_text_to_text_missing_input")
@@ -132,7 +139,9 @@ class VoiceActivityDetectionRunner(BaseRunner):
         self._loaded = True
         return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         b64 = inputs.get("audio_base64")
         if not b64:
             raise RuntimeError("vad_missing_input")

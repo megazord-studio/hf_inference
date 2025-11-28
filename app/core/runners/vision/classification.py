@@ -1,4 +1,5 @@
 """Image Classification runner."""
+
 from __future__ import annotations
 
 import logging
@@ -24,18 +25,27 @@ class ImageClassificationRunner(BaseRunner):
             raise RuntimeError("torch unavailable")
 
         try:
-            log.info("vision: loading AutoImageProcessor for %s", self.model_id)
+            log.info(
+                "vision: loading AutoImageProcessor for %s", self.model_id
+            )
             self.processor = AutoImageProcessor.from_pretrained(self.model_id)
         except Exception:
             from transformers import AutoFeatureExtractor
 
-            log.info("vision: loading AutoFeatureExtractor for %s", self.model_id)
-            self.processor = AutoFeatureExtractor.from_pretrained(self.model_id)
+            log.info(
+                "vision: loading AutoFeatureExtractor for %s", self.model_id
+            )
+            self.processor = AutoFeatureExtractor.from_pretrained(
+                self.model_id
+            )
 
         log.info(
-            "vision: loading AutoModelForImageClassification for %s", self.model_id
+            "vision: loading AutoModelForImageClassification for %s",
+            self.model_id,
         )
-        self.model = AutoModelForImageClassification.from_pretrained(self.model_id)
+        self.model = AutoModelForImageClassification.from_pretrained(
+            self.model_id
+        )
 
         if self.device:
             self.model.to(self.device)
@@ -43,7 +53,9 @@ class ImageClassificationRunner(BaseRunner):
         self._loaded = True
         return sum(p.numel() for p in self.model.parameters())
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         img_b64 = inputs.get("image_base64")
         if not img_b64:
             return {"predictions": []}
@@ -65,8 +77,8 @@ class ImageClassificationRunner(BaseRunner):
             labels = [self.model.config.id2label[i.item()] for i in indices]
             return {
                 "predictions": [
-                    {"label": l, "score": float(v.item())}
-                    for l, v in zip(labels, values)
+                    {"label": lbl, "score": float(v.item())}
+                    for lbl, v in zip(labels, values)
                 ]
             }
         except Exception as e:

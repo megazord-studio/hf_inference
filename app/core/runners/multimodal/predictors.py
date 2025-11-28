@@ -5,6 +5,7 @@ Each predictor follows a consistent pattern:
 - Returns Dict[str, Any] with answer and arch fields
 - Handles errors gracefully, returning {} on failure
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,10 +19,9 @@ from .tokenizer import ensure_image_tokens
 from .tokenizer import get_tokenizer
 from .tokenizer import strip_processor_only_kwargs
 from .utils import cap_max_new_tokens
-from .utils import resolve_max_new_tokens
-from .utils import is_cuda
 from .utils import move_to_device
 from .utils import require
+from .utils import resolve_max_new_tokens
 
 log = logging.getLogger("app.runners.multimodal")
 
@@ -36,10 +36,16 @@ def predict_blip(
 ) -> Dict[str, Any]:
     """Predict using BLIP model."""
     enc = processor(image, question, return_tensors="pt").to(device)
-    resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-    max_len = resolved if user_override else cap_max_new_tokens(resolved, device)
+    resolved, user_override = resolve_max_new_tokens(
+        options, device, default=32
+    )
+    max_len = (
+        resolved if user_override else cap_max_new_tokens(resolved, device)
+    )
     with torch.no_grad():
-        out = model.generate(**enc, max_length=max_len, do_sample=False, num_beams=1)
+        out = model.generate(
+            **enc, max_length=max_len, do_sample=False, num_beams=1
+        )
     answer = processor.decode(out[0], skip_special_tokens=True)
     return {"answer": answer, "arch": "blip"}
 
@@ -56,9 +62,15 @@ def predict_llava(
     try:
         tokenizer = get_tokenizer(processor=processor, model=model)
         question = ensure_image_tokens(question, 1, tokenizer)
-        enc = processor(images=image, text=question, return_tensors="pt").to(device)
-        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
+        enc = processor(images=image, text=question, return_tensors="pt").to(
+            device
+        )
+        resolved, user_override = resolve_max_new_tokens(
+            options, device, default=32
+        )
+        max_tokens = (
+            resolved if user_override else cap_max_new_tokens(resolved, device)
+        )
 
         with torch.no_grad():
             out = model.generate(
@@ -122,11 +134,17 @@ def predict_qwen_vl(
         k: (v.to(device) if hasattr(v, "to") and device else v)
         for k, v in tok(question, return_tensors="pt").items()
     }
-    resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-    max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
+    resolved, user_override = resolve_max_new_tokens(
+        options, device, default=32
+    )
+    max_tokens = (
+        resolved if user_override else cap_max_new_tokens(resolved, device)
+    )
 
     with torch.no_grad():
-        out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+        out = model.generate(
+            **enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1
+        )
 
     txt = tok.decode(out[0], skip_special_tokens=True)
     return {"answer": txt, "arch": "qwen_vl"}
@@ -149,8 +167,12 @@ def predict_minicpm(
 
     chat = getattr(model, "chat", None)
     msgs = [{"role": "user", "content": question}]
-    resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-    max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
+    resolved, user_override = resolve_max_new_tokens(
+        options, device, default=32
+    )
+    max_tokens = (
+        resolved if user_override else cap_max_new_tokens(resolved, device)
+    )
 
     if callable(chat):
         try:
@@ -187,7 +209,9 @@ def predict_vlm(
     """Predict using generic VLM model."""
     from .gemma import build_vlm_inputs
 
-    enc = build_vlm_inputs(image, question, options, processor, model, device, model_id)
+    enc = build_vlm_inputs(
+        image, question, options, processor, model, device, model_id
+    )
 
     if enc.get("_pipeline_text"):
         return {"answer": enc["_pipeline_text"], "arch": "vlm_pipeline"}
@@ -204,8 +228,12 @@ def predict_vlm(
 
     try:
         log.info("vlm: starting generate with keys=%s", list(enc.keys()))
-        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
+        resolved, user_override = resolve_max_new_tokens(
+            options, device, default=32
+        )
+        max_tokens = (
+            resolved if user_override else cap_max_new_tokens(resolved, device)
+        )
         with torch.no_grad():
             out = model.generate(
                 **enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1
@@ -252,11 +280,17 @@ def predict_yi_vl(
         question = ensure_image_tokens(question, 1, tokenizer)
         enc = processor(text=question, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
-        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
+        resolved, user_override = resolve_max_new_tokens(
+            options, device, default=32
+        )
+        max_tokens = (
+            resolved if user_override else cap_max_new_tokens(resolved, device)
+        )
 
         with torch.no_grad():
-            out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            out = model.generate(
+                **enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1
+            )
 
         answer = decode_output(out, processor, tokenizer)
         return {"answer": answer, "arch": "yi_vl"}
@@ -293,11 +327,17 @@ def predict_internvl(
         question = ensure_image_tokens(question, 1, tokenizer)
         enc = processor(text=question, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
-        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
+        resolved, user_override = resolve_max_new_tokens(
+            options, device, default=32
+        )
+        max_tokens = (
+            resolved if user_override else cap_max_new_tokens(resolved, device)
+        )
 
         with torch.no_grad():
-            out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            out = model.generate(
+                **enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1
+            )
 
         answer = decode_output(out, processor, tokenizer)
         return {"answer": answer, "arch": "internvl"}
@@ -327,11 +367,17 @@ def predict_kosmos2(
         enc = processor(text=question, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
         strip_processor_only_kwargs(enc, model_id)
-        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
+        resolved, user_override = resolve_max_new_tokens(
+            options, device, default=32
+        )
+        max_tokens = (
+            resolved if user_override else cap_max_new_tokens(resolved, device)
+        )
 
         with torch.no_grad():
-            out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            out = model.generate(
+                **enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1
+            )
 
         answer = decode_output(out, processor, tokenizer)
         return {"answer": answer, "arch": "kosmos2"}
@@ -361,11 +407,17 @@ def predict_florence2(
         enc = processor(text=task_prompt, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
         strip_processor_only_kwargs(enc, model_id)
-        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
+        resolved, user_override = resolve_max_new_tokens(
+            options, device, default=32
+        )
+        max_tokens = (
+            resolved if user_override else cap_max_new_tokens(resolved, device)
+        )
 
         with torch.no_grad():
-            out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            out = model.generate(
+                **enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1
+            )
 
         tokenizer = get_tokenizer(processor=processor, model=model)
         answer = decode_output(out, processor, tokenizer)
@@ -403,11 +455,17 @@ def predict_cogvlm(
         question = ensure_image_tokens(question, 1, tokenizer)
         enc = processor(text=question, images=[image], return_tensors="pt")
         enc = move_to_device(enc, device)
-        resolved, user_override = resolve_max_new_tokens(options, device, default=32)
-        max_tokens = resolved if user_override else cap_max_new_tokens(resolved, device)
+        resolved, user_override = resolve_max_new_tokens(
+            options, device, default=32
+        )
+        max_tokens = (
+            resolved if user_override else cap_max_new_tokens(resolved, device)
+        )
 
         with torch.no_grad():
-            out = model.generate(**enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1)
+            out = model.generate(
+                **enc, max_new_tokens=max_tokens, do_sample=False, num_beams=1
+            )
 
         answer = decode_output(out, processor, tokenizer)
         return {"answer": answer, "arch": "cogvlm"}
@@ -441,7 +499,9 @@ def _minicpm_manual_decode(
 
     if hasattr(llm, "generate"):
         try:
-            out = llm.generate(**enc, max_new_tokens=max_len, do_sample=False, num_beams=1)
+            out = llm.generate(
+                **enc, max_new_tokens=max_len, do_sample=False, num_beams=1
+            )
             text = tok.decode(out[0], skip_special_tokens=True).strip()
             if text:
                 return text
@@ -449,7 +509,9 @@ def _minicpm_manual_decode(
             log.debug("minicpm manual generate failed: %s", e)
 
     out = llm(**enc)
-    logits = getattr(out, "logits", out[0] if isinstance(out, (list, tuple)) else None)
+    logits = getattr(
+        out, "logits", out[0] if isinstance(out, (list, tuple)) else None
+    )
     if logits is None:
         raise RuntimeError("MiniCPM-V manual decode produced no logits")
 

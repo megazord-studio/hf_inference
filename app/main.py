@@ -2,14 +2,15 @@ import logging
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.responses import FileResponse
 
-from app.routers.models import router as models_router
-from app.routers.intents import router as intents_router
 import app.routers.inference as inference_module
-from app.core.device import startup_log
 from app.config import LOG_LEVEL
+from app.core.device import startup_log
+from app.routers.intents import router as intents_router
+from app.routers.models import router as models_router
 
 
 def configure_logging() -> None:
@@ -46,6 +47,7 @@ app.include_router(models_router)
 app.include_router(intents_router)
 app.include_router(inference_module.router)
 
+
 # SPA catch-all (only if path not starting with /api)
 @app.get("/{full_path:path}", response_model=None)
 async def spa_catch_all(full_path: str) -> Any:
@@ -64,6 +66,7 @@ def main() -> None:
     If you later add startup/shutdown events, remove lifespan="off".
     """
     import uvicorn
+
     config = uvicorn.Config(app, host="0.0.0.0", port=8000, lifespan="off")
     server = uvicorn.Server(config)
     try:
@@ -73,5 +76,6 @@ def main() -> None:
     finally:
         # Add any global cleanup here (release model handles, close pools, etc.)
         pass
+
 
 __all__ = ["app", "main"]

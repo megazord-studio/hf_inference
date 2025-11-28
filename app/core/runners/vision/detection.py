@@ -1,4 +1,5 @@
 """Object Detection runner."""
+
 from __future__ import annotations
 
 import logging
@@ -33,12 +34,19 @@ class ObjectDetectionRunner(BaseRunner):
         # Try real model, else build a local dummy
         try:
             log.info(
-                "vision: loading AutoModelForObjectDetection for %s", self.model_id
+                "vision: loading AutoModelForObjectDetection for %s",
+                self.model_id,
             )
-            self.model = AutoModelForObjectDetection.from_pretrained(self.model_id)
+            self.model = AutoModelForObjectDetection.from_pretrained(
+                self.model_id
+            )
             self._used_dummy = False
         except Exception as e:
-            log.warning("ObjectDetectionRunner using dummy model for %s: %s", self.model_id, e)
+            log.warning(
+                "ObjectDetectionRunner using dummy model for %s: %s",
+                self.model_id,
+                e,
+            )
             self._used_dummy = True
             self.model = _DummyDetectionModel()
 
@@ -56,7 +64,9 @@ class ObjectDetectionRunner(BaseRunner):
         except Exception:
             return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         img_b64 = inputs.get("image_base64")
         if not img_b64:
             return {"detections": []}
@@ -108,7 +118,9 @@ class ObjectDetectionRunner(BaseRunner):
 
             box = box_tensor[i].tolist()
             label = self._get_label(int(cls.item()))
-            results.append({"label": label, "score": float(score.item()), "box": box})
+            results.append(
+                {"label": label, "score": float(score.item()), "box": box}
+            )
 
             if len(results) >= max_detections:
                 break
@@ -117,7 +129,9 @@ class ObjectDetectionRunner(BaseRunner):
 
     def _get_label(self, cls_id: int) -> str:
         """Get label string for class ID."""
-        if hasattr(self.model, "config") and hasattr(self.model.config, "id2label"):
+        if hasattr(self.model, "config") and hasattr(
+            self.model.config, "id2label"
+        ):
             return self.model.config.id2label.get(cls_id, str(cls_id))
         return str(cls_id)
 
@@ -125,7 +139,9 @@ class ObjectDetectionRunner(BaseRunner):
 class _DummyProcessor:
     """Dummy processor for when real processor unavailable."""
 
-    def __call__(self, images: Any, return_tensors: str = "pt") -> torch.Tensor:
+    def __call__(
+        self, images: Any, return_tensors: str = "pt"
+    ) -> torch.Tensor:
         _ = return_tensors  # unused but matches expected signature
         _ = images
         return torch.randn(1, 3, 8, 8)
@@ -137,7 +153,9 @@ class _DummyDetectionModel(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.config = type(
-            "Cfg", (), {"id2label": {0: "person", 1: "car", 2: "tree", 3: "chair"}}
+            "Cfg",
+            (),
+            {"id2label": {0: "person", 1: "car", 2: "tree", 3: "chair"}},
         )()
         self.device = torch.device("cpu")
 

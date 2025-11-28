@@ -3,7 +3,9 @@
 Provides a simple memory watermark check using psutil.
 Configuration is hardcoded for simplicity per project guidelines.
 """
+
 from __future__ import annotations
+
 import logging
 
 log = logging.getLogger("app.resources")
@@ -12,6 +14,7 @@ try:  # optional dependency, already likely present in environment
     import psutil
 except Exception:  # pragma: no cover
     psutil = None
+
 
 class ResourceManager:
     def __init__(self) -> None:
@@ -27,6 +30,7 @@ class ResourceManager:
         except Exception as e:  # pragma: no cover
             log.debug(f"Resource check failed: {e}")
             return False
+
 
 RESOURCES = ResourceManager()
 

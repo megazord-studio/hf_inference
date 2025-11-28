@@ -1,4 +1,5 @@
 """Tokenizer and text processing utilities for multimodal runners."""
+
 from __future__ import annotations
 
 import logging
@@ -67,7 +68,9 @@ def extract_text(out: Any) -> Optional[str]:
     if isinstance(out, str):
         return out
     if isinstance(out, dict):
-        return out.get("text") or out.get("generated_text") or out.get("answer")
+        return (
+            out.get("text") or out.get("generated_text") or out.get("answer")
+        )
     if isinstance(out, list) and out:
         first = out[0]
         if isinstance(first, dict):

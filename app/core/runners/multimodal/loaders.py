@@ -5,6 +5,7 @@ Each loader follows a consistent pattern:
 - Returns (model, processor, tokenizer, param_count)
 - Uses safe_call for error handling
 """
+
 from __future__ import annotations
 
 import logging
@@ -12,7 +13,6 @@ from typing import Any
 from typing import Optional
 from typing import Tuple
 
-import torch
 from transformers import AutoModelForCausalLM
 from transformers import AutoModelForImageTextToText
 from transformers import AutoModelForVision2Seq
@@ -32,7 +32,9 @@ from .utils import unify_model_dtype
 log = logging.getLogger("app.runners.multimodal")
 
 
-LoadResult = Tuple[Any, Any, Any, int]  # model, processor, tokenizer, param_count
+LoadResult = Tuple[
+    Any, Any, Any, int
+]  # model, processor, tokenizer, param_count
 
 
 def load_blip(model_id: str, device: Any) -> LoadResult:
@@ -49,7 +51,9 @@ def load_llava(model_id: str, device: Any) -> LoadResult:
     try:
         log.info("multimodal: loading LLaVA model_id=%s", model_id)
         processor = LlavaProcessor.from_pretrained(model_id)
-        model = LlavaForConditionalGeneration.from_pretrained(model_id).to(device)
+        model = LlavaForConditionalGeneration.from_pretrained(model_id).to(
+            device
+        )
         if hasattr(model, "eval"):
             model.eval()
         return model, processor, None, count_params(model)
@@ -65,7 +69,9 @@ def load_qwen_vl(model_id: str, device: Any) -> LoadResult:
         lambda: AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
     )
     model = safe_call(
-        lambda: AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+        lambda: AutoModelForCausalLM.from_pretrained(
+            model_id, trust_remote_code=True
+        )
     )
     model = to_device(model, device)
     if hasattr(model, "eval"):
@@ -159,7 +165,9 @@ def load_yi_vl(model_id: str, device: Any) -> Tuple[Any, Any, Any, int, str]:
         lambda: AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
     )
     model = safe_call(
-        lambda: AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+        lambda: AutoModelForCausalLM.from_pretrained(
+            model_id, trust_remote_code=True
+        )
     )
     arch = "yi_vl"
     if model is None:
@@ -173,14 +181,18 @@ def load_yi_vl(model_id: str, device: Any) -> Tuple[Any, Any, Any, int, str]:
     return model, processor, None, count_params(model), arch
 
 
-def load_internvl(model_id: str, device: Any) -> Tuple[Any, Any, Any, int, str]:
+def load_internvl(
+    model_id: str, device: Any
+) -> Tuple[Any, Any, Any, int, str]:
     """Load InternVL2 model."""
     log.info("multimodal: loading InternVL model_id=%s", model_id)
     processor = safe_call(
         lambda: AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
     )
     model = safe_call(
-        lambda: AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+        lambda: AutoModelForCausalLM.from_pretrained(
+            model_id, trust_remote_code=True
+        )
     )
     arch = "internvl"
 
@@ -207,7 +219,9 @@ def load_kosmos2(model_id: str, device: Any) -> Tuple[Any, Any, Any, int, str]:
         lambda: AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
     )
     model = safe_call(
-        lambda: AutoModelForVision2Seq.from_pretrained(model_id, trust_remote_code=True)
+        lambda: AutoModelForVision2Seq.from_pretrained(
+            model_id, trust_remote_code=True
+        )
     )
     arch = "kosmos2"
 
@@ -227,14 +241,18 @@ def load_kosmos2(model_id: str, device: Any) -> Tuple[Any, Any, Any, int, str]:
     return model, processor, None, count_params(model), arch
 
 
-def load_florence2(model_id: str, device: Any) -> Tuple[Any, Any, Any, int, str]:
+def load_florence2(
+    model_id: str, device: Any
+) -> Tuple[Any, Any, Any, int, str]:
     """Load Florence-2 model."""
     log.info("multimodal: loading Florence-2 model_id=%s", model_id)
     processor = safe_call(
         lambda: AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
     )
     model = safe_call(
-        lambda: AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+        lambda: AutoModelForCausalLM.from_pretrained(
+            model_id, trust_remote_code=True
+        )
     )
     arch = "florence2"
 
@@ -261,7 +279,9 @@ def load_cogvlm(model_id: str, device: Any) -> Tuple[Any, Any, Any, int, str]:
         lambda: AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
     )
     model = safe_call(
-        lambda: AutoModelForCausalLM.from_pretrained(model_id, trust_remote_code=True)
+        lambda: AutoModelForCausalLM.from_pretrained(
+            model_id, trust_remote_code=True
+        )
     )
     arch = "cogvlm"
 
@@ -304,7 +324,9 @@ def _patch_minicpm_generate(model: Any, tokenizer: Optional[Any]) -> None:
 
             base = getattr(llm, "config", None)
             if isinstance(base, PretrainedConfig):
-                llm.generation_config = GenerationConfig.from_model_config(base)
+                llm.generation_config = GenerationConfig.from_model_config(
+                    base
+                )
             else:
                 llm.generation_config = GenerationConfig()
         except Exception:

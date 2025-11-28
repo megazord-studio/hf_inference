@@ -1,4 +1,5 @@
 """Automatic Speech Recognition runner."""
+
 from __future__ import annotations
 
 import json
@@ -66,7 +67,9 @@ class AutomaticSpeechRecognitionRunner(BaseRunner):
         try:
             from transformers import AutoModelForCausalLM
 
-            self.model = Wav2Vec2ForCTC.from_pretrained(self.model_id, config=cfg)
+            self.model = Wav2Vec2ForCTC.from_pretrained(
+                self.model_id, config=cfg
+            )
         except Exception:
             from transformers import AutoModelForCausalLM
 
@@ -78,7 +81,9 @@ class AutomaticSpeechRecognitionRunner(BaseRunner):
         self._loaded = True
         return sum(p.numel() for p in self.model.parameters())
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         audio_b64 = inputs.get("audio_base64")
         if not audio_b64:
             return {"text": ""}
@@ -94,7 +99,9 @@ class AutomaticSpeechRecognitionRunner(BaseRunner):
             target_sr = get_target_sample_rate(self.processor)
             audio, sr = resample_audio(audio, sr, target_sr)
 
-            inputs_proc = self.processor(audio, sampling_rate=sr, return_tensors="pt")
+            inputs_proc = self.processor(
+                audio, sampling_rate=sr, return_tensors="pt"
+            )
             inputs_proc = {
                 k: (v.to(self.model.device) if hasattr(v, "to") else v)
                 for k, v in inputs_proc.items()

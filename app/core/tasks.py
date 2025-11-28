@@ -3,6 +3,7 @@
 Provides categorized sets of all tasks exposed in the frontend plus
 Pydantic models describing the standard shape of runner outputs.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -15,14 +16,20 @@ from typing import Type
 from pydantic import BaseModel
 from pydantic import Field
 
-# --- Task taxonomy (from runners) -------------------------------------------
-
-from app.core.runners.multimodal import MULTIMODAL_TASKS as MULTIMODAL_TASKS_RUNNERS
-from app.core.runners.retrieval import RETRIEVAL_TASKS as RETRIEVAL_TASKS_RUNNERS
-from app.core.runners.text import TEXT_TASKS as TEXT_TASKS_RUNNERS
-from app.core.runners.video_generation import VIDEO_TASKS as VIDEO_TASKS_RUNNERS
-from app.core.runners.vision import VISION_TASKS
 from app.core.runners.audio import AUDIO_TASKS
+
+# --- Task taxonomy (from runners) -------------------------------------------
+from app.core.runners.multimodal import (
+    MULTIMODAL_TASKS as MULTIMODAL_TASKS_RUNNERS,
+)
+from app.core.runners.retrieval import (
+    RETRIEVAL_TASKS as RETRIEVAL_TASKS_RUNNERS,
+)
+from app.core.runners.text import TEXT_TASKS as TEXT_TASKS_RUNNERS
+from app.core.runners.video_generation import (
+    VIDEO_TASKS as VIDEO_TASKS_RUNNERS,
+)
+from app.core.runners.vision import VISION_TASKS
 from app.core.runners.vision_generation import VISION_GEN_TASKS
 from app.core.runners.vision_understanding import VISION_UNDERSTANDING_TASKS
 
@@ -31,19 +38,28 @@ VISION_AUDIO_TASKS_RUNNERS = VISION_TASKS | AUDIO_TASKS
 
 # Existing frontend-oriented taxonomy remains for compatibility
 GENERATION_VISION_TASKS: Set[str] = {
-    "text-to-image", "image-to-image", "image-super-resolution", "image-restoration",
-    "image-to-3d", "text-to-3d",
+    "text-to-image",
+    "image-to-image",
+    "image-super-resolution",
+    "image-restoration",
+    "image-to-3d",
+    "text-to-3d",
 }
 VIDEO_TASKS: Set[str] = {"text-to-video", "image-to-video"}
 AUDIO_EXTENDED_TASKS: Set[str] = {
-    "audio-to-audio", "text-to-audio", "audio-text-to-text", "voice-activity-detection",
+    "audio-to-audio",
+    "text-to-audio",
+    "audio-text-to-text",
+    "voice-activity-detection",
 }
 RETRIEVAL_TASKS: Set[str] = {"visual-document-retrieval"}
 FORECASTING_TASKS: Set[str] = {"time-series-forecasting"}
 MULTIMODAL_TASKS: Set[str] = {"image-text-to-text"}  # VQA / reasoning
 GENERALIST_TASKS: Set[str] = {"any-to-any"}
 ADVANCED_VISION_UNDERSTANDING: Set[str] = {
-    "zero-shot-image-classification", "zero-shot-object-detection", "keypoint-detection",
+    "zero-shot-image-classification",
+    "zero-shot-object-detection",
+    "keypoint-detection",
 }
 TEXT_EXTENDED_TASKS: Set[str] = {"text-ranking", "sentence-similarity"}
 
@@ -61,7 +77,9 @@ ALL_FRONTEND_TASKS: Set[str] = set().union(
     TEXT_EXTENDED_TASKS,
 )
 
-SUPPORTED_TASKS: Set[str] = set(TEXT_TASKS_RUNNERS).union(VISION_AUDIO_TASKS_RUNNERS)
+SUPPORTED_TASKS: Set[str] = set(TEXT_TASKS_RUNNERS).union(
+    VISION_AUDIO_TASKS_RUNNERS
+)
 UNSUPPORTED_TASKS: Set[str] = ALL_FRONTEND_TASKS - SUPPORTED_TASKS
 
 # --- Output schemas ---------------------------------------------------------
@@ -86,7 +104,9 @@ class EmbeddingOutput(BaseModel):
 
 
 class ImageOutput(BaseModel):
-    data_url: str = Field(..., description="Image encoded as data:image/...;base64,")
+    data_url: str = Field(
+        ..., description="Image encoded as data:image/...;base64,"
+    )
     width: Optional[int] = None
     height: Optional[int] = None
 
@@ -210,9 +230,18 @@ def get_output_model_for_task(task: str) -> Optional[Type[BaseModel]]:
 
 
 __all__ = [
-    "GENERATION_VISION_TASKS", "VIDEO_TASKS", "AUDIO_EXTENDED_TASKS", "RETRIEVAL_TASKS",
-    "FORECASTING_TASKS", "MULTIMODAL_TASKS", "GENERALIST_TASKS", "ADVANCED_VISION_UNDERSTANDING",
-    "TEXT_EXTENDED_TASKS", "ALL_FRONTEND_TASKS", "SUPPORTED_TASKS", "UNSUPPORTED_TASKS",
+    "GENERATION_VISION_TASKS",
+    "VIDEO_TASKS",
+    "AUDIO_EXTENDED_TASKS",
+    "RETRIEVAL_TASKS",
+    "FORECASTING_TASKS",
+    "MULTIMODAL_TASKS",
+    "GENERALIST_TASKS",
+    "ADVANCED_VISION_UNDERSTANDING",
+    "TEXT_EXTENDED_TASKS",
+    "ALL_FRONTEND_TASKS",
+    "SUPPORTED_TASKS",
+    "UNSUPPORTED_TASKS",
     "TextGenerationOutput",
     "TextClassificationLabel",
     "TextClassificationOutput",

@@ -17,14 +17,29 @@ Implementation choices:
 - If a real model cannot be executed or does not yield a recognizable 3D artifact, raise an error
   so the caller sees the failure; do not silently fall back.
 """
+
 from __future__ import annotations
+
+import base64
+import hashlib
 import logging
-from typing import Dict, Any, Set, Tuple, Type
+from typing import Any
+from typing import Dict
+from typing import Set
+from typing import Tuple
+from typing import Type
+
+from PIL import Image
+from PIL import ImageDraw
+from transformers import AutoModel
+from transformers import AutoModelForCausalLM
+from transformers import AutoProcessor
+from transformers import AutoTokenizer
+
+from app.core.utils.media import decode_image_base64
+from app.core.utils.media import encode_image_base64
+
 from .base import BaseRunner
-from app.core.utils.media import decode_image_base64, encode_image_base64
-from PIL import Image, ImageDraw
-import base64, hashlib
-from transformers import AutoProcessor, AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 TRELLIS_PREFIX = "microsoft/trellis"
 
@@ -33,7 +48,8 @@ log = logging.getLogger("app.runners.vision_3d")
 VISION_3D_TASKS: Set[str] = {"image-to-3d", "text-to-3d"}
 
 OBJ_HEADER = "# hf-inference procedural OBJ\n"
-CUBE_OBJ = """
+CUBE_OBJ = (
+    """
 v -0.5 -0.5 -0.5
 v 0.5 -0.5 -0.5
 v 0.5 0.5 -0.5
@@ -48,7 +64,9 @@ f 1 5 8 4
 f 2 6 7 3
 f 4 3 7 8
 f 1 2 6 5
-""".strip() + "\n"
+""".strip()
+    + "\n"
+)
 
 
 def _build_obj_bytes() -> bytes:
@@ -56,14 +74,19 @@ def _build_obj_bytes() -> bytes:
 
 
 def _build_preview(
-    size: Tuple[int, int] = (128, 128), color: Tuple[int, int, int] = (80, 160, 220)
+    size: Tuple[int, int] = (128, 128),
+    color: Tuple[int, int, int] = (80, 160, 220),
 ) -> Image.Image:
     img = Image.new("RGB", size, (20, 20, 20))
     draw = ImageDraw.Draw(img)
     w, h = size
     pad = 12
     draw.rectangle([pad, pad, w - pad, h - pad], outline=color, width=4)
-    draw.line([(pad, h - pad), (w // 2, pad), (w - pad, h - pad)], fill=color, width=3)
+    draw.line(
+        [(pad, h - pad), (w // 2, pad), (w - pad, h - pad)],
+        fill=color,
+        width=3,
+    )
     return img
 
 
@@ -71,7 +94,11 @@ def _procedural_from_image(img: Image.Image) -> Dict[str, Any]:
     r, g, b = img.getpixel((0, 0))  # type: ignore
     preview = _build_preview(color=(r, g, b))
     obj_bytes = _build_obj_bytes()
-    return _package_obj_bytes(obj_bytes, preview, meta={"vertices": 8, "faces": 6, "backend": "procedural"})
+    return _package_obj_bytes(
+        obj_bytes,
+        preview,
+        meta={"vertices": 8, "faces": 6, "backend": "procedural"},
+    )
 
 
 def _procedural_from_text(prompt: str) -> Dict[str, Any]:
@@ -79,12 +106,18 @@ def _procedural_from_text(prompt: str) -> Dict[str, Any]:
     r, g, b = (h >> 16) & 0xFF, (h >> 8) & 0xFF, h & 0xFF
     preview = _build_preview(color=(r, g, b))
     obj_bytes = _build_obj_bytes()
-    meta = {"vertices": 8, "faces": 6, "prompt_hash": h, "backend": "procedural"}
+    meta = {
+        "vertices": 8,
+        "faces": 6,
+        "prompt_hash": h,
+        "backend": "procedural",
+    }
     return _package_obj_bytes(obj_bytes, preview, meta)
 
 
 def _export_obj(vertices: list[list[float]], faces: list[list[int]]) -> bytes:
     from io import StringIO
+
     buf = StringIO()
     buf.write(OBJ_HEADER)
     for v in vertices:
@@ -99,8 +132,15 @@ def _export_obj(vertices: list[list[float]], faces: list[list[int]]) -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
-def _package_obj_bytes(obj_bytes: bytes, preview_img: Image.Image | None, meta: Dict[str, Any] | None = None) -> Dict[str, Any]:
-    uri = "data:application/octet-stream;base64," + base64.b64encode(obj_bytes).decode()
+def _package_obj_bytes(
+    obj_bytes: bytes,
+    preview_img: Image.Image | None,
+    meta: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    uri = (
+        "data:application/octet-stream;base64,"
+        + base64.b64encode(obj_bytes).decode()
+    )
     preview_uri = encode_image_base64(preview_img or _build_preview())
     return {
         "model_format": "obj",
@@ -110,7 +150,9 @@ def _package_obj_bytes(obj_bytes: bytes, preview_img: Image.Image | None, meta: 
     }
 
 
-def _package_3d_output(model_out: Any, fallback_preview: Image.Image | None = None) -> Dict[str, Any]:
+def _package_3d_output(
+    model_out: Any, fallback_preview: Image.Image | None = None
+) -> Dict[str, Any]:
     """Convert model_out into the standard 3D schema or raise if impossible.
 
     Supported shapes:
@@ -134,7 +176,9 @@ def _package_3d_output(model_out: Any, fallback_preview: Image.Image | None = No
                 return {
                     "model_format": "obj",
                     "model_uri": s,
-                    "preview_image_base64": encode_image_base64(fallback_preview or _build_preview()),
+                    "preview_image_base64": encode_image_base64(
+                        fallback_preview or _build_preview()
+                    ),
                     "meta": meta,
                 }
             obj_bytes = s.encode("utf-8")
@@ -174,14 +218,20 @@ def _package_3d_output(model_out: Any, fallback_preview: Image.Image | None = No
             return {
                 "model_format": "obj",
                 "model_uri": model_out,
-                "preview_image_base64": encode_image_base64(fallback_preview or _build_preview()),
+                "preview_image_base64": encode_image_base64(
+                    fallback_preview or _build_preview()
+                ),
                 "meta": meta,
             }
         obj_bytes = model_out.encode("utf-8")
 
     if obj_bytes is None:
-        raise RuntimeError("vision_3d: model output did not contain a recognizable 3D artifact")
-    return _package_obj_bytes(obj_bytes, fallback_preview or _build_preview(), meta)
+        raise RuntimeError(
+            "vision_3d: model output did not contain a recognizable 3D artifact"
+        )
+    return _package_obj_bytes(
+        obj_bytes, fallback_preview or _build_preview(), meta
+    )
 
 
 class ImageTo3DRunner(BaseRunner):
@@ -190,16 +240,25 @@ class ImageTo3DRunner(BaseRunner):
             self.backend = "procedural"
             self._loaded = True
             return 0
-        mid = self.model_id.lower()
         self.processor = None
         try:
-            log.info("vision_3d: loading AutoProcessor for %s (may download)", self.model_id)
-            self.processor = AutoProcessor.from_pretrained(self.model_id, trust_remote_code=True)
+            log.info(
+                "vision_3d: loading AutoProcessor for %s (may download)",
+                self.model_id,
+            )
+            self.processor = AutoProcessor.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
         except Exception as e:
             log.info(f"vision_3d: no AutoProcessor for {self.model_id}: {e}")
         try:
-            log.info("vision_3d: loading AutoModel for %s (may download)", self.model_id)
-            self.model = AutoModel.from_pretrained(self.model_id, trust_remote_code=True)
+            log.info(
+                "vision_3d: loading AutoModel for %s (may download)",
+                self.model_id,
+            )
+            self.model = AutoModel.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
             if self.device:
                 try:
                     self.model.to(self.device)
@@ -214,44 +273,67 @@ class ImageTo3DRunner(BaseRunner):
             except Exception:
                 return 0
         except Exception as e:
-            log.error("vision_3d: failed to load HF 3D model %s: %s; falling back to procedural backend", self.model_id, e)
+            log.error(
+                "vision_3d: failed to load HF 3D model %s: %s; falling back to procedural backend",
+                self.model_id,
+                e,
+            )
             self.backend = "procedural"
             self._loaded = True
             return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         img_b64 = inputs.get("image_base64")
         if not img_b64:
             raise RuntimeError("vision_3d: missing_image")
         img = decode_image_base64(img_b64)
         if self.backend == "procedural" or not hasattr(self, "model"):
             return _procedural_from_image(img)
-        encoded = None
+        encoded: Any = None
         if self.processor is not None:
             try:
                 encoded = self.processor(images=img, return_tensors="pt")
             except Exception as e:
-                log.info("vision_3d: processor call failed for %s: %s", self.model_id, e)
+                log.info(
+                    "vision_3d: processor call failed for %s: %s",
+                    self.model_id,
+                    e,
+                )
+
+        # Typed local helper (replaces previous duplicate lambdas/defs)
+        def _to_device(v: Any) -> Any:
+            return (
+                v.to(self.model.device)
+                if hasattr(v, "to") and hasattr(self.model, "device")
+                else v
+            )
+
         # Some remote-code TRELLIS models may expose a dedicated 3D generation method
         if hasattr(self.model, "generate_3d"):
-            to_device = lambda v: v.to(self.model.device) if hasattr(v, "to") and hasattr(self.model, "device") else v
-            kwargs = {}
+            kwargs: Dict[str, Any]
             if isinstance(encoded, dict):
-                kwargs = {k: to_device(v) for k, v in encoded.items()}
+                kwargs = {k: _to_device(v) for k, v in encoded.items()}
             else:
                 kwargs = {"image": img}
             out = self.model.generate_3d(**kwargs)
             return _package_3d_output(out, fallback_preview=img)
         # Generic generate / forward path
         if encoded is None and not hasattr(self.model, "generate"):
-            raise RuntimeError("vision_3d: no processor output and model has no generate(); cannot run")
-        to_device = lambda v: v.to(self.model.device) if hasattr(v, "to") and hasattr(self.model, "device") else v
+            raise RuntimeError(
+                "vision_3d: no processor output and model has no generate(); cannot run"
+            )
         if hasattr(self.model, "generate"):
             kwargs = encoded if isinstance(encoded, dict) else {}
-            kwargs = {k: to_device(v) for k, v in kwargs.items()}
+            kwargs = {k: _to_device(v) for k, v in kwargs.items()}
             out = self.model.generate(**kwargs)
         else:
-            encoded = {k: to_device(v) for k, v in encoded.items()} if isinstance(encoded, dict) else {}
+            encoded = (
+                {k: _to_device(v) for k, v in encoded.items()}
+                if isinstance(encoded, dict)
+                else {}
+            )
             out = self.model(**encoded)
         return _package_3d_output(out, fallback_preview=img)
 
@@ -266,9 +348,16 @@ class TextTo3DRunner(BaseRunner):
         # AutoTokenizer/AutoModelForCausalLM cannot recognize the model_type. In that case, fall back
         # to procedural text-based 3D generation so the test contract is still satisfied.
         try:
-            log.info("vision_3d: loading AutoTokenizer/AutoModelForCausalLM for %s (may download)", self.model_id)
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, trust_remote_code=True)
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_id, trust_remote_code=True)
+            log.info(
+                "vision_3d: loading AutoTokenizer/AutoModelForCausalLM for %s (may download)",
+                self.model_id,
+            )
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_id, trust_remote_code=True
+            )
             if self.device:
                 try:
                     self.model.to(self.device)
@@ -283,17 +372,25 @@ class TextTo3DRunner(BaseRunner):
             except Exception:
                 return 0
         except Exception as e:
-            log.error("vision_3d: failed to load text 3D model %s: %s; using procedural backend", self.model_id, e)
+            log.error(
+                "vision_3d: failed to load text 3D model %s: %s; using procedural backend",
+                self.model_id,
+                e,
+            )
             self.backend = "procedural"
             self._loaded = True
             return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         prompt = (inputs.get("text") or "").strip()
         if self.backend == "procedural" or not hasattr(self, "model"):
             # For procedural backend, still return a text description alongside the OBJ stub
             procedural = _procedural_from_text(prompt)
-            procedural_text = f"procedural 3d object for prompt: {prompt or 'empty'}"
+            procedural_text = (
+                f"procedural 3d object for prompt: {prompt or 'empty'}"
+            )
             procedural["text"] = procedural_text
             return procedural
         if not prompt:
@@ -302,6 +399,7 @@ class TextTo3DRunner(BaseRunner):
         max_new = int(options.get("max_new_tokens", 64))
         enc = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
         import torch
+
         with torch.no_grad():
             out = self.model.generate(**enc, max_new_tokens=max_new)
         text = self.tokenizer.decode(out[0], skip_special_tokens=True)
@@ -316,6 +414,7 @@ _TASK_MAP = {
 
 def vision_3d_runner_for_task(task: str) -> Type[BaseRunner]:
     return _TASK_MAP[task]
+
 
 __all__ = [
     "VISION_3D_TASKS",

@@ -1,6 +1,7 @@
 import time
-from app.core.registry import REGISTRY
+
 from app.core import runners
+from app.core.registry import REGISTRY
 
 
 class DummyRunner:
@@ -36,7 +37,9 @@ class DummyRunner:
 
 def test_registry_eviction_monkeypatch(monkeypatch):
     # Monkeypatch runner registry to return DummyRunner for any task
-    monkeypatch.setattr(runners, "TASK_TO_RUNNER", {"text-classification": DummyRunner})
+    monkeypatch.setattr(
+        runners, "TASK_TO_RUNNER", {"text-classification": DummyRunner}
+    )
 
     # Ensure a clean registry state
     REGISTRY._models.clear()
@@ -59,7 +62,7 @@ def test_registry_eviction_monkeypatch(monkeypatch):
     r2 = e2.runner
 
     # Now load m3 which should trigger eviction to respect count and memory
-    e3 = REGISTRY._sync_load_model("text-classification", "m3")
+    REGISTRY._sync_load_model("text-classification", "m3")
 
     # After loading, ensure we have at most _max_loaded models
     assert len(REGISTRY._models) <= REGISTRY._max_loaded

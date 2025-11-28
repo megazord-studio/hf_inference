@@ -1,11 +1,11 @@
 """Depth Estimation runner."""
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 from typing import Dict
 
-import numpy as np
 import torch
 from transformers import AutoModelForDepthEstimation
 
@@ -45,14 +45,21 @@ class DepthEstimationRunner(BaseRunner):
         try:
             from transformers import AutoImageProcessor
 
-            log.info("vision: loading AutoImageProcessor for %s", self.model_id)
+            log.info(
+                "vision: loading AutoImageProcessor for %s", self.model_id
+            )
             self.processor = AutoImageProcessor.from_pretrained(self.model_id)
         except Exception:
             try:
                 from transformers import AutoFeatureExtractor
 
-                log.info("vision: loading AutoFeatureExtractor for %s", self.model_id)
-                self.processor = AutoFeatureExtractor.from_pretrained(self.model_id)
+                log.info(
+                    "vision: loading AutoFeatureExtractor for %s",
+                    self.model_id,
+                )
+                self.processor = AutoFeatureExtractor.from_pretrained(
+                    self.model_id
+                )
             except Exception:
                 self.processor = _DummyProcessor()
 
@@ -60,16 +67,25 @@ class DepthEstimationRunner(BaseRunner):
         """Load depth estimation model."""
         try:
             log.info(
-                "vision: loading AutoModelForDepthEstimation for %s", self.model_id
+                "vision: loading AutoModelForDepthEstimation for %s",
+                self.model_id,
             )
-            self.model = AutoModelForDepthEstimation.from_pretrained(self.model_id)
+            self.model = AutoModelForDepthEstimation.from_pretrained(
+                self.model_id
+            )
             self._is_depth_head = True
         except Exception as e:
-            log.warning("DepthEstimationRunner using dummy for %s: %s", self.model_id, e)
+            log.warning(
+                "DepthEstimationRunner using dummy for %s: %s",
+                self.model_id,
+                e,
+            )
             self._is_depth_head = True
             self.model = _DummyDepthModel()
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         img_b64 = inputs.get("image_base64")
         if not img_b64:
             return self._empty_result()
@@ -82,7 +98,9 @@ class DepthEstimationRunner(BaseRunner):
                 for k, v in (enc.items() if isinstance(enc, dict) else [])
             }
 
-            pixel_values = enc.get("pixel_values") if isinstance(enc, dict) else None
+            pixel_values = (
+                enc.get("pixel_values") if isinstance(enc, dict) else None
+            )
             if pixel_values is None:
                 pixel_values = torch.randn(1, 3, 32, 32)
 
@@ -110,14 +128,22 @@ class DepthEstimationRunner(BaseRunner):
     def _empty_result(self) -> Dict[str, Any]:
         """Return empty depth result."""
         return {
-            "depth_summary": {"mean": 0.0, "min": 0.0, "max": 0.0, "shape": [], "len": 0}
+            "depth_summary": {
+                "mean": 0.0,
+                "min": 0.0,
+                "max": 0.0,
+                "shape": [],
+                "len": 0,
+            }
         }
 
 
 class _DummyProcessor:
     """Dummy processor for fallback."""
 
-    def __call__(self, images: Any, return_tensors: str = "pt") -> Dict[str, Any]:
+    def __call__(
+        self, images: Any, return_tensors: str = "pt"
+    ) -> Dict[str, Any]:
         _ = return_tensors  # unused but matches expected signature
         _ = images
         return {"pixel_values": torch.randn(1, 3, 32, 32)}

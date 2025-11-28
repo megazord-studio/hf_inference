@@ -6,19 +6,23 @@ pipelines or a TextToVideoSDPipeline. Outputs frames stitched into MP4.
 
 from __future__ import annotations
 
-from typing import Dict, Any, Set, Type
 import inspect
 import io
 import logging
+from typing import Any
+from typing import Dict
+from typing import Set
+from typing import Type
 
 import numpy as np
-from PIL import Image
 import torch
+from PIL import Image
 
-from app.core.utils.media import decode_image_base64, image_size
 from app.core.runners.diffusion_shared import get_or_create_sd_pipeline
-from .base import BaseRunner
+from app.core.utils.media import decode_image_base64
+from app.core.utils.media import image_size
 
+from .base import BaseRunner
 
 VIDEO_TASKS: Set[str] = {"text-to-video", "image-to-video"}
 
@@ -27,8 +31,9 @@ log = logging.getLogger("app.runners.video_generation")
 
 def _encode_video_mp4_base64(frames: np.ndarray, fps: int = 4) -> str:
     """Encode a sequence of frames (T, H, W, C) into an MP4 data URI."""
-    import av
     import base64
+
+    import av
 
     if frames.ndim != 4:
         raise ValueError("frames must have shape (T, H, W, C)")
@@ -110,7 +115,9 @@ def _call_pipe_text(
     """Call a text-based pipeline with signature-aware kwargs."""
     sig = inspect.signature(pipe.__call__)
     params = sig.parameters
-    has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+    has_kwargs = any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+    )
 
     kwargs: Dict[str, Any] = {}
 
@@ -146,7 +153,9 @@ def _call_pipe_img2img(
     """Call an img2img or img2video style pipeline with signature-aware kwargs."""
     sig = inspect.signature(pipe.__call__)
     params = sig.parameters
-    has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+    has_kwargs = any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+    )
 
     kwargs: Dict[str, Any] = {}
 
@@ -220,13 +229,22 @@ class TextToVideoRunner(BaseRunner):
     """Text-to-video using SD text-to-image or text-to-video pipeline."""
 
     def load(self) -> int:
-        log.info("video_generation: get_or_create_sd_pipeline(text) model_id=%s (may download)", self.model_id)
-        shared = get_or_create_sd_pipeline(self.model_id, self.device, mode="text")
+        log.info(
+            "video_generation: get_or_create_sd_pipeline(text) model_id=%s (may download)",
+            self.model_id,
+        )
+        shared = get_or_create_sd_pipeline(
+            self.model_id, self.device, mode="text"
+        )
         self.pipe = shared.get("pipe_text")
         if not self.pipe:
             raise RuntimeError("text_to_video_init_failed")
         self._loaded = True
-        return sum(p.numel() for p in self.pipe.unet.parameters()) if hasattr(self.pipe, "unet") else 0
+        return (
+            sum(p.numel() for p in self.pipe.unet.parameters())
+            if hasattr(self.pipe, "unet")
+            else 0
+        )
 
     def predict(
         self, inputs: Dict[str, Any], options: Dict[str, Any]
@@ -285,13 +303,22 @@ class ImageToVideoRunner(BaseRunner):
     """Image-to-video using SD img2img or img2video pipeline."""
 
     def load(self) -> int:
-        log.info("video_generation: get_or_create_sd_pipeline(img2img) model_id=%s (may download)", self.model_id)
-        shared = get_or_create_sd_pipeline(self.model_id, self.device, mode="img2img")
+        log.info(
+            "video_generation: get_or_create_sd_pipeline(img2img) model_id=%s (may download)",
+            self.model_id,
+        )
+        shared = get_or_create_sd_pipeline(
+            self.model_id, self.device, mode="img2img"
+        )
         self.pipe = shared.get("pipe_img2img")
         if not self.pipe:
             raise RuntimeError(f"image_to_video_init_failed:{self.model_id}")
         self._loaded = True
-        return sum(p.numel() for p in self.pipe.unet.parameters()) if hasattr(self.pipe, "unet") else 0
+        return (
+            sum(p.numel() for p in self.pipe.unet.parameters())
+            if hasattr(self.pipe, "unet")
+            else 0
+        )
 
     def predict(
         self, inputs: Dict[str, Any], options: Dict[str, Any]

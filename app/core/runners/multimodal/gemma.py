@@ -1,4 +1,5 @@
 """Gemma-specific input building and pipeline logic."""
+
 from __future__ import annotations
 
 import logging
@@ -50,7 +51,9 @@ def try_gemma_pipeline(
 
     dev = 0 if is_cuda(device) else None
     try:
-        log.info("gemma: building image-text-to-text pipeline (device=%s)", dev)
+        log.info(
+            "gemma: building image-text-to-text pipeline (device=%s)", dev
+        )
         pl = pipeline(
             "image-text-to-text",
             model=model_id,
@@ -61,15 +64,23 @@ def try_gemma_pipeline(
         log.info("gemma pipeline build failed: %s", e)
         return None
 
-    resolved, user_override = resolve_max_new_tokens(options, device, default=16)
-    gen_max = resolved if user_override else cap_max_new_tokens(resolved, device)
+    resolved, user_override = resolve_max_new_tokens(
+        options, device, default=16
+    )
+    gen_max = (
+        resolved if user_override else cap_max_new_tokens(resolved, device)
+    )
     prompt = format_gemma_chat_prompt(question, 1, processor, model_id)
     if not prompt:
         tokenizer = get_tokenizer(processor=processor)
         prompt = ensure_image_tokens(question or "", 1, tokenizer)
 
     try:
-        log.info("gemma: calling pipeline with max_new_tokens=%d (user_override=%s)", gen_max, user_override)
+        log.info(
+            "gemma: calling pipeline with max_new_tokens=%d (user_override=%s)",
+            gen_max,
+            user_override,
+        )
         result_any = pl(
             images=[image],
             text=prompt,
@@ -82,7 +93,9 @@ def try_gemma_pipeline(
         text = extract_text(result_any)
         log.info(
             "gemma pipeline returned: %s",
-            (text[:80] + "...") if isinstance(text, str) and len(text) > 80 else text,
+            (text[:80] + "...")
+            if isinstance(text, str) and len(text) > 80
+            else text,
         )
         if text:
             return text
@@ -132,11 +145,15 @@ def format_gemma_chat_prompt(
     messages = build_gemma_chat_messages(None, question, num_images=num_images)
     apply_template = getattr(processor, "apply_chat_template", None)
     tokenizer = getattr(processor, "tokenizer", None)
-    template_fn = apply_template or getattr(tokenizer, "apply_chat_template", None)
+    template_fn = apply_template or getattr(
+        tokenizer, "apply_chat_template", None
+    )
 
     if callable(template_fn):
         try:
-            return template_fn(messages, tokenize=False, add_generation_prompt=True)
+            return template_fn(
+                messages, tokenize=False, add_generation_prompt=True
+            )
         except Exception as e:
             log.info("gemma chat template failed: %s", e)
 
@@ -163,7 +180,9 @@ def build_vlm_inputs(
 ) -> Dict[str, Any]:
     """Build inputs for VLM prediction."""
     # Try Gemma pipeline first
-    txt = try_gemma_pipeline(image, question, options, model_id, processor, device)
+    txt = try_gemma_pipeline(
+        image, question, options, model_id, processor, device
+    )
     if txt is not None:
         log.info("gemma pipeline produced text; short-circuit")
         return {"_pipeline_text": txt}

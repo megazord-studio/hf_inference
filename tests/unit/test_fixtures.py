@@ -8,4 +8,3 @@ def test_infer_fixture_builds_payload(infer):
     )
     assert payload["task"] == "text-generation"
     assert payload["inputs"]["text"] == "hello"
-
