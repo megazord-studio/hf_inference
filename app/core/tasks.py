@@ -1,22 +1,33 @@
-"""Centralized task taxonomy constants and output schemas (Phase A).
+"""Centralized task taxonomy constants and output schemas.
 
 Provides categorized sets of all tasks exposed in the frontend plus
 Pydantic models describing the standard shape of runner outputs.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Set, Type
 
-from pydantic import BaseModel, Field
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Type
 
-# --- Task taxonomy (existing) ----------------------------------------------
+from pydantic import BaseModel
+from pydantic import Field
 
-from app.core.runners.text import TEXT_TASKS as TEXT_TASKS_RUNNERS
-from app.core.runners.vision_audio import VISION_AUDIO_TASKS as VISION_AUDIO_TASKS_RUNNERS
-from app.core.runners.vision_generation import VISION_GEN_TASKS
-from app.core.runners.vision_understanding import VISION_UNDERSTANDING_TASKS
-from app.core.runners.video_generation import VIDEO_TASKS as VIDEO_TASKS_RUNNERS
+# --- Task taxonomy (from runners) -------------------------------------------
+
 from app.core.runners.multimodal import MULTIMODAL_TASKS as MULTIMODAL_TASKS_RUNNERS
 from app.core.runners.retrieval import RETRIEVAL_TASKS as RETRIEVAL_TASKS_RUNNERS
+from app.core.runners.text import TEXT_TASKS as TEXT_TASKS_RUNNERS
+from app.core.runners.video_generation import VIDEO_TASKS as VIDEO_TASKS_RUNNERS
+from app.core.runners.vision import VISION_TASKS
+from app.core.runners.audio import AUDIO_TASKS
+from app.core.runners.vision_generation import VISION_GEN_TASKS
+from app.core.runners.vision_understanding import VISION_UNDERSTANDING_TASKS
+
+# Combined for backwards compatibility
+VISION_AUDIO_TASKS_RUNNERS = VISION_TASKS | AUDIO_TASKS
 
 # Existing frontend-oriented taxonomy remains for compatibility
 GENERATION_VISION_TASKS: Set[str] = {
