@@ -1,13 +1,13 @@
 import os
 import time
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any, Union
 from fastapi import APIRouter, Query, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from huggingface_hub import HfApi
 from huggingface_hub.utils import HfHubHTTPError
 import logging
-from app.config import HUB_LIST_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT
+from app.config import HUB_LIST_TIMEOUT_SECONDS, MODEL_ENRICH_BATCH_LIMIT, HUB_LIST_LIMIT
 
 router = APIRouter(prefix="/api", tags=["models"])
 log = logging.getLogger("app.models")
@@ -199,10 +199,20 @@ def _persist_enrich_cache_to_disk() -> None:
 
 
 def _fetch_models(limit: int) -> List[ModelSummary]:
+    """Fetch models from HF Hub with explicit limit.
+    
+    Args:
+        limit: Maximum number of models to fetch (capped by HUB_LIST_LIMIT config)
+    
+    Returns:
+        List of ModelSummary objects
+    """
     api = HfApi()
     results: List[ModelSummary] = []
+    # Apply explicit limit cap from config
+    effective_limit = min(limit, HUB_LIST_LIMIT)
     try:
-        iterator = api.list_models(sort="downloads", direction=-1, limit=limit)
+        iterator = api.list_models(sort="downloads", direction=-1, limit=effective_limit)
         for info in iterator:
             mid = getattr(info, "modelId", None)
             if not mid:
@@ -216,7 +226,7 @@ def _fetch_models(limit: int) -> List[ModelSummary]:
                 likes=getattr(info, "likes", None),
                 downloads=getattr(info, "downloads", None),
             ))
-            if len(results) >= limit:
+            if len(results) >= effective_limit:
                 break
     except HfHubHTTPError as e:  # network or rate-limit errors
         raise RuntimeError(f"Failed to list models from HF Hub: {e}")
@@ -261,7 +271,7 @@ async def get_preloaded_models(
     return _CACHE[:limit]
 
 @router.get("/models/preloaded/meta")
-async def preloaded_meta():
+async def preloaded_meta() -> Dict[str, Any]:
     return {
         "cached": len(_CACHE),
         "last_refresh_ts": _CACHE_TS,
@@ -361,7 +371,7 @@ async def enrich_models(
     models: List[str],
     since_ts: float = Query(0.0, description="Client's last known enrich cache timestamp"),
     force_refresh: bool = Query(False, description="Force refresh of enrich cache")
-):
+) -> Union[Response, JSONResponse]:
     """Enrich a small list of model ids with only the `gated` flag for the UI.
 
     Behavior changes:

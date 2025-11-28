@@ -18,12 +18,6 @@ class TaskOutputMetadata(BaseModel):
     resolved_model_id: Optional[str] = None
     backend: Optional[str] = None
 
-class InferenceResult(BaseModel):
-    task_output: Dict[str, Any]
-    echo: Dict[str, Any]
-    info: Dict[str, Any]
-    metadata: TaskOutputMetadata
-
 class ModelMeta(BaseModel):
     id: str
     model_id: Optional[str] = None
@@ -53,6 +47,12 @@ class ModelSummary(BaseModel):
     downloads: Optional[int] = None
     card_data: Optional[Dict[str, Any]] = None
 
+class InferenceResult(BaseModel):
+    task_output: Dict[str, Any]
+    echo: Dict[str, Any]
+    info: Dict[str, Any]
+    metadata: TaskOutputMetadata
+
 class InferenceResponsePayload(BaseModel):
     result: Optional[InferenceResult] = None
     runtime_ms: Optional[int] = None
@@ -72,4 +72,52 @@ class StreamingEvent(BaseModel):
     payload: Optional[Dict[str, Any]] = None
     error: Optional[Dict[str, Any]] = None
 
-__all__ = ["ErrorResponse", "TaskOutputMetadata", "InferenceResult", "ModelMeta", "ModelSummary", "InferenceResponsePayload", "InferenceErrorPayload", "StreamingEvent"]
+class StreamingTokenPayload(BaseModel):
+    type: Optional[str] = None
+    index: Optional[int] = None
+    text: Optional[str] = None
+
+class StreamingProgressPayload(BaseModel):
+    type: Optional[str] = None
+    step: Optional[int] = None
+    total_steps: Optional[int] = None
+    percent: Optional[float] = None
+    chunk_index: Optional[int] = None
+    num_chunks: Optional[int] = None
+    audio_base64: Optional[str] = None
+
+class StreamingDonePayload(BaseModel):
+    type: Optional[str] = None
+    tokens: Optional[int] = None
+    runtime_ms: Optional[int] = None
+    first_token_latency_ms: Optional[int] = None
+    tokens_per_second: Optional[float] = None
+    model_id: Optional[str] = None
+    task: Optional[str] = None
+    steps: Optional[int] = None
+    image_base64: Optional[str] = None
+    num_chunks: Optional[int] = None
+
+class StreamingErrorPayload(BaseModel):
+    type: Optional[str] = None
+    message: Optional[str] = None
+    code: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+
+class TaskCategory(BaseModel):
+    id: Optional[str] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+    tasks: List[str] = Field(default_factory=list)
+
+class TaskInfo(BaseModel):
+    id: Optional[str] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+    input: Optional[str] = None
+    output: Optional[str] = None
+    aliases: List[str] = Field(default_factory=list)
+    category: Optional[str] = None
+    supported: Optional[bool] = None
+
+__all__ = ["ErrorResponse", "TaskOutputMetadata", "ModelMeta", "ModelSummary", "InferenceResult", "InferenceResponsePayload", "InferenceErrorPayload", "StreamingEvent", "StreamingTokenPayload", "StreamingProgressPayload", "StreamingDonePayload", "StreamingErrorPayload", "TaskCategory", "TaskInfo"]
