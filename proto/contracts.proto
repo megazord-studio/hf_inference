@@ -1,0 +1,160 @@
+syntax = "proto3";
+
+package hf.inference;
+
+import "google/protobuf/struct.proto";
+
+// --- Error handling ---
+
+message ErrorResponse {
+  string code = 1;
+  string message = 2;
+  google.protobuf.Struct details = 3;
+}
+
+// --- Task metadata ---
+
+message TaskOutputMetadata {
+  string task = 1;
+  int32 runtime_ms_model = 2;
+  string resolved_model_id = 3;
+  string backend = 4;
+}
+
+// --- Model metadata contracts ---
+
+message ModelMeta {
+  string id = 1;
+  string model_id = 2;
+  string author = 3;
+  bool gated = 4;
+  bool private = 5;
+  string last_modified = 6;
+  string created_at = 7;
+  int64 likes = 8;
+  double trending_score = 9;
+  int64 downloads = 10;
+  string pipeline_tag = 11;
+  string library_name = 12;
+  string sha = 13;
+  repeated string tags = 14;
+  google.protobuf.Struct config = 15;
+  google.protobuf.Struct card_data = 16;
+  repeated google.protobuf.Struct siblings = 17;
+  bool fallback = 18;
+}
+
+message ModelSummary {
+  string id = 1;
+  string pipeline_tag = 2;
+  repeated string tags = 3;
+  bool gated = 4;
+  int64 likes = 5;
+  int64 downloads = 6;
+  google.protobuf.Struct card_data = 7;
+}
+
+// --- Inference contracts ---
+
+message InferenceResult {
+  google.protobuf.Struct task_output = 1;
+  google.protobuf.Struct echo = 2;
+  google.protobuf.Struct info = 3;
+  TaskOutputMetadata metadata = 4;
+}
+
+message InferenceResponsePayload {
+  InferenceResult result = 1;
+  int32 runtime_ms = 2;
+  string model_id = 3;
+  ModelMeta model_meta = 4;
+  ErrorResponse error = 5;
+}
+
+message InferenceErrorPayload {
+  ErrorResponse error = 1;
+}
+
+// --- Streaming SSE event contracts ---
+// SSE events follow this structure:
+//   event: <type>
+//   id: <correlation_id>
+//   data: <JSON payload>
+//
+// Event types:
+//   - start: Initial event with metadata (model_id, task info)
+//   - token: Text generation token (index, text)
+//   - progress: Progress update (step, total_steps, percent) or chunk data
+//   - done: Completion event with final metrics
+//   - error: Error event with message
+
+message StreamingEvent {
+  string type = 1;         // Event type: start, token, progress, done, error
+  string version = 2;      // Protocol version (e.g., "1.0")
+  string correlation_id = 3;
+  string task = 4;
+  string model_id = 5;
+  google.protobuf.Struct payload = 6;
+  google.protobuf.Struct error = 7;
+}
+
+// Token event payload for text generation streaming
+message StreamingTokenPayload {
+  string type = 1;         // Always "token"
+  int32 index = 2;
+  string text = 3;
+}
+
+// Progress event payload for diffusion/TTS streaming
+message StreamingProgressPayload {
+  string type = 1;         // Always "progress"
+  int32 step = 2;
+  int32 total_steps = 3;
+  double percent = 4;
+  int32 chunk_index = 5;
+  int32 num_chunks = 6;
+  string audio_base64 = 7;
+}
+
+// Done event payload with final metrics
+message StreamingDonePayload {
+  string type = 1;         // Always "done"
+  int32 tokens = 2;
+  int32 runtime_ms = 3;
+  int32 first_token_latency_ms = 4;
+  double tokens_per_second = 5;
+  string model_id = 6;
+  string task = 7;
+  int32 steps = 8;
+  string image_base64 = 9;
+  int32 num_chunks = 10;
+}
+
+// Error event payload
+message StreamingErrorPayload {
+  string type = 1;         // Always "error"
+  string message = 2;
+  string code = 3;
+  google.protobuf.Struct details = 4;
+}
+
+// --- Task taxonomy ---
+// Harmonized task categories shared between frontend and backend
+
+message TaskCategory {
+  string id = 1;
+  string label = 2;
+  string description = 3;
+  repeated string tasks = 4;
+}
+
+message TaskInfo {
+  string id = 1;
+  string label = 2;
+  string description = 3;
+  string input = 4;
+  string output = 5;
+  repeated string aliases = 6;
+  string category = 7;
+  bool supported = 8;
+}
