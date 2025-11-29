@@ -4,6 +4,7 @@ import warnings
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.registry import REGISTRY
 from app.main import app
 
 # Silence noisy third-party deprecation warnings that we cannot fix locally.
@@ -44,6 +45,26 @@ def ensure_token_env(monkeypatch):
 @pytest.fixture(scope="session")
 def client() -> TestClient:
     return TestClient(app)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def tune_registry_limits():
+    # Reduce limits during tests to encourage early eviction and lower peak memory.
+    # Can be overridden via environment variables if needed.
+    REGISTRY._max_loaded = int(os.getenv("TEST_REGISTRY_MAX_LOADED", "6"))
+    REGISTRY._memory_limit_mb = int(
+        os.getenv("TEST_REGISTRY_MEMORY_LIMIT_MB", "4096")
+    )
+
+
+@pytest.fixture(autouse=True)
+def reset_registry_between_tests():
+    # Ensure heavy models do not accumulate across the full test session.
+    yield
+    try:
+        REGISTRY.reset()
+    except Exception:
+        pass
 
 
 @pytest.fixture()

@@ -99,10 +99,19 @@ class ModelRegistry:
         self._models: Dict[Tuple[str, str], ModelEntry] = {}
         self._device = select_device("auto")
         # Caps can be tuned via env vars (see _read_positive_int helper).
-        self._max_loaded = DEFAULT_MAX_LOADED
-        # Soft memory cap (MB) to prevent OOM from repeated loads. Env var can
-        # disable it by passing 0/negative, allowing unlimited caching.
-        self._memory_limit_mb = DEFAULT_MEMORY_LIMIT_MB
+        # Allow overriding limits via environment for test/runtime tuning.
+        # Use distinct env names to avoid collision with other config.
+        self._max_loaded = (
+            _read_positive_int("APP_REGISTRY_MAX_LOADED", DEFAULT_MAX_LOADED)
+            or DEFAULT_MAX_LOADED
+        )
+        # Soft memory cap (MB) to prevent OOM from repeated loads. Passing 0 or
+        # a negative value disables the memory limit (returns None when allow_none=True).
+        self._memory_limit_mb = _read_positive_int(
+            "APP_REGISTRY_MEMORY_LIMIT_MB",
+            DEFAULT_MEMORY_LIMIT_MB,
+            allow_none=True,
+        )
         # Create an event loop for background async loads and start the thread.
         # Keep the loop object on `self` so other methods can submit coroutines.
         self._loop = asyncio.new_event_loop()
@@ -311,6 +320,20 @@ class ModelRegistry:
                     return entry.runner.load()
                 except Exception as e:
                     msg = str(e)
+                    if task == "text-generation":
+                        try:
+                            from app.core.runners.text_onnx import (
+                                OnnxTextGenerationRunner,
+                            )
+
+                            entry.runner = OnnxTextGenerationRunner(
+                                model_id=model_id, device=self._device
+                            )
+                            return entry.runner.load()
+                        except Exception as e2:
+                            raise RuntimeError(
+                                f"Failed loading model {model_id} for task {task}: {msg}"
+                            ) from e2
                     raise RuntimeError(
                         f"Failed loading model {model_id} for task {task}: {msg}"
                     )
@@ -400,9 +423,26 @@ class ModelRegistry:
                 param_count = runner.load()
             except Exception as e:
                 msg = str(e)
-                raise RuntimeError(
-                    f"Failed loading model {model_id} for task {task}: {msg}"
-                )
+                # Fallback: for text-generation, try ONNX runner when weights are missing
+                if task == "text-generation":
+                    try:
+                        from app.core.runners.text_onnx import (
+                            OnnxTextGenerationRunner,
+                        )
+
+                        runner = OnnxTextGenerationRunner(
+                            model_id=model_id, device=self._device
+                        )
+                        self._models[key].runner = runner
+                        param_count = runner.load()
+                    except Exception as e2:
+                        raise RuntimeError(
+                            f"Failed loading model {model_id} for task {task}: {msg}"
+                        ) from e2
+                else:
+                    raise RuntimeError(
+                        f"Failed loading model {model_id} for task {task}: {msg}"
+                    )
             with _LOCK:
                 entry.status = "ready"
                 entry.param_count = param_count

@@ -61,6 +61,7 @@ dependencies = [
   "peft>=0.18.0",
   "tiktoken>=0.12.0",
   "transformers-stream-generator>=0.0.5",
+  "xformers>=0.0.32.post2",
 ]
 
 [project.urls]
@@ -90,7 +91,7 @@ dev = [
 [tool.poe.tasks]
 # Run tasks with: uv run poe <task>
 # e.g. uv run poe test
-test = { shell = "uv run pytest -ra -vvv --log-cli-level=INFO || exit 1" }
+test = { shell = "APP_REGISTRY_MEMORY_LIMIT_MB=45000 uv run pytest -ra -vvv --log-cli-level=INFO || exit 1" }
 format = { shell = '''
 uv run ruff format || exit 1
 uv run ruff check --fix || exit 1

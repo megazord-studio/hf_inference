@@ -7,6 +7,7 @@ No side effects; purely functional where possible.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -124,12 +125,37 @@ def resolve_max_new_tokens(
     return max(1, fallback), False
 
 
+_NOISY_PATTERNS = [
+    r"BeamSearchScorer",  # removed/moved in newer transformers
+    r"Can't load image processor",  # missing processor (expected for unsupported MM models)
+    r"Unrecognized configuration class",  # model class mismatch for attempted AutoModel
+    r"_supports_sdpa",  # optional attribute absent; harmless
+    r"name 'List' is not defined",  # remote code missing typing import (ignore)
+]
+
+
+def _classify_error(msg: str) -> str:
+    for pat in _NOISY_PATTERNS:
+        if re.search(pat, msg):
+            return "noisy"
+    return "error"
+
+
 def safe_call(fn: Any, error_msg: Optional[str] = None) -> Any:
-    """Execute a function safely, returning None on error."""
+    """Execute a function safely, returning None on error.
+
+    Classifies common, non-fatal multimodal loading errors and downgrades them
+    to INFO to reduce log noise while keeping unexpected failures visible.
+    """
     try:
         return fn()
     except Exception as e:
-        log.error("safe_call failed: %s", error_msg or e)
+        msg = str(error_msg or e)
+        kind = _classify_error(msg)
+        if kind == "noisy":
+            log.info("safe_call suppressed noisy error: %s", msg)
+        else:
+            log.error("safe_call failed: %s", msg)
         return None
 
 

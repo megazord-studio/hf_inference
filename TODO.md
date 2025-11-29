@@ -24,3 +24,10 @@ capabilities as either always-on (hardcoded).
 
 Do not add any fallbacks if a model does not run. It should be obvious that
 something is not working as expected. Fallback would hide that fact.
+
+## Next steps
+
+- [ ] Current test fixes
+- [ ] Implement Comparison Mode
+- [ ] Text-to-Text Incl. Internet Search & "Thinking"
+- [ ] Dynamic Issue finder by Trending/Download/Like Score

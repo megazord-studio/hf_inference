@@ -124,7 +124,7 @@ def _fetch_full_model_meta(model_id: str) -> Optional[dict]:
                 "sha": None,
                 "config": None,
                 "card_data": None,
-                "siblings": None,
+                "siblings": [],
             }
     except Exception as e2:
         raise RuntimeError(f"Fallback list_models failed for {model_id}: {e2}")
@@ -206,7 +206,7 @@ def _build_model_meta(info: Any, model_id: str) -> Dict[str, Any]:
         "tags": _to_serializable(getattr(info, "tags", None)),
         "config": _to_serializable(getattr(info, "config", None)),
         "card_data": _to_serializable(getattr(info, "cardData", None)),
-        "siblings": _to_serializable(getattr(info, "siblings", None)),
+        "siblings": _to_serializable(getattr(info, "siblings", None)) or [],
     }
     return meta
 
@@ -214,7 +214,7 @@ def _build_model_meta(info: Any, model_id: str) -> Dict[str, Any]:
 def _required_fields_for_task(task: str) -> List[str]:
     mapping = {
         "text-generation": ["text"],
-        "text-to-image": ["text"],
+        "text-to-image": [],
         "image-classification": ["image_base64"],
         "image-to-text": ["image_base64"],
         "object-detection": ["image_base64"],
@@ -340,7 +340,11 @@ async def run_inference(
         model_id=req.model_id,
         model_meta=meta,
     )
-    return JSONResponse(content=payload.model_dump())
+    resp_dict = payload.model_dump()
+    resp_dict["task"] = task
+    if isinstance(resp_dict.get("result"), dict):
+        resp_dict["result"]["task"] = task
+    return JSONResponse(content=resp_dict)
 
 
 @router.get("/models/status")

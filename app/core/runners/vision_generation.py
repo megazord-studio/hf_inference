@@ -56,7 +56,8 @@ class TextToImageRunner(BaseRunner):
     ) -> Dict[str, Any]:
         if not self.pipe:
             raise RuntimeError("text_to_image_pipeline_unavailable")
-        prompt = inputs.get("text") or ""
+        # Accept both 'prompt' and legacy 'text'
+        prompt = inputs.get("prompt") or inputs.get("text") or ""
         if not prompt:
             raise RuntimeError("text_to_image_missing_prompt")
         guidance = float(options.get("guidance_scale", 7.5))
