@@ -58,11 +58,21 @@ export function useModelExplorer() {
     return matches;
   }, [selectedInputModalities, selectedOutputModalities]);
 
+  // Optional task filter selection (derived from IO combination)
+  const [selectedTaskFilters, setSelectedTaskFilters] = useState<string[]>([]);
+  const toggleTaskFilter = useCallback((t: string) => setSelectedTaskFilters(prev => prev.includes(t) ? prev.filter(x=>x!==t) : [...prev, t]), []);
+  const clearTaskFilters = useCallback(() => setSelectedTaskFilters([]), []);
+
   // Filter models by pipeline_tag inside tasksFromIO
   const filteredModels = useMemo<ModelSummary[]>(() => {
-    if (!tasksFromIO.length) return allModels;
-    return allModels.filter(m => m.pipeline_tag && tasksFromIO.includes(m.pipeline_tag));
-  }, [allModels, tasksFromIO]);
+    // First, restrict by tasks possible from selected IO modalities (if any)
+    const byIo = !tasksFromIO.length
+      ? allModels
+      : allModels.filter(m => m.pipeline_tag && tasksFromIO.includes(m.pipeline_tag));
+    // Then, if user selected specific tasks from the above, filter further
+    if (selectedTaskFilters.length === 0) return byIo;
+    return byIo.filter(m => m.pipeline_tag && selectedTaskFilters.includes(m.pipeline_tag));
+  }, [allModels, tasksFromIO, selectedTaskFilters]);
 
   // Pagination
   const [modelChunkSize, setModelChunkSize] = useState(60);
@@ -516,6 +526,7 @@ export function useModelExplorer() {
     latestCurl,
     // Misc
     tasksFromIO,
+    selectedTaskFilters, toggleTaskFilter, clearTaskFilters,
     clearFilters,
     sortBy, setSortBy,
     isLoadingModels: modelsQuery.isLoading, isLoadingIntents: intentsQuery.isLoading,

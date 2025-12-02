@@ -21,9 +21,21 @@ export function ExplorerFilters({ m }: ExplorerFiltersProps) {
 
         {/* Active modality summary */}
         {(m.selectedInputModalities.length>0 || m.selectedOutputModalities.length>0) && (
-          <div className="flex flex-wrap gap-2">
-            {m.selectedInputModalities.map(im => <div key={im} className="badge badge-primary gap-1 cursor-pointer" onClick={()=>m.toggleInputModality(im)}>{im} ×</div>)}
-            {m.selectedOutputModalities.map(om => <div key={om} className="badge badge-secondary gap-1 cursor-pointer" onClick={()=>m.toggleOutputModality(om)}>{om} ×</div>)}
+          <div className="flex flex-wrap gap-1">
+            {m.selectedInputModalities.map(im => (
+              <div
+                key={im}
+                className="badge badge-xxs badge-primary gap-1 cursor-pointer text-[10px] px-1 py-0.5"
+                onClick={()=>m.toggleInputModality(im)}
+              >{im} ×</div>
+            ))}
+            {m.selectedOutputModalities.map(om => (
+              <div
+                key={om}
+                className="badge badge-xxs badge-secondary gap-1 cursor-pointer text-[10px] px-1 py-0.5"
+                onClick={()=>m.toggleOutputModality(om)}
+              >{om} ×</div>
+            ))}
           </div>
         )}
 
@@ -71,6 +83,32 @@ export function ExplorerFilters({ m }: ExplorerFiltersProps) {
           </div>
         </div>
 
+        {/* Task filters (appear only after selecting at least one input AND one output) */}
+        {(m.selectedInputModalities.length>0 && m.selectedOutputModalities.length>0) && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-xs">Tasks (based on selected IO)</span>
+              {m.selectedTaskFilters.length>0 && (
+                <button className="btn btn-ghost btn-xs" onClick={m.clearTaskFilters}>Clear</button>
+              )}
+            </div>
+            {m.tasksFromIO.length === 0 ? (
+              <p className="text-[11px] opacity-60">No tasks available for this IO combination.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                {m.tasksFromIO.map(t => (
+                  <span
+                    key={t}
+                    onClick={()=>m.toggleTaskFilter(t)}
+                    className={`badge badge-xxs badge-outline uppercase cursor-pointer ${m.selectedTaskFilters.includes(t)?'bg-base-200':''}`}
+                    title={t}
+                  >{t}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Sort controls */}
         <div className="space-y-2">
           <span className="font-semibold text-xs">Sort by</span>
@@ -103,6 +141,7 @@ export function ExplorerFilters({ m }: ExplorerFiltersProps) {
           {m.searchQuery && <span>Search: {m.searchQuery}</span>}
           {m.selectedInputModalities.length>0 && <span>Input mods: {m.selectedInputModalities.length}</span>}
           {m.selectedOutputModalities.length>0 && <span>Output mods: {m.selectedOutputModalities.length}</span>}
+          {m.selectedTaskFilters.length>0 && <span>Task filters: {m.selectedTaskFilters.length}</span>}
         </div>
       </div>
     </div>

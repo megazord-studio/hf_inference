@@ -87,9 +87,9 @@ export function RunPanel({ m }: RunPanelProps) {
             {/* Capabilities list */}
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-semibold"><HelpCircle className="w-4 h-4"/>Capabilities</div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1">
                 {capabilities.map(c => (
-                  <span key={c.id} className="badge badge-outline gap-1" title={c.info?.description || c.id}>{c.info?.label || c.id}</span>
+                  <span key={c.id} className="badge badge-xxs badge-outline gap-1 text-[10px] px-1 py-0.5" title={c.info?.description || c.id}>{c.info?.label || c.id}</span>
                 ))}
               </div>
               {capabilities.length===0 && <p className="text-[11px] opacity-60">No explicit task metadata; using pipeline tag only.</p>}
