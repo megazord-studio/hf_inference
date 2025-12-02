@@ -1,12 +1,3 @@
-"""Phase B vision generation runners: text-to-image, image-to-image, super-resolution, restoration.
-
-Simplified baseline implementations using diffusers for SD text-to-image & img2img.
-Super-resolution & restoration use lightweight PIL-based placeholders if diffusers model
-not available to keep tests deterministic without heavy downloads.
-
-Each runner adheres to BaseRunner contract.
-"""
-
 from __future__ import annotations
 
 import logging

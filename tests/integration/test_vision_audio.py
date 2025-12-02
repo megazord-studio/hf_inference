@@ -16,7 +16,21 @@ PARAMS = [
         "predictions",
     ),
     (
+        "speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
+        "audio-classification",
+        "audio",
+        {"audio_base64": None},
+        "predictions",
+    ),
+    (
         "nvidia/segformer-b0-finetuned-ade-512-512",
+        "image-segmentation",
+        "image",
+        {"image_base64": None},
+        "labels",
+    ),
+    (
+        "briaai/RMBG-1.4",
         "image-segmentation",
         "image",
         {"image_base64": None},

@@ -9,10 +9,11 @@ from typing import Type
 from app.core.runners.base import BaseRunner
 
 from .runner import ImageTextToTextRunner
+from .any_to_any import AnyToAnyRunner
 
-MULTIMODAL_TASKS: Set[str] = {"image-text-to-text"}
+MULTIMODAL_TASKS: Set[str] = {"image-text-to-text", "any-to-any"}
 
-_TASK_MAP = {"image-text-to-text": ImageTextToTextRunner}
+_TASK_MAP = {"image-text-to-text": ImageTextToTextRunner, "any-to-any": AnyToAnyRunner}
 
 
 def multimodal_runner_for_task(task: str) -> Type[BaseRunner]:
@@ -24,4 +25,5 @@ __all__ = [
     "MULTIMODAL_TASKS",
     "multimodal_runner_for_task",
     "ImageTextToTextRunner",
+    "AnyToAnyRunner",
 ]

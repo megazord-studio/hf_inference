@@ -28,6 +28,15 @@ try:
 except Exception:
     sf = None
 
+# Optional SpeechBrain (v1+)
+_HAS_SPEECHBRAIN = False
+SBEncoderClassifier = None  # type: ignore[assignment]
+try:
+    from speechbrain.inference import EncoderClassifier as SBEncoderClassifier
+    _HAS_SPEECHBRAIN = True
+except Exception:
+    SBEncoderClassifier = None  # type: ignore[assignment]
+
 log = logging.getLogger("app.runners.audio")
 
 
@@ -57,6 +66,23 @@ class AudioClassificationRunner(BaseRunner):
         if torch is None:
             raise RuntimeError("torch unavailable")
 
+        # Heuristic: SpeechBrain models live under the 'speechbrain/' org,
+        # and usually don't provide a transformers feature extractor.
+        if self.model_id.startswith("speechbrain/"):
+            if not _HAS_SPEECHBRAIN:
+                raise RuntimeError(
+                    "speechbrain library not installed for SpeechBrain model"
+                )
+            self._backend = "speechbrain"
+            self.sb_classifier = SBEncoderClassifier.from_hparams(
+                source=self.model_id, run_opts={"device": str(self.device) if self.device else "cpu"}
+            )
+            # Default target sample rate for SB emotion model
+            self._sb_sr = 16000
+            self._loaded = True
+            return 0
+
+        # Default transformers pathway
         self.processor = AutoFeatureExtractor.from_pretrained(self.model_id)
         cfg = _config_without_gc(self.model_id)
         self.model = AutoModelForAudioClassification.from_pretrained(
@@ -66,6 +92,7 @@ class AudioClassificationRunner(BaseRunner):
         if self.device:
             self.model.to(self.device)
         self.model.eval()
+        self._backend = "transformers"
         self._loaded = True
         return sum(p.numel() for p in self.model.parameters())
 
@@ -84,28 +111,65 @@ class AudioClassificationRunner(BaseRunner):
             data, sr = sf.read(bio)
             data = normalize_audio(data)
 
-            target_sr = get_target_sample_rate(self.processor)
-            data, sr = resample_audio(data, sr, target_sr)
-
-            enc = self.processor(data, sampling_rate=sr, return_tensors="pt")
-
-            with torch.no_grad():
-                out = self.model(
-                    **{k: v.to(self.model.device) for k, v in enc.items()}
-                )
-                probs = out.logits.softmax(-1)[0]
-
-            requested_k = int(options.get("top_k", 3))
-            top_k = max(1, min(requested_k, probs.shape[-1]))
-            values, indices = probs.topk(top_k)
-
-            labels = [self.model.config.id2label[i.item()] for i in indices]
-            return {
-                "predictions": [
-                    {"label": lbl, "score": float(v.item())}
-                    for lbl, v in zip(labels, values)
-                ]
-            }
+            backend = getattr(self, "_backend", "transformers")
+            if backend == "speechbrain":
+                # Resample to SB expected SR
+                target_sr = getattr(self, "_sb_sr", 16000)
+                data, sr = resample_audio(data, sr, target_sr)
+                wav = torch.tensor(data, dtype=torch.float32).unsqueeze(0)
+                with torch.no_grad():
+                    out = self.sb_classifier.classify_batch(wav)
+                # out.scores: [batch, classes], out.prediction: [batch]
+                scores = out.scores.softmax(-1)[0]
+                # Map indices to labels across SB versions
+                le = getattr(self.sb_classifier.hparams, "label_encoder", None)
+                def _idx_to_label(i: int) -> str:
+                    try:
+                        if le is None:
+                            return str(int(i))
+                        ind2lab = getattr(le, "ind2lab", None)
+                        if ind2lab is not None:
+                            if isinstance(ind2lab, (list, tuple)):
+                                if 0 <= int(i) < len(ind2lab):
+                                    return str(ind2lab[int(i)])
+                            else:
+                                return str(ind2lab.get(int(i), str(int(i))))
+                        decode_ndim = getattr(le, "decode_ndim", None)
+                        if callable(decode_ndim):
+                            import torch as _t
+                            return str(decode_ndim(_t.tensor([int(i)]))[0])
+                    except Exception:
+                        pass
+                    return str(int(i))
+                requested_k = int(options.get("top_k", 3))
+                top_k = max(1, min(requested_k, scores.shape[-1]))
+                values, indices = torch.topk(scores, k=top_k)
+                labels = [_idx_to_label(int(i)) for i in indices]
+                return {
+                    "predictions": [
+                        {"label": lbl, "score": float(v)}
+                        for lbl, v in zip(labels, values)
+                    ]
+                }
+            else:
+                target_sr = get_target_sample_rate(self.processor)
+                data, sr = resample_audio(data, sr, target_sr)
+                enc = self.processor(data, sampling_rate=sr, return_tensors="pt")
+                with torch.no_grad():
+                    out = self.model(
+                        **{k: v.to(self.model.device) for k, v in enc.items()}
+                    )
+                    probs = out.logits.softmax(-1)[0]
+                requested_k = int(options.get("top_k", 3))
+                top_k = max(1, min(requested_k, probs.shape[-1]))
+                values, indices = probs.topk(top_k)
+                labels = [self.model.config.id2label[i.item()] for i in indices]
+                return {
+                    "predictions": [
+                        {"label": lbl, "score": float(v.item())}
+                        for lbl, v in zip(labels, values)
+                    ]
+                }
         except Exception as e:
             log.warning("audio-classification predict error: %s", e)
             return {"predictions": []}

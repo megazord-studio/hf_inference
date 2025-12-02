@@ -1,9 +1,3 @@
-"""Phase F video generation and conversion runners.
-
-Implements text-to-video and image-to-video using Stable Diffusion text/image
-pipelines or a TextToVideoSDPipeline. Outputs frames stitched into MP4.
-"""
-
 from __future__ import annotations
 
 import inspect

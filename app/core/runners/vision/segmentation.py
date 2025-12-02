@@ -1,5 +1,3 @@
-"""Image Segmentation runner."""
-
 from __future__ import annotations
 
 import inspect
@@ -39,19 +37,48 @@ class ImageSegmentationRunner(BaseRunner):
     def load(self) -> int:
         if torch is None:
             raise RuntimeError("torch unavailable")
-        self._load_processor()
-        log.info(
-            "vision: loading AutoModelForSemanticSegmentation for %s",
-            self.model_id,
-        )
-        self.model = AutoModelForSemanticSegmentation.from_pretrained(
-            self.model_id
-        )
-        if self.device:
-            self.model.to(self.device)
-        self.model.eval()
-        self._loaded = True
-        return sum(p.numel() for p in self.model.parameters())
+        # Try standard transformers model + processor; on failure fallback to pipeline
+        try:
+            self._load_processor()
+            log.info(
+                "vision: loading AutoModelForSemanticSegmentation for %s",
+                self.model_id,
+            )
+            try:
+                self.model = AutoModelForSemanticSegmentation.from_pretrained(
+                    self.model_id, trust_remote_code=True
+                )
+            except TypeError:
+                self.model = AutoModelForSemanticSegmentation.from_pretrained(
+                    self.model_id
+                )
+            if self.device:
+                self.model.to(self.device)
+            self.model.eval()
+            self._backend = "transformers"
+            self._loaded = True
+            return sum(p.numel() for p in self.model.parameters())
+        except Exception as e:
+            log.info(
+                "vision: falling back to pipeline(image-segmentation) for %s due to: %s",
+                self.model_id,
+                e,
+            )
+            from transformers import pipeline as hf_pipeline
+
+            try:
+                self.pipe = hf_pipeline(
+                    task="image-segmentation",
+                    model=self.model_id,
+                    trust_remote_code=True,
+                )
+            except TypeError:
+                self.pipe = hf_pipeline(
+                    task="image-segmentation", model=self.model_id
+                )
+            self._backend = "pipeline"
+            self._loaded = True
+            return 0
 
     def _load_processor(self) -> None:
         """Load appropriate processor for segmentation."""
@@ -62,13 +89,38 @@ class ImageSegmentationRunner(BaseRunner):
                 segformer_cls
             )
         if not processor_loaded:
+            # Prefer AutoProcessor with remote code
+            try:
+                from transformers import AutoProcessor
+
+                log.info(
+                    "vision: loading AutoProcessor (trust_remote_code) for %s",
+                    self.model_id,
+                )
+                try:
+                    self.processor = AutoProcessor.from_pretrained(
+                        self.model_id, trust_remote_code=True
+                    )
+                except TypeError:
+                    self.processor = AutoProcessor.from_pretrained(
+                        self.model_id
+                    )
+                return
+            except Exception:
+                pass
             try:
                 log.info(
-                    "vision: loading AutoImageProcessor for %s", self.model_id
+                    "vision: loading AutoImageProcessor (trust_remote_code) for %s",
+                    self.model_id,
                 )
-                self.processor = AutoImageProcessor.from_pretrained(
-                    self.model_id
-                )
+                try:
+                    self.processor = AutoImageProcessor.from_pretrained(
+                        self.model_id, trust_remote_code=True
+                    )
+                except TypeError:
+                    self.processor = AutoImageProcessor.from_pretrained(
+                        self.model_id
+                    )
             except Exception:
                 from transformers import AutoFeatureExtractor
 
@@ -76,9 +128,14 @@ class ImageSegmentationRunner(BaseRunner):
                     "vision: loading AutoFeatureExtractor for %s",
                     self.model_id,
                 )
-                self.processor = AutoFeatureExtractor.from_pretrained(
-                    self.model_id
-                )
+                try:
+                    self.processor = AutoFeatureExtractor.from_pretrained(
+                        self.model_id, trust_remote_code=True
+                    )
+                except TypeError:
+                    self.processor = AutoFeatureExtractor.from_pretrained(
+                        self.model_id
+                    )
 
     def _try_load_segformer_processor(self, segformer_cls: Any) -> bool:
         """Try to load SegformerImageProcessor with custom config handling."""
@@ -122,6 +179,26 @@ class ImageSegmentationRunner(BaseRunner):
             return {"labels": {}, "shape": []}
         try:
             image = decode_base64_image(img_b64)
+            backend = getattr(self, "_backend", "transformers")
+            if backend == "pipeline" and hasattr(self, "pipe"):
+                res = self.pipe(image)
+                shape = []
+                try:
+                    if isinstance(res, list) and res and isinstance(
+                        res[0].get("mask"), (np.ndarray,)
+                    ):
+                        m = res[0]["mask"]
+                        shape = list(getattr(m, "shape", []))
+                    elif isinstance(res, list) and res and hasattr(
+                        res[0].get("mask"), "size"
+                    ):
+                        m = res[0]["mask"]
+                        w, h = m.size
+                        shape = [h, w]
+                except Exception:
+                    shape = []
+                return {"labels": {}, "shape": shape}
+            # transformers backend
             enc = self.processor(images=image, return_tensors="pt").to(
                 self.model.device
             )

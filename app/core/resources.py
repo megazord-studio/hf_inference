@@ -1,9 +1,3 @@
-"""Minimal ResourceManager (Phase 0).
-
-Provides a simple memory watermark check using psutil.
-Configuration is hardcoded for simplicity per project guidelines.
-"""
-
 from __future__ import annotations
 
 import logging

@@ -214,6 +214,16 @@ def _build_model_meta(info: Any, model_id: str) -> Dict[str, Any]:
 def _required_fields_for_task(task: str) -> List[str]:
     mapping = {
         "text-generation": ["text"],
+        "embedding": ["text"],
+        "fill-mask": ["text"],
+        "question-answering": ["question", "context"],
+        "sentence-similarity": ["text", "text_pair"],
+        "token-classification": ["text"],
+        "table-question-answering": ["question", "table"],
+        "text-ranking": ["query", "candidates"],
+        "translation": ["text"],
+        "zero-shot-classification": ["text", "labels"],
+        "time-series-forecasting": ["series"],
         "text-to-image": [],
         "image-classification": ["image_base64"],
         "image-to-text": ["image_base64"],
@@ -251,8 +261,12 @@ async def run_inference(
         _fetch_full_model_meta(req.model_id) if include_model_meta else None
     )
     meta = ModelMeta(**meta_raw) if meta_raw else None
+    # Normalize task from model metadata pipeline_tag when not provided
     if task is None and meta and meta.pipeline_tag in PIPELINE_TO_TASK:
         task = PIPELINE_TO_TASK[meta.pipeline_tag]
+    # Also normalize explicit task aliases (e.g., feature-extraction -> embedding)
+    if task in PIPELINE_TO_TASK:
+        task = PIPELINE_TO_TASK[task]
     if not task:
         return _error_response(
             status.HTTP_400_BAD_REQUEST,
@@ -303,6 +317,12 @@ async def run_inference(
         )
     output_model = get_output_model_for_task(task)
     raw_output = pred["output"]
+    # Normalize legacy runner outputs that return (task_output, info)
+    if isinstance(raw_output, (tuple, list)):
+        if len(raw_output) >= 1:
+            raw_output = raw_output[0]
+        else:
+            raw_output = {}
     task_output: Any = raw_output
     if output_model is not None:
         try:

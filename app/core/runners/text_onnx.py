@@ -1,9 +1,3 @@
-"""ONNX text generation runner fallback.
-
-Loads an ONNX exported GPT2-like model using onnxruntime.
-Simplified: assumes presence of model.onnx and tokenizer.json or vocab files.
-"""
-
 from __future__ import annotations
 
 import logging

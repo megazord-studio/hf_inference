@@ -31,3 +31,4 @@ something is not working as expected. Fallback would hide that fact.
 - [ ] Implement Comparison Mode
 - [ ] Text-to-Text Incl. Internet Search & "Thinking"
 - [ ] Dynamic Issue finder by Trending/Download/Like Score
+- [ ] Add task filter in UI (maybe only when selected input/output)

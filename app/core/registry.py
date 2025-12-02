@@ -1,15 +1,3 @@
-"""ModelRegistry - Phase B implementation.
-
-Responsibilities:
-- Lazily load models for all supported tasks (text, vision, audio, diffusion, video).
-- Provide predict(task, model_id, inputs, options) interface.
-- Async-aware loading for heavy models to avoid blocking inference requests.
-- Weighted eviction (LRU + size + last error) with simple memory watermark check.
-- Memory estimation (param_count * dtype_bytes) best-effort.
-
-DRY & KISS: keep logic straightforward; no side effects outside in-memory state.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -603,6 +591,18 @@ PIPELINE_TO_TASK = {
     "automatic-speech-recognition": "automatic-speech-recognition",
     "audio-classification": "audio-classification",
     "text-to-speech": "text-to-speech",
+    # Text / NLP pipelines
+    "feature-extraction": "embedding",
+    "fill-mask": "fill-mask",
+    "image-to-text": "image-to-text",
+    "question-answering": "question-answering",
+    "sentence-similarity": "sentence-similarity",
+    "token-classification": "token-classification",
+    "text-ranking": "text-ranking",
+    "reranking": "text-ranking",
+    "translation": "translation",
+    "zero-shot-classification": "zero-shot-classification",
+    "table-question-answering": "table-question-answering",
     # Phase A new pipeline tags (stubbed runners pending)
     "zero-shot-image-classification": "zero-shot-image-classification",
     "zero-shot-object-detection": "zero-shot-object-detection",

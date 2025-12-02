@@ -1,9 +1,3 @@
-"""Centralized task taxonomy constants and output schemas.
-
-Provides categorized sets of all tasks exposed in the frontend plus
-Pydantic models describing the standard shape of runner outputs.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -156,6 +150,7 @@ class VisionUnderstandingOutput(BaseModel):
     scores: Optional[List[float]] = None
     keypoints: Optional[Any] = None
     count: Optional[int] = None
+    text: Optional[str] = None  # captioning output
 
 
 class VisionAudioOutput(BaseModel):
@@ -178,10 +173,30 @@ class MultimodalTaskOutput(BaseModel):
     text: Optional[str] = None
     answer: Optional[str] = None
     arch: Optional[str] = None
+    # Generalist/any-to-any extensions (ignored by classic VQA models)
+    modalities: Optional[List[str]] = None
 
 
 class RetrievalTaskOutput(BaseModel):
     items: List[Dict[str, Any]]
+
+
+class TableQuestionAnsweringOutput(BaseModel):
+    answer: str
+    cells: Optional[List[str]] = None
+    coordinates: Optional[List[List[int]]] = None
+    error: Optional[str] = None
+
+
+class TextRankingOutput(BaseModel):
+    scores: List[float]
+    indices: List[int]
+    error: Optional[str] = None
+
+
+class TimeSeriesForecastOutput(BaseModel):
+    forecast: List[float]
+    quantiles: Optional[Dict[str, List[float]]] = None
 
 
 TASK_TO_OUTPUT_MODEL: Dict[str, Type[BaseModel]] = {}
@@ -191,10 +206,20 @@ for t in TEXT_TASKS_RUNNERS:
         continue
     if t in {"text-classification"}:
         TASK_TO_OUTPUT_MODEL[t] = TextClassificationOutput
+    elif t in {"zero-shot-classification"}:
+        TASK_TO_OUTPUT_MODEL[t] = TextClassificationOutput
     elif t in {"feature-extraction", "embedding"}:
         TASK_TO_OUTPUT_MODEL[t] = EmbeddingOutput
     elif t == "summarization":
         TASK_TO_OUTPUT_MODEL[t] = TextGenerationOutput
+    elif t == "table-question-answering":
+        TASK_TO_OUTPUT_MODEL[t] = TableQuestionAnsweringOutput
+    elif t == "text-ranking":
+        TASK_TO_OUTPUT_MODEL[t] = TextRankingOutput
+    elif t == "translation":
+        TASK_TO_OUTPUT_MODEL[t] = TextGenerationOutput
+    elif t == "time-series-forecasting":
+        TASK_TO_OUTPUT_MODEL[t] = TimeSeriesForecastOutput
 
 for t in VISION_GEN_TASKS:
     TASK_TO_OUTPUT_MODEL[t] = VisionGenerationOutput
@@ -260,6 +285,9 @@ __all__ = [
     "ThreeDTaskOutput",
     "MultimodalTaskOutput",
     "RetrievalTaskOutput",
+    "TableQuestionAnsweringOutput",
+    "TextRankingOutput",
+    "TimeSeriesForecastOutput",
     "TASK_TO_OUTPUT_MODEL",
     "get_output_model_for_task",
 ]

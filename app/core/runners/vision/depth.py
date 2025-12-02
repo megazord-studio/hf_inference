@@ -1,5 +1,3 @@
-"""Depth Estimation runner."""
-
 from __future__ import annotations
 
 import logging

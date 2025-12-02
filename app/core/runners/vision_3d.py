@@ -1,23 +1,3 @@
-"""Phase E: 3D generation runners.
-
-Goal: run local HF models passed via /api/inference to produce 3D artifacts.
-
-Contract (task_output):
-{
-  "model_format": "obj",
-  "model_uri": "data:application/octet-stream;base64,....",
-  "preview_image_base64": "data:image/png;base64,....",
-  "meta": {...}
-}
-
-Implementation choices:
-- For model ids starting with "placeholder/", return a small procedural cube OBJ (explicit placeholder).
-- For TRELLIS text models, use a causal LM and return a text description.
-- For real HF image-to-3D models, attempt to call their remote-code API and normalize output into the 3D schema.
-- If a real model cannot be executed or does not yield a recognizable 3D artifact, raise an error
-  so the caller sees the failure; do not silently fall back.
-"""
-
 from __future__ import annotations
 
 import base64

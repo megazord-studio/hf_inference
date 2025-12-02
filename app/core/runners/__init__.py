@@ -1,10 +1,3 @@
-"""Runners package exports.
-
-Centralized task -> runner registry for all supported inference tasks.
-Each domain (text, vision, audio, multimodal, etc.) is organized
-into its own subpackage for maintainability.
-"""
-
 from __future__ import annotations
 
 from typing import Dict
@@ -29,6 +22,8 @@ from .vision_generation import VISION_GEN_TASKS
 from .vision_generation import vision_gen_runner_for_task
 from .vision_understanding import VISION_UNDERSTANDING_TASKS
 from .vision_understanding import vision_understanding_runner_for_task
+from .timeseries import TIMESERIES_TASKS
+from .timeseries import runner_for_task as timeseries_runner_for_task
 
 # Centralized task -> runner class registry
 TASK_TO_RUNNER: Dict[str, Type[BaseRunner]] = {}
@@ -51,6 +46,8 @@ for _task in VIDEO_TASKS:
     TASK_TO_RUNNER[_task] = video_runner_for_task(_task)
 for _task in RETRIEVAL_TASKS:
     TASK_TO_RUNNER[_task] = retrieval_runner_for_task(_task)
+for _task in TIMESERIES_TASKS:
+    TASK_TO_RUNNER[_task] = timeseries_runner_for_task(_task)
 
 
 def get_runner_cls(task: str) -> Type[BaseRunner]:
@@ -95,4 +92,5 @@ __all__ = [
     "TASK_TO_RUNNER",
     "get_runner_cls",
     "SUPPORTED_TASKS",
+    "TIMESERIES_TASKS",
 ]

@@ -1,8 +1,3 @@
-"""Vision runners package - image classification, segmentation, etc.
-
-Exports runner classes and task set for vision-related inference.
-"""
-
 from typing import Set
 from typing import Type
 

@@ -1,18 +1,3 @@
-"""Device / acceleration selection utilities.
-
-Gracefully handle absence of torch or GPU/MPS. Provides:
-- select_device(prefer='auto') -> Optional[torch.device]
-- device_capabilities() -> dict with flags & memory
-- ensure_task_supported(task: Optional[str]) -> None (raises RuntimeError if acceleration required but unavailable)
-
-Environment overrides:
-FORCE_DEVICE=cuda|mps|cpu  (error if unavailable)
-MAX_GPU_MEM_GB=number      (advisory; expose in capabilities)
-
-GPU-required tasks (heuristic initial list): text-to-image, image-to-image, text-to-video,
-image-to-video, image-to-3d, text-to-3d, video-generation.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -34,7 +19,6 @@ GPU_REQUIRED_TASKS: Set[str] = {
     "image-to-3d",
     "text-to-3d",
     "video-generation",  # legacy alias
-    "any-to-any",  # generalist may compose heavy tasks
 }
 
 _try_torch_done = False

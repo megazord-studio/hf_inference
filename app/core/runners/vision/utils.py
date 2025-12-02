@@ -1,5 +1,3 @@
-"""Shared utilities for vision runners."""
-
 from __future__ import annotations
 
 import base64

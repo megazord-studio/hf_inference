@@ -1,8 +1,3 @@
-"""Media base64 utilities (images, audio, video, 3D) for runners.
-
-DRY: centrally encode/decode to keep runners focused on inference only.
-"""
-
 from __future__ import annotations
 
 import base64
