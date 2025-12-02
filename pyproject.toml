@@ -53,6 +53,21 @@ dependencies = [
   "hf-transfer>=0.1.9",
   "Jinja2~=3.1",
   "whisper>=1.1.10",
+  "onnxruntime~=1.18",
+  "sse-starlette~=1.6",
+  "torchaudio~=2.8.0",
+  "librosa~=0.10",
+  "ultralytics~=8.3",
+  "peft>=0.18.0",
+  "tiktoken>=0.12.0",
+  "transformers-stream-generator>=0.0.5",
+  "xformers>=0.0.32.post2",
+  "easyocr>=1.7.2",
+  "trimesh>=4.10.0",
+  "speechbrain>=1.0.3",
+  "addict>=2.4.0",
+  "coqui-tts>=0.27.1",
+  "easydict>=1.13",
 ]
 
 [project.urls]
@@ -82,7 +97,7 @@ dev = [
 [tool.poe.tasks]
 # Run tasks with: uv run poe <task>
 # e.g. uv run poe test
-test = { shell = "uv run pytest -ra || exit 1" }
+test = { shell = "APP_REGISTRY_MEMORY_LIMIT_MB=45000 uv run pytest -ra -vvv --log-cli-level=INFO || exit 1" }
 format = { shell = '''
 uv run ruff format || exit 1
 uv run ruff check --fix || exit 1
@@ -93,6 +108,7 @@ security = { shell = "uv run bandit -r app --severity-level high" }
 complexity = { shell = "uv run radon cc -s -a app" }
 deadcode = { shell = "uv run vulture app tests" }
 dev = { shell = "uvicorn app.main:app --reload" }
+generate-contracts = { shell = "python scripts/generate_contracts.py" }
 
 [tool.ruff]
 line-length = 79
@@ -119,21 +135,11 @@ show_error_codes = true
 include = [
   "README.md",
   "LICENSE",
-  "app/static/**",
-  "app/templates/**",
 ]
 
 [build-system]
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["app"]
-include = [
-  "app/static/**",
-  "app/templates/**",
-  "app/py.typed",
-]
 
 # For source distributions, include tests and assets for reference
 [tool.hatch.build.targets.sdist]
