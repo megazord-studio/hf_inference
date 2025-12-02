@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_feature_extraction_alias_maps_to_embedding(client):
@@ -15,4 +14,7 @@ def test_feature_extraction_alias_maps_to_embedding(client):
     data = resp.json()["result"]
     assert data.get("task") == "embedding"
     out = data.get("task_output", {})
-    assert isinstance(out.get("embedding"), list) and len(out.get("embedding")) > 0
+    assert (
+        isinstance(out.get("embedding"), list)
+        and len(out.get("embedding")) > 0
+    )

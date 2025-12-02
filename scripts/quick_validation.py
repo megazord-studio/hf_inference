@@ -33,16 +33,20 @@ Notes:
 
 from __future__ import annotations
 
+import base64
 import math
+import os
+import shutil
 import sys
 from dataclasses import dataclass
-import os
-import base64
-from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Set, Tuple
 from datetime import datetime
-import shutil
-import time
+from pathlib import Path
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Sequence
+from typing import Set
+from typing import Tuple
 
 TIMEOUT = 1200
 
@@ -51,8 +55,8 @@ try:  # Prefer httpx if available (in dev extras); fallback to urllib
 except Exception:  # pragma: no cover
     httpx = None  # type: ignore
     import json
-    from urllib.request import urlopen
     from urllib.error import URLError
+    from urllib.request import urlopen
 
     def _http_get(url: str):
         try:
@@ -61,6 +65,7 @@ except Exception:  # pragma: no cover
         except URLError as e:  # pragma: no cover
             raise RuntimeError(f"GET {url} failed: {e}")
 else:
+
     def _http_get(url: str):  # pragma: no cover - delegated to httpx
         with httpx.Client(timeout=TIMEOUT) as client:
             r = client.get(url)
@@ -69,7 +74,13 @@ else:
 
 
 # Frontend canonical modality sets
-ALL_INPUT_MODALITIES: Sequence[str] = ["text", "image", "audio", "video", "document"]
+ALL_INPUT_MODALITIES: Sequence[str] = [
+    "text",
+    "image",
+    "audio",
+    "video",
+    "document",
+]
 ALL_OUTPUT_MODALITIES: Sequence[str] = [
     "text",
     "image",
@@ -223,7 +234,9 @@ def _minmax(values: Dict[str, float]) -> Dict[str, float]:
     return {k: (v - mn) / span for k, v in values.items()}
 
 
-def build_normalization_maps(models: Iterable[Dict[str, object]]) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, float]]:
+def build_normalization_maps(
+    models: Iterable[Dict[str, object]],
+) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, float]]:
     """Return normalized (trending, downloads_log, likes_log) maps in [0,1] for all models."""
     trending_raw: Dict[str, float] = {}
     downloads_log: Dict[str, float] = {}
@@ -241,7 +254,9 @@ def build_normalization_maps(models: Iterable[Dict[str, object]]) -> Tuple[Dict[
     return trending_norm, downloads_norm, likes_norm
 
 
-def score_model(trending_norm: float, downloads_norm: float, likes_norm: float) -> float:
+def score_model(
+    trending_norm: float, downloads_norm: float, likes_norm: float
+) -> float:
     return 0.4 * trending_norm + 0.35 * downloads_norm + 0.25 * likes_norm
 
 
@@ -298,7 +313,9 @@ def _read_b64(path: Path) -> str:
     return b64
 
 
-def build_inference_inputs_for_task(task_id: str, text_fallback: str | None = None) -> Dict[str, object]:
+def build_inference_inputs_for_task(
+    task_id: str, text_fallback: str | None = None
+) -> Dict[str, object]:
     """Construct inputs object based on task requirements using tests/assets and hardcoded text.
 
     Prefers image/audio/video assets when required; includes text where applicable.
@@ -340,7 +357,11 @@ def build_inference_inputs_for_task(task_id: str, text_fallback: str | None = No
     elif task_id == "table-question-answering":
         inputs.pop("text", None)
         inputs["question"] = "Which city is largest?"
-        inputs["table"] = [["city", "population"], ["Alpha", "100"], ["Beta", "200"]]
+        inputs["table"] = [
+            ["city", "population"],
+            ["Alpha", "100"],
+            ["Beta", "200"],
+        ]
     elif task_id == "text-ranking":
         inputs.pop("text", None)
         inputs["query"] = "What is the capital of France?"
@@ -362,13 +383,21 @@ def build_inference_inputs_for_task(task_id: str, text_fallback: str | None = No
     return inputs
 
 
-def _shorten_assets(payload: Dict[str, object], max_len: int = 64) -> Dict[str, object]:
+def _shorten_assets(
+    payload: Dict[str, object], max_len: int = 64
+) -> Dict[str, object]:
     """Return a copy of payload with base64 assets shortened for display."""
     import copy
+
     p = copy.deepcopy(payload)
     inputs = p.get("inputs")
     if isinstance(inputs, dict):
-        for k in ("image_base64", "audio_base64", "video_base64", "document_base64"):
+        for k in (
+            "image_base64",
+            "audio_base64",
+            "video_base64",
+            "document_base64",
+        ):
             v = inputs.get(k)
             if isinstance(v, str) and len(v) > max_len:
                 inputs[k] = v[:max_len] + "..." + f"(len={len(v)})"
@@ -380,6 +409,7 @@ def _shorten_assets_generic(obj: object, max_len: int = 64) -> object:
 
     Targets keys commonly used in this project: *_base64, image/audio/video/document outputs.
     """
+
     def _shorten_str(s: str) -> str:
         if len(s) > max_len:
             return s[:max_len] + "..." + f"(len={len(s)})"
@@ -388,7 +418,10 @@ def _shorten_assets_generic(obj: object, max_len: int = 64) -> object:
     if isinstance(obj, dict):
         out: Dict[str, object] = {}
         for k, v in obj.items():
-            if isinstance(v, str) and (k.endswith("_base64") or k in {"image", "audio", "video", "document"}):
+            if isinstance(v, str) and (
+                k.endswith("_base64")
+                or k in {"image", "audio", "video", "document"}
+            ):
                 out[k] = _shorten_str(v)
             else:
                 out[k] = _shorten_assets_generic(v, max_len)
@@ -399,7 +432,9 @@ def _shorten_assets_generic(obj: object, max_len: int = 64) -> object:
         return obj
 
 
-def execute_model(host: str, model: Dict[str, object], task_id: str, outln=lambda s: print(s)) -> Dict[str, object] | None:
+def execute_model(
+    host: str, model: Dict[str, object], task_id: str, outln=lambda s: print(s)
+) -> Dict[str, object] | None:
     """Post to /api/inference for the given model and task, print brief summary."""
     # Validation-side note: ASR expects soundfile to be installed; proceed normally.
     payload = {
@@ -413,35 +448,56 @@ def execute_model(host: str, model: Dict[str, object], task_id: str, outln=lambd
     url = host.rstrip("/") + "/api/inference"
     # Safety: ensure HF cache does not exceed 600GB before executing
     try:
-        ensure_hf_cache_under_limit(limit_bytes=700 * (1024 ** 3))
+        ensure_hf_cache_under_limit(limit_bytes=700 * (1024**3))
     except Exception as _e:
-        outln(f"    Warning: cache check/prune failed: {type(_e).__name__}: {_e}")
+        outln(
+            f"    Warning: cache check/prune failed: {type(_e).__name__}: {_e}"
+        )
     # Show shortened payload before executing
     try:
         import json as _json
+
         outln("    Payload preview:")
-        outln("    " + _json.dumps(_shorten_assets(payload), indent=2).replace("\n", "\n    "))
+        outln(
+            "    "
+            + _json.dumps(_shorten_assets(payload), indent=2).replace(
+                "\n", "\n    "
+            )
+        )
     except Exception:
         pass
 
-    def _print_error(prefix: str, body: Dict[str, object] | None = None, status: int | None = None):
+    def _print_error(
+        prefix: str,
+        body: Dict[str, object] | None = None,
+        status: int | None = None,
+    ):
         if body is None:
             outln(f"  ✗ {prefix}")
             return
         err = body.get("error") if isinstance(body, dict) else None
         if isinstance(err, dict):
             code = err.get("code")
-            message = err.get("message") or err.get("detail") or err.get("error")
+            message = (
+                err.get("message") or err.get("detail") or err.get("error")
+            )
             details = err.get("details")
             outln(f"  ✗ Error status={status} code={code} message={message}")
             if details:
                 try:
                     import json as _json
-                    outln("    details=" + _json.dumps(details, indent=2).replace("\n", "\n    "))
+
+                    outln(
+                        "    details="
+                        + _json.dumps(details, indent=2).replace(
+                            "\n", "\n    "
+                        )
+                    )
                 except Exception:
                     outln(f"    details={details}")
         else:
             outln(f"  ✗ Error status={status} body={err}")
+
     try:
         if httpx is not None:
             with httpx.Client(timeout=TIMEOUT) as client:
@@ -458,15 +514,23 @@ def execute_model(host: str, model: Dict[str, object], task_id: str, outln=lambd
                     _print_error("HTTP error", data, status_code)
                     return
                 if data is None:
-                    outln(f"  ✗ Unexpected non-JSON response status={status_code}")
+                    outln(
+                        f"  ✗ Unexpected non-JSON response status={status_code}"
+                    )
                     return
         else:
             # Minimal urllib fallback
             import json
-            from urllib.request import Request, urlopen
-            req = Request(url, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"})
+            from urllib.request import Request
+            from urllib.request import urlopen
+
+            req = Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
             with urlopen(req, timeout=TIMEOUT) as resp:  # type: ignore
-                status_code = getattr(resp, 'status', 200)
+                status_code = getattr(resp, "status", 200)
                 raw = resp.read().decode("utf-8")
             try:
                 data = json.loads(raw)
@@ -480,19 +544,29 @@ def execute_model(host: str, model: Dict[str, object], task_id: str, outln=lambd
         runtime_ms = (data or {}).get("runtime_ms") if data else None
         if result:
             # Print truncated textual result if available
-            summary_keys = list(result.keys()) if isinstance(result, dict) else []
-            outln(f"  ✓ Executed: runtime={runtime_ms}ms; result_keys={summary_keys}")
+            summary_keys = (
+                list(result.keys()) if isinstance(result, dict) else []
+            )
+            outln(
+                f"  ✓ Executed: runtime={runtime_ms}ms; result_keys={summary_keys}"
+            )
             try:
                 import json as _json
+
                 outln("    Response JSON:")
                 safe_data = data
                 # Shorten any asset-like fields in the response to avoid huge logs
                 if isinstance(safe_data, dict):
                     safe_data = {
                         **safe_data,
-                        "result": _shorten_assets_generic(safe_data.get("result")),
+                        "result": _shorten_assets_generic(
+                            safe_data.get("result")
+                        ),
                     }
-                outln("    " + _json.dumps(safe_data, indent=2).replace("\n", "\n    "))
+                outln(
+                    "    "
+                    + _json.dumps(safe_data, indent=2).replace("\n", "\n    ")
+                )
             except Exception:
                 pass
             return data
@@ -500,11 +574,15 @@ def execute_model(host: str, model: Dict[str, object], task_id: str, outln=lambd
             _print_error("Execution returned error", data, 200)
             try:
                 import json as _json
+
                 outln("    Error JSON:")
                 safe_err = data
                 if isinstance(safe_err, dict):
                     safe_err = _shorten_assets_generic(safe_err)
-                outln("    " + _json.dumps(safe_err, indent=2).replace("\n", "\n    "))
+                outln(
+                    "    "
+                    + _json.dumps(safe_err, indent=2).replace("\n", "\n    ")
+                )
             except Exception:
                 pass
             return data
@@ -516,7 +594,7 @@ def execute_model(host: str, model: Dict[str, object], task_id: str, outln=lambd
 def _dir_size_bytes(path: Path) -> int:
     total = 0
     try:
-        for p in path.rglob('*'):
+        for p in path.rglob("*"):
             try:
                 if p.is_file():
                     total += p.stat().st_size
@@ -535,7 +613,7 @@ def ensure_hf_cache_under_limit(limit_bytes: int) -> None:
     - If over limit, order immediate children by last modified time (oldest first).
     - Remove oldest directories/files until under the limit.
     """
-    root = Path(os.path.expanduser('~/.cache/huggingface/hub'))
+    root = Path(os.path.expanduser("~/.cache/huggingface/hub"))
     if not root.exists():
         return
     total = _dir_size_bytes(root)
@@ -562,7 +640,9 @@ def ensure_hf_cache_under_limit(limit_bytes: int) -> None:
         except Exception:
             continue
         total -= size
-        print(f"    Pruned cache entry: {child} (~{size/1e9:.2f} GB); remaining ~{total/1e9:.2f} GB")
+        print(
+            f"    Pruned cache entry: {child} (~{size / 1e9:.2f} GB); remaining ~{total / 1e9:.2f} GB"
+        )
         if total <= limit_bytes:
             break
 
@@ -582,7 +662,9 @@ def main() -> int:
     # Exclude gated/private models before any normalization/scoring
     models = [m for m in models if not bool(m.get("gated") or False)]
 
-    trending_norm_map, downloads_norm_map, likes_norm_map = build_normalization_maps(models)
+    trending_norm_map, downloads_norm_map, likes_norm_map = (
+        build_normalization_maps(models)
+    )
 
     # Combination key: (inputs tuple, outputs tuple) -> tasks set
     combo_tasks: Dict[Tuple[Tuple[str, ...], Tuple[str, ...]], Set[str]] = {}
@@ -591,9 +673,9 @@ def main() -> int:
         combo_tasks.setdefault(key, set()).add(task)
 
     # Aggregate models per combo by pipeline_tag matching tasks
-    combo_models: Dict[Tuple[Tuple[str, ...], Tuple[str, ...]], List[Dict[str, object]]] = {
-        k: [] for k in combo_tasks.keys()
-    }
+    combo_models: Dict[
+        Tuple[Tuple[str, ...], Tuple[str, ...]], List[Dict[str, object]]
+    ] = {k: [] for k in combo_tasks.keys()}
     for m in models:
         task = m.get("pipeline_tag")
         if not task or task not in task_modalities:
@@ -604,7 +686,10 @@ def main() -> int:
 
     # Prepare output file
     ts = datetime.now().strftime("%y-%m-%d-%H-%M")
-    out_path = Path(f"{ts}-model-runs-{'task' if mode=='task-mode' else 'goal'}-mode.txt")
+    out_path = Path(
+        f"{ts}-model-runs-{'task' if mode == 'task-mode' else 'goal'}-mode.txt"
+    )
+
     def outln(s: str = ""):
         print(s)
         try:
@@ -633,7 +718,7 @@ def main() -> int:
                 )
                 scored.append((s, m))
             scored.sort(key=lambda t: t[0], reverse=True)
-            top = scored[: TOP_PER_TASK]
+            top = scored[:TOP_PER_TASK]
             if not top:
                 continue
             outln()
@@ -651,9 +736,12 @@ def main() -> int:
                 execute_model(host, m, task_id, outln=outln)
     else:
         # goal-mode (default)
-        outln("=== Top Models per Input/Output Combination (MODE=goal-mode) ===")
+        outln(
+            "=== Top Models per Input/Output Combination (MODE=goal-mode) ==="
+        )
         for key in sorted(
-            combo_tasks.keys(), key=lambda k: (len(k[0]), len(k[1]), k[0], k[1])
+            combo_tasks.keys(),
+            key=lambda k: (len(k[0]), len(k[1]), k[0], k[1]),
         ):
             inputs, outputs = key
             tasks = sorted(combo_tasks[key])
@@ -670,7 +758,7 @@ def main() -> int:
                 )
                 scored.append((s, m))
             scored.sort(key=lambda t: t[0], reverse=True)
-            top = scored[: max_per]
+            top = scored[:max_per]
             outln()
             outln(
                 f"Combination: inputs={list(inputs)} outputs={list(outputs)} | tasks={tasks}"
@@ -678,7 +766,9 @@ def main() -> int:
             outln(
                 f"Total models: {len(models_for_combo)}; showing top {len(top)} (host={host})"
             )
-            outln("Rank | Score | Trending | Downloads | Likes | Model ID | Task")
+            outln(
+                "Rank | Score | Trending | Downloads | Likes | Model ID | Task"
+            )
             for rank, (score_val, m) in enumerate(top, start=1):
                 mid = str(m.get("id"))
                 likes = int(m.get("likes") or 0)

@@ -12,6 +12,8 @@ from .retrieval import RETRIEVAL_TASKS
 from .retrieval import retrieval_runner_for_task
 from .text import TEXT_TASKS
 from .text import runner_for_task as text_runner_for_task
+from .timeseries import TIMESERIES_TASKS
+from .timeseries import runner_for_task as timeseries_runner_for_task
 from .video_generation import VIDEO_TASKS
 from .video_generation import video_runner_for_task
 from .vision import VISION_TASKS
@@ -22,8 +24,6 @@ from .vision_generation import VISION_GEN_TASKS
 from .vision_generation import vision_gen_runner_for_task
 from .vision_understanding import VISION_UNDERSTANDING_TASKS
 from .vision_understanding import vision_understanding_runner_for_task
-from .timeseries import TIMESERIES_TASKS
-from .timeseries import runner_for_task as timeseries_runner_for_task
 
 # Centralized task -> runner class registry
 TASK_TO_RUNNER: Dict[str, Type[BaseRunner]] = {}

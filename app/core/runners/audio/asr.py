@@ -131,6 +131,8 @@ class AutomaticSpeechRecognitionRunner(BaseRunner):
         except Exception as e:
             msg = str(e)
             if "soundfile" in msg or sf is None:
-                raise RuntimeError("asr_backend_missing: soundfile/libsndfile not available")
+                raise RuntimeError(
+                    "asr_backend_missing: soundfile/libsndfile not available"
+                )
             log.warning("automatic-speech-recognition predict error: %s", e)
             return {"text": ""}

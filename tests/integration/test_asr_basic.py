@@ -7,6 +7,7 @@ import pytest
 
 def _tiny_wav_base64(seconds: float = 0.1, sr: int = 16000) -> str:
     import numpy as np
+
     t = np.linspace(0, seconds, int(sr * seconds), endpoint=False)
     wav = (0.1 * np.sin(2 * np.pi * 440 * t)).astype("float32")
     # encode as PCM16 WAV
@@ -30,6 +31,7 @@ def _tiny_wav_base64(seconds: float = 0.1, sr: int = 16000) -> str:
 def test_asr_backend_present_and_runs(client, model_id):
     # Expect soundfile/libsndfile installed
     import soundfile as sf  # type: ignore
+
     assert sf is not None
 
     payload = {

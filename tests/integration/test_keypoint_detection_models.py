@@ -4,13 +4,19 @@ import pytest
 def _make_image_b64(color=(160, 160, 160), size=(64, 48)):
     import base64
     import io
-    from PIL import Image, ImageDraw
+
+    from PIL import Image
+    from PIL import ImageDraw
 
     img = Image.new("RGB", size, color=(240, 240, 240))
     draw = ImageDraw.Draw(img)
     # Draw a few shapes to produce corners
-    draw.rectangle([8, 8, size[0]-8, size[1]-8], outline=(0,0,0), width=2)
-    draw.line([8, size[1]//2, size[0]-8, size[1]//2], fill=(0,0,0), width=2)
+    draw.rectangle(
+        [8, 8, size[0] - 8, size[1] - 8], outline=(0, 0, 0), width=2
+    )
+    draw.line(
+        [8, size[1] // 2, size[0] - 8, size[1] // 2], fill=(0, 0, 0), width=2
+    )
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"

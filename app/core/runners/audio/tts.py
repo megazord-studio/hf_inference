@@ -109,7 +109,9 @@ class TextToSpeechRunner(BaseRunner):
         if not _HAS_TTS:
             # Allow Kokoro path to declare not implemented explicitly
             if self.model_id == "hexgrad/Kokoro-82M":
-                raise NotImplementedError("kokoro_tts_not_implemented: Coqui TTS is not available")
+                raise NotImplementedError(
+                    "kokoro_tts_not_implemented: Coqui TTS is not available"
+                )
             raise RuntimeError(
                 "Coqui TTS library not installed (pip install TTS) "
                 "or use model_id=microsoft/speecht5_tts"
@@ -143,7 +145,9 @@ class TextToSpeechRunner(BaseRunner):
 
         if self.tts is None:
             if self.model_id == "hexgrad/Kokoro-82M":
-                raise NotImplementedError("kokoro_tts_not_implemented: model load failed in current environment")
+                raise NotImplementedError(
+                    "kokoro_tts_not_implemented: model load failed in current environment"
+                )
             raise RuntimeError(
                 f"TTS model load failed for {self.model_id}: {'; '.join(errors)}"
             )
@@ -217,9 +221,7 @@ class TextToSpeechRunner(BaseRunner):
             wav = self.tts.tts(text, **kwargs)
         except Exception as e:
             if self.model_id == "hexgrad/Kokoro-82M":
-                raise NotImplementedError(
-                    f"kokoro_tts_not_implemented: {e}"
-                )
+                raise NotImplementedError(f"kokoro_tts_not_implemented: {e}")
             raise RuntimeError(f"TTS synthesis failed: {e}")
 
         if not isinstance(wav, np.ndarray):

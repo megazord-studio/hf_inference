@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_text_ranking_basic(client):
@@ -25,4 +24,6 @@ def test_text_ranking_basic(client):
     scores = out.get("scores")
     indices = out.get("indices")
     assert isinstance(scores, list) and len(scores) == len(candidates)
-    assert isinstance(indices, list) and sorted(indices) == list(range(len(candidates)))
+    assert isinstance(indices, list) and sorted(indices) == list(
+        range(len(candidates))
+    )

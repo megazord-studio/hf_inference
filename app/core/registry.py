@@ -276,7 +276,9 @@ class ModelRegistry:
                 # Reserve 25% of limit as headroom for loading operations
                 if self._memory_limit_mb is not None:
                     headroom_target = self._memory_limit_mb * 0.75
-                    self._evict_to_memory_target(headroom_target, exclude_keys={key})
+                    self._evict_to_memory_target(
+                        headroom_target, exclude_keys={key}
+                    )
                 runner_cls = get_runner_cls(task)
                 dtype_str = choose_dtype(param_count=None, task=task)
                 try:
@@ -394,7 +396,9 @@ class ModelRegistry:
             # Reserve 25% of limit as headroom for loading operations
             if self._memory_limit_mb is not None:
                 headroom_target = self._memory_limit_mb * 0.75
-                self._evict_to_memory_target(headroom_target, exclude_keys={key})
+                self._evict_to_memory_target(
+                    headroom_target, exclude_keys={key}
+                )
             runner_cls = get_runner_cls(task)
             dtype_str = choose_dtype(param_count=None, task=task)
             try:

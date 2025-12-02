@@ -4,6 +4,7 @@ import pytest
 def _make_image_b64(color=(200, 120, 30), size=(32, 32)):
     import base64
     import io
+
     from PIL import Image
 
     img = Image.new("RGB", size, color=color)
@@ -36,4 +37,4 @@ def test_visual_document_retrieval_models(client, model_id):
     data = resp.json()["result"]["task_output"]
     assert "results" in data and isinstance(data["results"], list)
     assert len(data["results"]) >= 1
-    assert all("doc_id" in r and "score" in r for r in data["results"]) 
+    assert all("doc_id" in r and "score" in r for r in data["results"])

@@ -3,6 +3,7 @@ import pytest
 # Minimal 1x1 PNG (white) data URL
 _ONE_PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
 
+
 @pytest.mark.parametrize(
     "model_id,image_b64",
     [

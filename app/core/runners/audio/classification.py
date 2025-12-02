@@ -30,12 +30,14 @@ except Exception:
 
 # Optional SpeechBrain (v1+)
 _HAS_SPEECHBRAIN = False
-SBEncoderClassifier = None  # type: ignore[assignment]
+SBEncoderClassifierCls: Any | None = None
 try:
-    from speechbrain.inference import EncoderClassifier as SBEncoderClassifier
+    from speechbrain.inference import EncoderClassifier as _SBEncoderClassifier
+
+    SBEncoderClassifierCls = _SBEncoderClassifier
     _HAS_SPEECHBRAIN = True
 except Exception:
-    SBEncoderClassifier = None  # type: ignore[assignment]
+    SBEncoderClassifierCls = None
 
 log = logging.getLogger("app.runners.audio")
 
@@ -74,8 +76,15 @@ class AudioClassificationRunner(BaseRunner):
                     "speechbrain library not installed for SpeechBrain model"
                 )
             self._backend = "speechbrain"
-            self.sb_classifier = SBEncoderClassifier.from_hparams(
-                source=self.model_id, run_opts={"device": str(self.device) if self.device else "cpu"}
+            if SBEncoderClassifierCls is None:
+                raise RuntimeError(
+                    "speechbrain import failed for SpeechBrain model"
+                )
+            self.sb_classifier = SBEncoderClassifierCls.from_hparams(
+                source=self.model_id,
+                run_opts={
+                    "device": str(self.device) if self.device else "cpu"
+                },
             )
             # Default target sample rate for SB emotion model
             self._sb_sr = 16000
@@ -123,6 +132,7 @@ class AudioClassificationRunner(BaseRunner):
                 scores = out.scores.softmax(-1)[0]
                 # Map indices to labels across SB versions
                 le = getattr(self.sb_classifier.hparams, "label_encoder", None)
+
                 def _idx_to_label(i: int) -> str:
                     try:
                         if le is None:
@@ -137,10 +147,12 @@ class AudioClassificationRunner(BaseRunner):
                         decode_ndim = getattr(le, "decode_ndim", None)
                         if callable(decode_ndim):
                             import torch as _t
+
                             return str(decode_ndim(_t.tensor([int(i)]))[0])
                     except Exception:
                         pass
                     return str(int(i))
+
                 requested_k = int(options.get("top_k", 3))
                 top_k = max(1, min(requested_k, scores.shape[-1]))
                 values, indices = torch.topk(scores, k=top_k)
@@ -154,7 +166,9 @@ class AudioClassificationRunner(BaseRunner):
             else:
                 target_sr = get_target_sample_rate(self.processor)
                 data, sr = resample_audio(data, sr, target_sr)
-                enc = self.processor(data, sampling_rate=sr, return_tensors="pt")
+                enc = self.processor(
+                    data, sampling_rate=sr, return_tensors="pt"
+                )
                 with torch.no_grad():
                     out = self.model(
                         **{k: v.to(self.model.device) for k, v in enc.items()}
@@ -163,7 +177,9 @@ class AudioClassificationRunner(BaseRunner):
                 requested_k = int(options.get("top_k", 3))
                 top_k = max(1, min(requested_k, probs.shape[-1]))
                 values, indices = probs.topk(top_k)
-                labels = [self.model.config.id2label[i.item()] for i in indices]
+                labels = [
+                    self.model.config.id2label[i.item()] for i in indices
+                ]
                 return {
                     "predictions": [
                         {"label": lbl, "score": float(v.item())}

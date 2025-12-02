@@ -4,6 +4,7 @@ import pytest
 def _make_image_b64(color=(50, 120, 210), size=(32, 32)):
     import base64
     import io
+
     from PIL import Image
 
     img = Image.new("RGB", size, color=color)

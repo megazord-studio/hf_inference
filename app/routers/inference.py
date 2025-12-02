@@ -254,7 +254,11 @@ def _example_inputs_for_task(task: str) -> Dict[str, Any]:
         "token-classification": {"text": "Barack Obama was born in Hawaii."},
         "table-question-answering": {
             "question": "Which city is largest?",
-            "table": [["city", "population"], ["Alpha", "100"], ["Beta", "200"]],
+            "table": [
+                ["city", "population"],
+                ["Alpha", "100"],
+                ["Beta", "200"],
+            ],
         },
         "text-ranking": {
             "query": "What is the capital of France?",
@@ -264,13 +268,17 @@ def _example_inputs_for_task(task: str) -> Dict[str, Any]:
                 "Paris is the capital of France.",
             ],
         },
-        "translation": {"text": "Translate to French: The weather is nice today."},
+        "translation": {
+            "text": "Translate to French: The weather is nice today."
+        },
         "zero-shot-classification": {
             "text": "This is a news article about technology.",
             "labels": ["sports", "politics", "technology"],
         },
         "time-series-forecasting": {"series": [1.0, 1.2, 1.1, 1.3, 1.6, 1.9]},
-        "text-to-image": {"text": "A cozy cabin in the snowy mountains at sunset."},
+        "text-to-image": {
+            "text": "A cozy cabin in the snowy mountains at sunset."
+        },
         "image-classification": {"image_base64": "data:image/png;base64,...."},
         "image-to-text": {"image_base64": "data:image/png;base64,...."},
         "object-detection": {"image_base64": "data:image/png;base64,...."},
@@ -280,7 +288,9 @@ def _example_inputs_for_task(task: str) -> Dict[str, Any]:
             "image_base64": "data:image/png;base64,....",
             "text": "Enhance the image quality and reduce noise.",
         },
-        "automatic-speech-recognition": {"audio_base64": "data:audio/wav;base64,...."},
+        "automatic-speech-recognition": {
+            "audio_base64": "data:audio/wav;base64,...."
+        },
         "text-to-speech": {"text": "Welcome to our demo."},
     }
     return examples.get(task, {"text": "Hello world"})

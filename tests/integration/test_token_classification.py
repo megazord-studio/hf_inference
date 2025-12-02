@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_token_classification_basic(client):
@@ -6,7 +5,9 @@ def test_token_classification_basic(client):
         "model_id": "dslim/bert-base-NER",
         "intent_id": None,
         "input_type": "text",
-        "inputs": {"text": "Hugging Face Inc. is a company based in New York City."},
+        "inputs": {
+            "text": "Hugging Face Inc. is a company based in New York City."
+        },
         "task": "token-classification",
         "options": {},
     }

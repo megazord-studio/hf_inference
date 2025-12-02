@@ -1,8 +1,10 @@
 import importlib
+
 import pytest
 
 # Require Coqui TTS to be installed; fail otherwise
 _HAS_COQUI = importlib.util.find_spec("TTS") is not None
+
 
 @pytest.mark.parametrize(
     "model_id,options",
@@ -32,6 +34,8 @@ def test_tts_real_models(client, model_id, options):
     else:
         assert resp.status_code == 200, resp.text
     data = resp.json()["result"]["task_output"]
-    assert isinstance(data.get("audio_base64"), str) and data["audio_base64"].startswith("data:audio/wav;base64,")
+    assert isinstance(data.get("audio_base64"), str) and data[
+        "audio_base64"
+    ].startswith("data:audio/wav;base64,")
     assert isinstance(data.get("sample_rate"), int)
     assert isinstance(data.get("num_samples"), int) and data["num_samples"] > 0

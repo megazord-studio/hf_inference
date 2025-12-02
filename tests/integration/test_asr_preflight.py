@@ -7,6 +7,7 @@ import pytest
 
 def _tiny_wav_base64(seconds: float = 0.1, sr: int = 16000) -> str:
     import numpy as np
+
     t = np.linspace(0, seconds, int(sr * seconds), endpoint=False)
     wav = (0.1 * np.sin(2 * np.pi * 440 * t)).astype("float32")
     # encode as PCM16 WAV
@@ -28,9 +29,12 @@ def _tiny_wav_base64(seconds: float = 0.1, sr: int = 16000) -> str:
         "facebook/wav2vec2-base",
     ],
 )
-def test_asr_preflight_missing_soundfile_returns_clear_error(client, monkeypatch, model_id):
+def test_asr_preflight_missing_soundfile_returns_clear_error(
+    client, monkeypatch, model_id
+):
     # Force soundfile backend to be unavailable
     import app.core.runners.audio.asr as asr_mod
+
     monkeypatch.setattr(asr_mod, "sf", None, raising=False)
 
     payload = {
@@ -47,4 +51,6 @@ def test_asr_preflight_missing_soundfile_returns_clear_error(client, monkeypatch
     err = body.get("error", {})
     assert err.get("code") == "inference_failed"
     # Message should include a clear backend hint
-    assert "soundfile" in (err.get("message") or "") or "asr_backend_missing" in (err.get("message") or "")
+    assert "soundfile" in (
+        err.get("message") or ""
+    ) or "asr_backend_missing" in (err.get("message") or "")

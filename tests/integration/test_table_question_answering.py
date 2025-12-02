@@ -12,7 +12,9 @@ import pytest
         ),
     ],
 )
-def test_table_question_answering_basic(client, model_id, question, table, expected_substring):
+def test_table_question_answering_basic(
+    client, model_id, question, table, expected_substring
+):
     payload = {
         "model_id": model_id,
         "intent_id": None,
@@ -28,4 +30,6 @@ def test_table_question_answering_basic(client, model_id, question, table, expec
     out = data.get("task_output", {})
     assert isinstance(out.get("answer"), str)
     # The model should return the cell value '30' for Alice's age
-    assert expected_substring in out.get("answer", "") or expected_substring in "".join(out.get("cells", []))
+    assert expected_substring in out.get(
+        "answer", ""
+    ) or expected_substring in "".join(out.get("cells", []))

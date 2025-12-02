@@ -57,10 +57,7 @@ class AudioToAudioRunner(BaseRunner):
             out_buf.getvalue()
         ).decode("ascii")
 
-        legacy = bool(options.get("_legacy_tuple", False))
         out = {"audio_base64": audio_b64, "sample_rate": sr}
-        if legacy:
-            return out, {"backend": "denoise-gate"}
         return out
 
 
@@ -93,10 +90,7 @@ class TextToAudioRunner(BaseRunner):
             out_buf.getvalue()
         ).decode("ascii")
 
-        legacy = bool(options.get("_legacy_tuple", False))
         out = {"audio_base64": audio_b64, "sample_rate": sr}
-        if legacy:
-            return out, {"backend": "tone-synth"}
         return out
 
 
@@ -135,11 +129,15 @@ class AudioTextToTextRunner(BaseRunner):
         if data.ndim > 1:
             data = data.mean(axis=1)
 
-        legacy = bool(options.get("_legacy_tuple", False))
-
-        if getattr(self, "backend", None) == "wav2vec2" and self.processor is not None and self.model is not None:
+        if (
+            getattr(self, "backend", None) == "wav2vec2"
+            and self.processor is not None
+            and self.model is not None
+        ):
             with torch.no_grad():
-                enc = self.processor(data, sampling_rate=sr, return_tensors="pt")
+                enc = self.processor(
+                    data, sampling_rate=sr, return_tensors="pt"
+                )
                 enc = {k: v.to(self.model.device) for k, v in enc.items()}
                 logits = self.model(**enc).logits
                 ids = torch.argmax(logits, dim=-1)
@@ -148,8 +146,6 @@ class AudioTextToTextRunner(BaseRunner):
             text = options.get("_dummy_text", "")
 
         out = {"text": text}
-        if legacy:
-            return out, {"backend": getattr(self, "backend", "unknown")}
         return out
 
 
@@ -198,8 +194,5 @@ class VoiceActivityDetectionRunner(BaseRunner):
         if in_speech:
             segments.append({"start": start, "end": len(data) / sr})
 
-        legacy = bool(options.get("_legacy_tuple", False))
         out = {"segments": segments, "sample_rate": sr}
-        if legacy:
-            return out, {"backend": "energy-vad"}
         return out

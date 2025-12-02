@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Type
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Type
 
 from .base import BaseRunner
 
@@ -17,7 +20,9 @@ class TimeSeriesForecastingRunner(BaseRunner):
         self._loaded = True
         return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         series = inputs.get("series")
         if not isinstance(series, list) or not series:
             return {"forecast": [], "quantiles": {}}

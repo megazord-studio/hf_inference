@@ -8,7 +8,11 @@ def test_translation_basic(client):
         "input_type": "text",
         "inputs": {"text": text},
         "task": "translation",
-        "options": {"src_lang": "English", "tgt_lang": "French", "max_new_tokens": 20},
+        "options": {
+            "src_lang": "English",
+            "tgt_lang": "French",
+            "max_new_tokens": 20,
+        },
     }
     resp = client.post("/api/inference", json=payload)
     assert resp.status_code == 200, resp.text

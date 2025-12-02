@@ -10,21 +10,18 @@ from typing import Type
 
 import numpy as np
 import torch
+from huggingface_hub import hf_hub_download
+
 from app.core.runners.base import BaseRunner
 
 from .utils import decode_base64_image
 
 segformer_cls: Optional[Type[Any]]
 try:
+    from transformers import AutoImageProcessor
+    from transformers import AutoModelForSemanticSegmentation
     from transformers import (
         SegformerImageProcessor as _SegformerImageProcessor,
-    )
-    from transformers import (
-        AutoProcessor,
-        AutoImageProcessor,
-        AutoFeatureExtractor,
-        AutoModelForSemanticSegmentation,
-        pipeline,
     )
 
     segformer_cls = _SegformerImageProcessor
@@ -191,13 +188,17 @@ class ImageSegmentationRunner(BaseRunner):
                 res = self.pipe(image)
                 shape = []
                 try:
-                    if isinstance(res, list) and res and isinstance(
-                        res[0].get("mask"), (np.ndarray,)
+                    if (
+                        isinstance(res, list)
+                        and res
+                        and isinstance(res[0].get("mask"), (np.ndarray,))
                     ):
                         m = res[0]["mask"]
                         shape = list(getattr(m, "shape", []))
-                    elif isinstance(res, list) and res and hasattr(
-                        res[0].get("mask"), "size"
+                    elif (
+                        isinstance(res, list)
+                        and res
+                        and hasattr(res[0].get("mask"), "size")
                     ):
                         m = res[0]["mask"]
                         w, h = m.size
@@ -238,7 +239,9 @@ class ImageSegmentationRunner(BaseRunner):
                 if classes_is_list:
                     requested = {str(c).lower() for c in classes_opt}
                     filtered = {
-                        k: v for k, v in counts.items() if k.lower() in requested
+                        k: v
+                        for k, v in counts.items()
+                        if k.lower() in requested
                     }
                     if not filtered:
                         available = sorted(list(counts.keys()))
@@ -248,22 +251,24 @@ class ImageSegmentationRunner(BaseRunner):
                     counts = filtered
                 else:
                     mapping = {str(k): str(v) for k, v in classes_opt.items()}
-                    filtered: Dict[str, int] = {}
+                    remapped: Dict[str, int] = {}
                     matched_any = False
                     for orig_name, area in counts.items():
                         if orig_name in mapping:
                             alias = mapping[orig_name]
-                            filtered[alias] = area
+                            remapped[alias] = area
                             matched_any = True
                     if not matched_any:
                         available = sorted(list(counts.keys()))
                         raise ValueError(
                             f"segmentation_no_class_match: none of mapped classes present; provided_keys={sorted(list(mapping.keys()))}; available={available}"
                         )
-                    counts = filtered
+                    counts = remapped
             # As a final guard, if classes filtering yielded an empty set, raise a clear error
             if classes_opt is not None and len(counts) == 0:
-                raise ValueError("segmentation_no_class_match: no classes remain after filtering/mapping")
+                raise ValueError(
+                    "segmentation_no_class_match: no classes remain after filtering/mapping"
+                )
             return {"labels": counts, "shape": list(label_map.shape)}
         except Exception as e:
             log.warning("image-segmentation predict error: %s", e)

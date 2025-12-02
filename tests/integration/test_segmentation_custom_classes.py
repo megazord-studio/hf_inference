@@ -1,7 +1,4 @@
 import base64
-import io
-from PIL import Image
-import pytest
 
 from starlette.testclient import TestClient
 
@@ -12,10 +9,10 @@ client = TestClient(app)
 
 def _load_asset_b64():
     # Use existing test asset
-    p = 'tests/assets/image.jpg'
-    with open(p, 'rb') as f:
+    p = "tests/assets/image.jpg"
+    with open(p, "rb") as f:
         data = f.read()
-    return 'data:image/jpeg;base64,' + base64.b64encode(data).decode('utf-8')
+    return "data:image/jpeg;base64," + base64.b64encode(data).decode("utf-8")
 
 
 MODEL_ID = "nvidia/segformer-b0-finetuned-ade-512-512"
@@ -76,7 +73,9 @@ def test_segmentation_rename_classes_mapping_no_match_errors():
     data = r.json()
     assert data.get("error", {}).get("code") == "inference_failed"
     # Message should include our specific error hint
-    assert "segmentation_no_class_match" in data.get("error", {}).get("message", "")
+    assert "segmentation_no_class_match" in data.get("error", {}).get(
+        "message", ""
+    )
 
 
 def test_segmentation_rename_classes_mapping_success_if_present():
@@ -103,4 +102,6 @@ def test_segmentation_rename_classes_mapping_success_if_present():
     else:
         data = r.json()
         assert data.get("error", {}).get("code") == "inference_failed"
-        assert "segmentation_no_class_match" in data.get("error", {}).get("message", "")
+        assert "segmentation_no_class_match" in data.get("error", {}).get(
+            "message", ""
+        )

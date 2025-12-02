@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_zero_shot_classification_basic(client):

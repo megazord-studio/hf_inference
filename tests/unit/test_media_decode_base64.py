@@ -4,11 +4,15 @@ import base64
 import io
 
 import numpy as np
-from PIL import Image
 import soundfile as sf
+from PIL import Image
 
-from app.core.runners.audio.utils import decode_base64_audio as decode_audio_legacy
-from app.core.runners.vision.utils import decode_base64_image as decode_image_legacy
+from app.core.runners.audio.utils import (
+    decode_base64_audio as decode_audio_legacy,
+)
+from app.core.runners.vision.utils import (
+    decode_base64_image as decode_image_legacy,
+)
 from app.core.utils.media import decode_image_base64 as decode_image_modern
 
 
@@ -18,7 +22,9 @@ def _mk_wav_base64(sr=16000, dur=0.1, freq=440.0):
     buf = io.BytesIO()
     sf.write(buf, sig, sr, format="WAV")
     raw = buf.getvalue()
-    return base64.b64encode(raw).decode("ascii"), "data:audio/wav;base64," + base64.b64encode(raw).decode("ascii")
+    return base64.b64encode(raw).decode(
+        "ascii"
+    ), "data:audio/wav;base64," + base64.b64encode(raw).decode("ascii")
 
 
 def _mk_png_base64(size=(16, 16), color=(120, 50, 20)):
@@ -26,7 +32,9 @@ def _mk_png_base64(size=(16, 16), color=(120, 50, 20)):
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     raw = buf.getvalue()
-    return base64.b64encode(raw).decode("ascii"), "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
+    return base64.b64encode(raw).decode(
+        "ascii"
+    ), "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
 
 
 def test_decode_audio_accepts_bare_and_data_uri():

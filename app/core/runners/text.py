@@ -135,7 +135,10 @@ class TextClassificationRunner(BaseRunner):
         res = self.pipe(text)
         # Keep backward-compatible "labels" shape expected by tests
         labels = [
-            {"label": item.get("label"), "score": float(item.get("score", 0.0))}
+            {
+                "label": item.get("label"),
+                "score": float(item.get("score", 0.0)),
+            }
             for item in (res if isinstance(res, list) else [res])
         ]
         return {"labels": labels}
@@ -163,7 +166,10 @@ class FillMaskRunner(BaseRunner):
         top_k = int(options.get("top_k", 5))
         res = self.pipe(text, top_k=top_k)
         preds = [
-            {"label": item.get("token_str"), "score": float(item.get("score", 0.0))}
+            {
+                "label": item.get("token_str"),
+                "score": float(item.get("score", 0.0)),
+            }
             for item in (res if isinstance(res, list) else [res])
         ]
         return {"predictions": preds}
@@ -175,7 +181,9 @@ class EmbeddingRunner(BaseRunner):
             raise RuntimeError("torch unavailable")
         # Enable remote code to support models like jinaai/jina-embeddings-v3
         try:
-            self.model = SentenceTransformer(self.model_id, trust_remote_code=True)  # type: ignore[arg-type]
+            self.model = SentenceTransformer(
+                self.model_id, trust_remote_code=True
+            )
         except TypeError:
             # Older sentence-transformers without trust_remote_code support
             self.model = SentenceTransformer(self.model_id)
@@ -342,7 +350,17 @@ class TokenClassificationRunner(BaseRunner):
             return {"entities": []}
         agg = options.get("aggregation_strategy")
         if agg:
-            self.pipe.aggregate_strategy = agg  # best effort if supported
+            # transformers TokenClassificationPipeline uses 'aggregation_strategy'
+            if hasattr(self.pipe, "aggregation_strategy"):
+                try:
+                    setattr(self.pipe, "aggregation_strategy", agg)
+                except Exception:
+                    pass
+            elif hasattr(self.pipe, "aggregate_strategy"):
+                try:
+                    setattr(self.pipe, "aggregate_strategy", agg)
+                except Exception:
+                    pass
         res = self.pipe(text)
         items = res if isinstance(res, list) else [res]
         entities = []
@@ -357,6 +375,8 @@ class TokenClassificationRunner(BaseRunner):
                 }
             )
         return {"entities": entities}
+
+
 class TableQuestionAnsweringRunner(BaseRunner):
     def load(self) -> int:
         if torch is None:
@@ -400,18 +420,30 @@ class TableQuestionAnsweringRunner(BaseRunner):
             if all(isinstance(v, list) for v in table_in.values()):
                 df = pd.DataFrame(table_in)
         if df is None:
-            return {"answer": "", "cells": [], "coordinates": [], "error": "unsupported_table_format"}
+            return {
+                "answer": "",
+                "cells": [],
+                "coordinates": [],
+                "error": "unsupported_table_format",
+            }
         topk = int(options.get("topk", 1))
         try:
             res = self.pipe(table=df, query=question, topk=topk)
         except Exception as e:
-            return {"answer": "", "cells": [], "coordinates": [], "error": repr(e)[:200]}
+            return {
+                "answer": "",
+                "cells": [],
+                "coordinates": [],
+                "error": repr(e)[:200],
+            }
         # HF pipeline returns dict with answer / cells / coordinates (list of cell indices)
         return {
             "answer": res.get("answer", ""),
             "cells": res.get("cells", []),
             "coordinates": res.get("coordinates", []),
         }
+
+
 class TextRankingRunner(BaseRunner):
     def load(self) -> int:
         if torch is None:
@@ -447,15 +479,25 @@ class TextRankingRunner(BaseRunner):
             scores = self.model.predict(items)
         except Exception as e:
             return {"scores": [], "indices": [], "error": repr(e)[:200]}
-        scores_list = [float(s) for s in (scores.tolist() if hasattr(scores, "tolist") else list(scores))]
+        scores_list = [
+            float(s)
+            for s in (
+                scores.tolist() if hasattr(scores, "tolist") else list(scores)
+            )
+        ]
         # Compute ranking indices (descending)
-        indices = sorted(range(len(scores_list)), key=lambda i: scores_list[i], reverse=True)
+        indices = sorted(
+            range(len(scores_list)), key=lambda i: scores_list[i], reverse=True
+        )
         return {"scores": scores_list, "indices": indices}
+
+
 class TranslationRunner(BaseRunner):
     def load(self) -> int:
         if torch is None:
             raise RuntimeError("torch unavailable")
-        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+        from transformers import AutoModelForSeq2SeqLM
+        from transformers import AutoTokenizer
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_id).to(
@@ -492,6 +534,8 @@ class TranslationRunner(BaseRunner):
             out_ids = self.model.generate(**inputs_tok, **gen_kwargs)
         out_text = self.tokenizer.decode(out_ids[0], skip_special_tokens=True)
         return {"text": out_text.strip(), "generation_kwargs": gen_kwargs}
+
+
 class ZeroShotClassificationRunner(BaseRunner):
     def load(self) -> int:
         if torch is None:
@@ -530,6 +574,8 @@ class ZeroShotClassificationRunner(BaseRunner):
             for lbl, scr in zip(res.get("labels", []), res.get("scores", []))
         ]
         return {"predictions": preds}
+
+
 _TASK_TO_RUNNER: Dict[str, Type[BaseRunner]] = {
     "text-generation": TextGenerationRunner,
     "text-classification": TextClassificationRunner,

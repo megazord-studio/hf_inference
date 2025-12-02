@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 from app.core.runners.base import BaseRunner
 
@@ -17,7 +19,9 @@ class AnyToAnyRunner(BaseRunner):
     and provides a stable contract for future fan-out implementations.
     """
 
-    def __init__(self, model_id: str, device: Any, dtype: Optional[str] = None) -> None:
+    def __init__(
+        self, model_id: str, device: Any, dtype: Optional[str] = None
+    ) -> None:
         super().__init__(model_id, device)
         self._loaded = False
 
@@ -29,7 +33,9 @@ class AnyToAnyRunner(BaseRunner):
         self._loaded = True
         return 0
 
-    def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Dict[str, Any]:
         start = time.time()
         # Detect available modalities
         mods: list[str] = []
@@ -54,6 +60,8 @@ class AnyToAnyRunner(BaseRunner):
         _ = int((time.time() - start) * 1000)
         return output
 
-    def predict_stream(self, inputs: Dict[str, Any], options: Dict[str, Any]):
+    def predict_stream(
+        self, inputs: Dict[str, Any], options: Dict[str, Any]
+    ) -> Any:
         # Streaming not supported; return a single synthesized chunk
         yield {"event": "error", "data": "streaming_not_supported"}

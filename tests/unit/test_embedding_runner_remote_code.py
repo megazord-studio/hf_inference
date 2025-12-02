@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import types
-
 import pytest
 
 from app.core.runners.text import EmbeddingRunner
@@ -22,6 +20,7 @@ class _SpyST:
 def patch_sentence_transformers(monkeypatch):
     # Patch in the class in the module where it's used
     from app.core.runners import text as text_mod
+
     monkeypatch.setattr(text_mod, "SentenceTransformer", _SpyST, raising=True)
     yield
 

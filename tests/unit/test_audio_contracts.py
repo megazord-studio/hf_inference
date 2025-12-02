@@ -1,10 +1,10 @@
 import base64
 import io
+
 import numpy as np
 import pytest
-from PIL import Image
-
 from starlette.testclient import TestClient
+
 from app.main import app
 
 client = TestClient(app)
@@ -18,7 +18,9 @@ def _make_sine_wav_b64(sr=16000, dur=0.2, freq=440.0):
 
     buf = io.BytesIO()
     sf.write(buf, sig, sr, format="WAV")
-    return "data:audio/wav;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+    return "data:audio/wav;base64," + base64.b64encode(buf.getvalue()).decode(
+        "ascii"
+    )
 
 
 @pytest.mark.parametrize(

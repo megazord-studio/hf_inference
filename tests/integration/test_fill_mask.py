@@ -4,7 +4,10 @@ import pytest
 @pytest.mark.parametrize(
     "model_id,text",
     [
-        ("distilbert/distilbert-base-uncased", "Paris is the [MASK] of France."),
+        (
+            "distilbert/distilbert-base-uncased",
+            "Paris is the [MASK] of France.",
+        ),
         ("google-bert/bert-base-uncased", "The capital of Japan is [MASK]."),
     ],
 )

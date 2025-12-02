@@ -39,7 +39,10 @@ class VisualDocumentRetrievalRunner(BaseRunner):
         log = logging.getLogger("app.runners.retrieval")
 
         # Try generic VLM/CLIP-like encoder with trust_remote_code
-        from transformers import AutoModel, AutoProcessor, AutoImageProcessor
+        from transformers import AutoImageProcessor
+        from transformers import AutoModel
+        from transformers import AutoProcessor
+
         try:
             log.info(
                 "retrieval: loading AutoProcessor/AutoModel (trust_remote_code) model_id=%s",
@@ -118,7 +121,11 @@ class VisualDocumentRetrievalRunner(BaseRunner):
 
             # 1. Direct projection layer (e.g. CLIP visual_projection)
             visual_proj = getattr(self.model, "visual_projection", None)
-            if hidden is None and visual_proj is not None and hasattr(visual_proj, "out_features"):
+            if (
+                hidden is None
+                and visual_proj is not None
+                and hasattr(visual_proj, "out_features")
+            ):
                 try:
                     hidden = int(getattr(visual_proj, "out_features"))
                 except Exception:
@@ -127,7 +134,11 @@ class VisualDocumentRetrievalRunner(BaseRunner):
             # 2. Common config field (projection_dim)
             if hidden is None:
                 cfg = getattr(self.model, "config", None)
-                for attr in ("projection_dim", "multi_vector_projector_dim", "hidden_size"):
+                for attr in (
+                    "projection_dim",
+                    "multi_vector_projector_dim",
+                    "hidden_size",
+                ):
                     if cfg is not None and hasattr(cfg, attr):
                         try:
                             hidden = int(getattr(cfg, attr))
@@ -149,7 +160,9 @@ class VisualDocumentRetrievalRunner(BaseRunner):
 
             # Hidden must be established by now
             cpu_gen = torch.Generator(device="cpu").manual_seed(0)
-            corpus_cpu = torch.randn(self.num_docs, hidden, generator=cpu_gen, device="cpu")
+            corpus_cpu = torch.randn(
+                self.num_docs, hidden, generator=cpu_gen, device="cpu"
+            )
             target_device = getattr(self.model, "device", None)
             if target_device is not None:
                 try:
@@ -209,8 +222,15 @@ class VisualDocumentRetrievalRunner(BaseRunner):
                 if isinstance(candidate, torch.Tensor):
                     out = candidate
                 elif isinstance(candidate, dict):
-                    for key in ("image_embeds", "image_features", "embeddings", "pooler_output"):
-                        if key in candidate and isinstance(candidate[key], torch.Tensor):
+                    for key in (
+                        "image_embeds",
+                        "image_features",
+                        "embeddings",
+                        "pooler_output",
+                    ):
+                        if key in candidate and isinstance(
+                            candidate[key], torch.Tensor
+                        ):
                             out = candidate[key]
                             break
                     if out is None:
@@ -250,13 +270,19 @@ class VisualDocumentRetrievalRunner(BaseRunner):
                 out_vm = self.model.vision_model(**enc_dict)
                 last = getattr(out_vm, "last_hidden_state", None)
                 if last is None:
-                    raise RuntimeError("visual_document_retrieval_missing_last_hidden")
+                    raise RuntimeError(
+                        "visual_document_retrieval_missing_last_hidden"
+                    )
                 out = last[:, 0] if last.shape[1] > 1 else last.mean(dim=1)
             # 4. Generic forward probing
             if out is None:
                 fwd = self.model(**enc_dict)
                 if isinstance(fwd, dict):
-                    for key in ("image_embeds", "image_features", "pooler_output"):
+                    for key in (
+                        "image_embeds",
+                        "image_features",
+                        "pooler_output",
+                    ):
                         if key in fwd and isinstance(fwd[key], torch.Tensor):
                             out = fwd[key]
                             break
@@ -269,9 +295,15 @@ class VisualDocumentRetrievalRunner(BaseRunner):
                 if out is None:
                     last = getattr(fwd, "last_hidden_state", None)
                     if last is not None:
-                        out = last[:, 0] if last.shape[1] > 1 else last.mean(dim=1)
+                        out = (
+                            last[:, 0]
+                            if last.shape[1] > 1
+                            else last.mean(dim=1)
+                        )
                 if out is None:
-                    raise RuntimeError("visual_document_retrieval_no_image_encoder_runtime")
+                    raise RuntimeError(
+                        "visual_document_retrieval_no_image_encoder_runtime"
+                    )
 
         # If model returned a tuple or list, choose the first tensor-like output
         if isinstance(out, (tuple, list)):

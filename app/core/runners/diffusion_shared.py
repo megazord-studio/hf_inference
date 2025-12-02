@@ -47,9 +47,7 @@ def _download_model(model_id: str) -> str:
             "stabilityai/stable-video-diffusion-img2vid",
             "stabilityai/stable-video-diffusion-img2vid-xt",
         }
-        repo = (
-            BASE_SD15_REPO if model_id in HEAVY_REDIRECT else model_id
-        )
+        repo = BASE_SD15_REPO if model_id in HEAVY_REDIRECT else model_id
         local_dir = snapshot_download(
             repo_id=repo,
             max_workers=16,
@@ -496,7 +494,9 @@ def get_or_create_sd_pipeline(
                 except Exception:
                     entry["pipe_img2img"] = _bootstrap_tiny_sd15_pipeline(
                         StableDiffusionImg2ImgPipeline,
-                        _find_tiny_sd15_unet(_download_model(TINY_SD15_MODEL_ID))
+                        _find_tiny_sd15_unet(
+                            _download_model(TINY_SD15_MODEL_ID)
+                        )
                         or "",
                         device,
                     )
