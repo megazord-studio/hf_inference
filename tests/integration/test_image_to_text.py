@@ -7,6 +7,7 @@ _ONE_PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQ
     "model_id,image_b64",
     [
         ("nlpconnect/vit-gpt2-image-captioning", _ONE_PIXEL_PNG),
+        ("Salesforce/blip-image-captioning-base", _ONE_PIXEL_PNG),
     ],
 )
 def test_image_to_text_captioning(client, model_id, image_b64):

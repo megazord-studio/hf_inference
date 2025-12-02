@@ -311,7 +311,10 @@ def _bootstrap_from_model_index(
             else None
         )
         pipe = pipe_cls.from_pretrained(
-            local_dir, local_files_only=True, torch_dtype=dtype
+            local_dir,
+            local_files_only=True,
+            torch_dtype=dtype,
+            low_cpu_mem_usage=True,
         )
         if device and hasattr(pipe, "to"):
             try:
@@ -349,10 +352,17 @@ def _init_pipeline(
     from_pretrained = getattr(pipe_cls, "from_pretrained")
     if local:
         pipe = from_pretrained(
-            local_dir_or_id, local_files_only=True, torch_dtype=dtype
+            local_dir_or_id,
+            local_files_only=True,
+            torch_dtype=dtype,
+            low_cpu_mem_usage=True,
         )
     else:
-        pipe = from_pretrained(local_dir_or_id, torch_dtype=dtype)
+        pipe = from_pretrained(
+            local_dir_or_id,
+            torch_dtype=dtype,
+            low_cpu_mem_usage=True,
+        )
     if device and hasattr(pipe, "to"):
         try:
             pipe.to(device)

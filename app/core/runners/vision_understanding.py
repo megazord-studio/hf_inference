@@ -18,6 +18,8 @@ from transformers import CLIPTokenizerFast
 from transformers import Owlv2ForObjectDetection
 from transformers import Owlv2Processor
 from transformers import VisionEncoderDecoderModel
+from transformers import BlipProcessor
+from transformers import BlipForConditionalGeneration
 
 from app.core.utils.media import decode_image_base64
 
@@ -55,7 +57,7 @@ class ZeroShotImageClassificationRunner(BaseRunner):
         except Exception:
             pass
         self.model = AutoModelForZeroShotImageClassification.from_pretrained(
-            self.model_id
+            self.model_id, low_cpu_mem_usage=True
         )
         self.model.to(self.device)
         return sum(p.numel() for p in self.model.parameters())
@@ -77,6 +79,11 @@ class ZeroShotImageClassificationRunner(BaseRunner):
         if not img_b64:
             return {"error": "missing_image"}
         image = decode_image_base64(img_b64)
+        try:
+            # Ensure RGB with channels-last for BLIP processor normalization
+            image = image.convert("RGB")
+        except Exception:
+            pass
         encoding = self.processor(
             images=image, text=labels, return_tensors="pt"
         ).to(self.device)
@@ -105,7 +112,7 @@ class ZeroShotObjectDetectionRunner(BaseRunner):
                     self.model_id, trust_remote_code=True
                 )
                 self.model = GroundingDinoForObjectDetection.from_pretrained(
-                    self.model_id, trust_remote_code=True
+                    self.model_id, trust_remote_code=True, low_cpu_mem_usage=True
                 )
                 self._is_grounding_dino = True
                 # Ensure fast tokenizer replacement when available
@@ -123,7 +130,9 @@ class ZeroShotObjectDetectionRunner(BaseRunner):
                 log.warning("grounding-dino load failed (%s); falling back to OWLv2 path", e)
         # Default OWLv2 path
         self.processor = Owlv2Processor.from_pretrained(self.model_id)
-        self.model = Owlv2ForObjectDetection.from_pretrained(self.model_id)
+        self.model = Owlv2ForObjectDetection.from_pretrained(
+            self.model_id, low_cpu_mem_usage=True
+        )
         self._is_grounding_dino = False
         try:
             tok = getattr(self.processor, "tokenizer", None)
@@ -301,18 +310,34 @@ class KeypointDetectionRunner(BaseRunner):
 class ImageCaptioningRunner(BaseRunner):
     model: Any
     processor: Any
+    _arch: str = "ved"  # ved | blip
 
     def load(self) -> int:
         log.info(
             "vision_understanding: loading image captioning model_id=%s", self.model_id
         )
-        # Prefer explicit image processor + tokenizer for robustness
-        self.image_processor = AutoImageProcessor.from_pretrained(self.model_id)
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-        self.model = VisionEncoderDecoderModel.from_pretrained(self.model_id)
-        self.model.to(self.device)
-        if hasattr(self.model, "eval"):
-            self.model.eval()
+        mid_lower = self.model_id.lower()
+        try:
+            if "blip" in mid_lower:
+                # BLIP path (preferred for BLIP captioning models)
+                self.processor = BlipProcessor.from_pretrained(self.model_id)
+                self.model = BlipForConditionalGeneration.from_pretrained(
+                    self.model_id, low_cpu_mem_usage=True
+                )
+                self._arch = "blip"
+            else:
+                # Generic ViT-GPT2 (VisionEncoderDecoder)
+                self.image_processor = AutoImageProcessor.from_pretrained(self.model_id)
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+                self.model = VisionEncoderDecoderModel.from_pretrained(
+                    self.model_id, low_cpu_mem_usage=True
+                )
+                self._arch = "ved"
+            self.model.to(self.device)
+            if hasattr(self.model, "eval"):
+                self.model.eval()
+        except Exception as e:
+            raise RuntimeError(f"captioning_load_failed: {e}")
         return sum(p.numel() for p in self.model.parameters())
 
     def predict(self, inputs: Dict[str, Any], options: Dict[str, Any]) -> Dict[str, Any]:
@@ -322,14 +347,28 @@ class ImageCaptioningRunner(BaseRunner):
         image = decode_image_base64(img_b64)
         max_new = int(options.get("max_new_tokens", 30))
         try:
-            encoding = self.image_processor(
-                images=image, return_tensors="pt", input_data_format="channels_last"
-            )
-            encoding = {k: v.to(self.model.device) for k, v in encoding.items()}
-            with torch.no_grad():
-                out_ids = self.model.generate(**encoding, max_new_tokens=max_new)
-            texts = self.tokenizer.batch_decode(out_ids, skip_special_tokens=True)
-            caption = texts[0].strip() if texts else ""
+            if getattr(self, "_arch", "ved") == "blip":
+                # BLIP expects processor to handle vision + text
+                encoding = self.processor(
+                    images=image, return_tensors="pt", input_data_format="channels_last"
+                )
+                encoding = {k: v.to(self.model.device) for k, v in encoding.items()}
+                with torch.no_grad():
+                    out_ids = self.model.generate(**encoding, max_new_tokens=max_new)
+                # BLIP uses its own tokenizer under processor
+                texts = self.processor.tokenizer.batch_decode(
+                    out_ids, skip_special_tokens=True
+                )
+                caption = texts[0].strip() if texts else ""
+            else:
+                encoding = self.image_processor(
+                    images=image, return_tensors="pt", input_data_format="channels_last"
+                )
+                encoding = {k: v.to(self.model.device) for k, v in encoding.items()}
+                with torch.no_grad():
+                    out_ids = self.model.generate(**encoding, max_new_tokens=max_new)
+                texts = self.tokenizer.batch_decode(out_ids, skip_special_tokens=True)
+                caption = texts[0].strip() if texts else ""
         except Exception as e:
             raise RuntimeError(f"captioning_failed: {e}")
         return {"text": caption}

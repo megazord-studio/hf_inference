@@ -26,10 +26,18 @@ log = logging.getLogger("app.runners.audio")
 
 
 def decode_base64_audio(b64: str) -> io.BytesIO:
-    """Decode base64 audio to BytesIO."""
-    header, data = b64.split(",", 1)
-    audio_bytes = base64.b64decode(data)
-    return io.BytesIO(audio_bytes)
+    """Decode base64 audio to BytesIO.
+
+    Accepts both full data URIs (e.g., "data:audio/wav;base64,....") and
+    bare base64 payloads ("AAAA...").
+    """
+    try:
+        payload = b64.split(",", 1)[1] if "," in b64 else b64
+        audio_bytes = base64.b64decode(payload)
+        return io.BytesIO(audio_bytes)
+    except Exception:
+        # Best-effort: attempt to decode as-is
+        return io.BytesIO(base64.b64decode(b64))
 
 
 def resample_audio(audio: Any, sr: int, target_sr: int) -> Tuple[Any, int]:

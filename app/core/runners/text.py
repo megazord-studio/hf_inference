@@ -173,7 +173,12 @@ class EmbeddingRunner(BaseRunner):
     def load(self) -> int:
         if torch is None:
             raise RuntimeError("torch unavailable")
-        self.model = SentenceTransformer(self.model_id)
+        # Enable remote code to support models like jinaai/jina-embeddings-v3
+        try:
+            self.model = SentenceTransformer(self.model_id, trust_remote_code=True)  # type: ignore[arg-type]
+        except TypeError:
+            # Older sentence-transformers without trust_remote_code support
+            self.model = SentenceTransformer(self.model_id)
         self._loaded = True
         base: Optional[Any] = getattr(
             self.model, "auto_model", None

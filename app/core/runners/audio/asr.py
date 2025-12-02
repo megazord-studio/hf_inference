@@ -58,6 +58,12 @@ class AutomaticSpeechRecognitionRunner(BaseRunner):
         if torch is None:
             raise RuntimeError("torch unavailable")
 
+        # Preflight: ensure decoding backend is available
+        if sf is None:
+            raise RuntimeError(
+                "soundfile missing for ASR; install soundfile (libsndfile required)"
+            )
+
         try:
             self.processor = Wav2Vec2Processor.from_pretrained(self.model_id)
         except Exception:
@@ -87,13 +93,18 @@ class AutomaticSpeechRecognitionRunner(BaseRunner):
         audio_b64 = inputs.get("audio_base64")
         if not audio_b64:
             return {"text": ""}
-
+        # Preflight at predict time (defensive)
         if sf is None:
             raise RuntimeError("soundfile not installed for ASR decoding")
+        # Optional: enforce sample rate if provided
+        req_sr = options.get("sample_rate")
 
         try:
             bio = decode_base64_audio(audio_b64)
             audio, sr = sf.read(bio)
+            if req_sr and isinstance(req_sr, int) and sr != req_sr:
+                # resample to requested rate
+                audio, sr = resample_audio(audio, sr, int(req_sr))
             audio = normalize_audio(audio)
 
             target_sr = get_target_sample_rate(self.processor)
@@ -118,5 +129,8 @@ class AutomaticSpeechRecognitionRunner(BaseRunner):
 
             return {"text": text}
         except Exception as e:
+            msg = str(e)
+            if "soundfile" in msg or sf is None:
+                raise RuntimeError("asr_backend_missing: soundfile/libsndfile not available")
             log.warning("automatic-speech-recognition predict error: %s", e)
             return {"text": ""}

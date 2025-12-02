@@ -237,6 +237,55 @@ def _required_fields_for_task(task: str) -> List[str]:
     return mapping.get(task, [])
 
 
+def _example_inputs_for_task(task: str) -> Dict[str, Any]:
+    """Provide a minimal example inputs payload per task to aid 422s."""
+    examples: Dict[str, Dict[str, Any]] = {
+        "text-generation": {"text": "Write a short poem about the sea."},
+        "embedding": {"text": "A sentence to embed."},
+        "fill-mask": {"text": "Paris is the [MASK] of France."},
+        "question-answering": {
+            "question": "Where is the Eiffel Tower?",
+            "context": "The Eiffel Tower is in Paris.",
+        },
+        "sentence-similarity": {
+            "text": "A quick brown fox jumps over the lazy dog.",
+            "text_pair": "A fast brown fox leaps over a lazy dog.",
+        },
+        "token-classification": {"text": "Barack Obama was born in Hawaii."},
+        "table-question-answering": {
+            "question": "Which city is largest?",
+            "table": [["city", "population"], ["Alpha", "100"], ["Beta", "200"]],
+        },
+        "text-ranking": {
+            "query": "What is the capital of France?",
+            "candidates": [
+                "Berlin is the capital of Germany.",
+                "Madrid is Spain's capital.",
+                "Paris is the capital of France.",
+            ],
+        },
+        "translation": {"text": "Translate to French: The weather is nice today."},
+        "zero-shot-classification": {
+            "text": "This is a news article about technology.",
+            "labels": ["sports", "politics", "technology"],
+        },
+        "time-series-forecasting": {"series": [1.0, 1.2, 1.1, 1.3, 1.6, 1.9]},
+        "text-to-image": {"text": "A cozy cabin in the snowy mountains at sunset."},
+        "image-classification": {"image_base64": "data:image/png;base64,...."},
+        "image-to-text": {"image_base64": "data:image/png;base64,...."},
+        "object-detection": {"image_base64": "data:image/png;base64,...."},
+        "image-segmentation": {"image_base64": "data:image/png;base64,...."},
+        "depth-estimation": {"image_base64": "data:image/png;base64,...."},
+        "image-to-image": {
+            "image_base64": "data:image/png;base64,....",
+            "text": "Enhance the image quality and reduce noise.",
+        },
+        "automatic-speech-recognition": {"audio_base64": "data:audio/wav;base64,...."},
+        "text-to-speech": {"text": "Welcome to our demo."},
+    }
+    return examples.get(task, {"text": "Hello world"})
+
+
 # Placeholder store for future model handles / pooling / concurrency limits
 # For now we simply echo request; real inference integration will plug into HF Inference Endpoints or local pipelines.
 
@@ -292,8 +341,28 @@ async def run_inference(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             code="missing_inputs",
             message="Required inputs missing",
-            details={"missing": missing},
+            details={
+                "missing": missing,
+                "example": {"inputs": _example_inputs_for_task(task)},
+            },
         )
+    # Special validation: image-to-image additionally requires either inputs.text or options.prompt
+    if task == "image-to-image":
+        text_val = str(req.inputs.get("text") or "").strip()
+        opt_prompt = str((req.options or {}).get("prompt") or "").strip()
+        if not text_val and not opt_prompt:
+            return _error_response(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                code="missing_inputs",
+                message="image-to-image requires a prompt via inputs.text or options.prompt",
+                details={
+                    "missing": ["text_or_prompt"],
+                    "example": {
+                        "inputs": _example_inputs_for_task(task),
+                        "options": {"num_inference_steps": 20},
+                    },
+                },
+            )
     if task not in SUPPORTED_TASKS:
         return _error_response(
             status.HTTP_501_NOT_IMPLEMENTED,
@@ -308,11 +377,19 @@ async def run_inference(
             inputs=req.inputs,
             options=req.options or {},
         )
-    except RuntimeError as exc:
+    except Exception as exc:
+        msg = str(exc)
+        if isinstance(exc, NotImplementedError) or "not_implemented" in msg:
+            return _error_response(
+                status.HTTP_501_NOT_IMPLEMENTED,
+                code="task_not_supported",
+                message=msg,
+                details={"task": task, "model_id": req.model_id},
+            )
         return _error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             code="inference_failed",
-            message=str(exc),
+            message=msg,
             details={"task": task, "model_id": req.model_id},
         )
     output_model = get_output_model_for_task(task)

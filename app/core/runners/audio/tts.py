@@ -107,20 +107,29 @@ class TextToSpeechRunner(BaseRunner):
     def _load_coqui(self) -> int:
         """Load Coqui TTS model."""
         if not _HAS_TTS:
+            # Allow Kokoro path to declare not implemented explicitly
+            if self.model_id == "hexgrad/Kokoro-82M":
+                raise NotImplementedError("kokoro_tts_not_implemented: Coqui TTS is not available")
             raise RuntimeError(
                 "Coqui TTS library not installed (pip install TTS) "
                 "or use model_id=microsoft/speecht5_tts"
             )
 
         mapping = {
-            "coqui/XTTS-v2": "tts_models/multilingual/multi-dataset/xtts_v2"
+            # XTTS v2 official
+            "coqui/XTTS-v2": "tts_models/multilingual/multi-dataset/xtts_v2",
+            # Kokoro common HF repos mapped to Coqui model name if available
+            "hexgrad/Kokoro-82M": "tts_models/en/ljspeech/kokoro",
+            "kokoro": "tts_models/en/ljspeech/kokoro",
         }
+        # Allow passing a raw Coqui model name directly via model_id
         tts_name = mapping.get(self.model_id, self.model_id)
 
+        # Prefer explicit model selection first; fall back to no-arg last.
         attempts = [
-            ("no-arg", lambda: CoquiTTS()),
             ("keyword", lambda: CoquiTTS(model_name=tts_name)),
             ("positional", lambda: CoquiTTS(tts_name)),
+            ("no-arg", lambda: CoquiTTS()),
         ]
 
         self.tts = None
@@ -133,6 +142,8 @@ class TextToSpeechRunner(BaseRunner):
                 errors.append(f"{label}: {e}")
 
         if self.tts is None:
+            if self.model_id == "hexgrad/Kokoro-82M":
+                raise NotImplementedError("kokoro_tts_not_implemented: model load failed in current environment")
             raise RuntimeError(
                 f"TTS model load failed for {self.model_id}: {'; '.join(errors)}"
             )
@@ -180,15 +191,35 @@ class TextToSpeechRunner(BaseRunner):
         self, text: str, options: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Generate speech using Coqui TTS."""
-        speaker = options.get("speaker")
-        language = options.get("language")
+        speaker = options.get("speaker") or options.get("voice")
+        language = options.get("language") or options.get("lang")
+        # Additional XTTS-v2 optional controls when provided
+        temperature = options.get("temperature")
+        speed = options.get("speed")
+        emotion = options.get("emotion")
 
         if self.tts is None:
             raise RuntimeError("Coqui TTS model not loaded")
 
         try:
-            wav = self.tts.tts(text, speaker=speaker, language=language)
+            # Coqui TTS accepts various optional kwargs depending on the model.
+            kwargs: Dict[str, Any] = {}
+            if speaker is not None:
+                kwargs["speaker"] = speaker
+            if language is not None:
+                kwargs["language"] = language
+            if temperature is not None:
+                kwargs["temperature"] = temperature
+            if speed is not None:
+                kwargs["speed"] = speed
+            if emotion is not None:
+                kwargs["emotion"] = emotion
+            wav = self.tts.tts(text, **kwargs)
         except Exception as e:
+            if self.model_id == "hexgrad/Kokoro-82M":
+                raise NotImplementedError(
+                    f"kokoro_tts_not_implemented: {e}"
+                )
             raise RuntimeError(f"TTS synthesis failed: {e}")
 
         if not isinstance(wav, np.ndarray):

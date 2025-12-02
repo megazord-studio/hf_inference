@@ -237,9 +237,13 @@ class ImageTo3DRunner(BaseRunner):
                 self.model_id,
             )
             self.model = AutoModel.from_pretrained(
-                self.model_id, trust_remote_code=True
+                self.model_id,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                device_map="auto" if self.device else None,
             )
-            if self.device:
+            # Only move to device if device_map wasn't used
+            if self.device and not hasattr(self.model, "hf_device_map"):
                 try:
                     self.model.to(self.device)
                 except Exception:
@@ -336,9 +340,13 @@ class TextTo3DRunner(BaseRunner):
                 self.model_id, trust_remote_code=True
             )
             self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_id, trust_remote_code=True
+                self.model_id,
+                trust_remote_code=True,
+                low_cpu_mem_usage=True,
+                device_map="auto" if self.device else None,
             )
-            if self.device:
+            # Only move to device if device_map wasn't used
+            if self.device and not hasattr(self.model, "hf_device_map"):
                 try:
                     self.model.to(self.device)
                 except Exception:

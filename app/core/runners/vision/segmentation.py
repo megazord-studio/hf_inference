@@ -10,10 +10,6 @@ from typing import Type
 
 import numpy as np
 import torch
-from huggingface_hub import hf_hub_download
-from transformers import AutoImageProcessor
-from transformers import AutoModelForSemanticSegmentation
-
 from app.core.runners.base import BaseRunner
 
 from .utils import decode_base64_image
@@ -22,6 +18,13 @@ segformer_cls: Optional[Type[Any]]
 try:
     from transformers import (
         SegformerImageProcessor as _SegformerImageProcessor,
+    )
+    from transformers import (
+        AutoProcessor,
+        AutoImageProcessor,
+        AutoFeatureExtractor,
+        AutoModelForSemanticSegmentation,
+        pipeline,
     )
 
     segformer_cls = _SegformerImageProcessor
@@ -179,6 +182,10 @@ class ImageSegmentationRunner(BaseRunner):
             return {"labels": {}, "shape": []}
         try:
             image = decode_base64_image(img_b64)
+            # Handle optional custom classes filtering/renaming
+            classes_opt = options.get("classes")
+            classes_is_list = isinstance(classes_opt, list)
+            classes_is_map = isinstance(classes_opt, dict)
             backend = getattr(self, "_backend", "transformers")
             if backend == "pipeline" and hasattr(self, "pipe"):
                 res = self.pipe(image)
@@ -197,6 +204,16 @@ class ImageSegmentationRunner(BaseRunner):
                         shape = [h, w]
                 except Exception:
                     shape = []
+                # Pipeline backend does not expose per-class areas consistently.
+                # If classes option is provided, we cannot determine matches; treat as no-match.
+                if classes_opt is not None:
+                    if not (classes_is_list or classes_is_map):
+                        raise ValueError(
+                            "segmentation_invalid_classes: options.classes must be list or dict"
+                        )
+                    raise ValueError(
+                        "segmentation_no_class_match: pipeline backend cannot validate requested class filters/mappings"
+                    )
                 return {"labels": {}, "shape": shape}
             # transformers backend
             enc = self.processor(images=image, return_tensors="pt").to(
@@ -207,13 +224,47 @@ class ImageSegmentationRunner(BaseRunner):
             logits = out.logits
             label_map = logits.argmax(1)[0].cpu().numpy()
             counts: Dict[str, int] = {}
+            id2label = getattr(self.model.config, "id2label", {}) or {}
             for lbl in np.unique(label_map):
                 mask = label_map == lbl
-                label_name = self.model.config.id2label.get(
-                    int(lbl), str(int(lbl))
-                )
+                label_name = id2label.get(int(lbl), str(int(lbl)))
                 counts[label_name] = int(np.count_nonzero(mask))
+            # Apply classes option
+            if classes_opt is not None:
+                if not (classes_is_list or classes_is_map):
+                    raise ValueError(
+                        "segmentation_invalid_classes: options.classes must be list or dict"
+                    )
+                if classes_is_list:
+                    requested = {str(c).lower() for c in classes_opt}
+                    filtered = {
+                        k: v for k, v in counts.items() if k.lower() in requested
+                    }
+                    if not filtered:
+                        available = sorted(list(counts.keys()))
+                        raise ValueError(
+                            f"segmentation_no_class_match: none of requested classes present; requested={sorted(list(requested))}; available={available}"
+                        )
+                    counts = filtered
+                else:
+                    mapping = {str(k): str(v) for k, v in classes_opt.items()}
+                    filtered: Dict[str, int] = {}
+                    matched_any = False
+                    for orig_name, area in counts.items():
+                        if orig_name in mapping:
+                            alias = mapping[orig_name]
+                            filtered[alias] = area
+                            matched_any = True
+                    if not matched_any:
+                        available = sorted(list(counts.keys()))
+                        raise ValueError(
+                            f"segmentation_no_class_match: none of mapped classes present; provided_keys={sorted(list(mapping.keys()))}; available={available}"
+                        )
+                    counts = filtered
+            # As a final guard, if classes filtering yielded an empty set, raise a clear error
+            if classes_opt is not None and len(counts) == 0:
+                raise ValueError("segmentation_no_class_match: no classes remain after filtering/mapping")
             return {"labels": counts, "shape": list(label_map.shape)}
         except Exception as e:
             log.warning("image-segmentation predict error: %s", e)
-            return {"labels": {}, "shape": []}
+            raise

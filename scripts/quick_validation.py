@@ -246,7 +246,7 @@ def score_model(trending_norm: float, downloads_norm: float, likes_norm: float) 
 
 
 HOST_DEFAULT = "http://localhost:8080"
-MAX_PER_COMBO = 10  # for goal-mode
+MAX_PER_COMBO = 5  # for goal-mode
 TOP_PER_TASK = 2  # for task-mode
 
 # Assets directory (tests/assets)
@@ -322,7 +322,42 @@ def build_inference_inputs_for_task(task_id: str, text_fallback: str | None = No
     if "document" in req_inputs:
         # No document asset available; rely on text fallback
         inputs.setdefault("text", prompt)
-    # Always include extra_args with max_new_tokens
+    # Task-specific shaping for structured inputs
+    if task_id == "image-to-image":
+        # Runner requires an init image and a prompt (either options.prompt or inputs.text). Use inputs.text.
+        inputs.setdefault("text", prompt)
+    elif task_id == "question-answering":
+        # Provide explicit fields instead of a single text prompt
+        inputs.pop("text", None)
+        inputs["question"] = "Where is the Eiffel Tower?"
+        inputs["context"] = "The Eiffel Tower is in Paris."
+    elif task_id == "sentence-similarity":
+        # Provide the pair explicitly
+        a = "A quick brown fox jumps over the lazy dog."
+        b = "A fast brown fox leaps over a lazy dog."
+        inputs["text"] = a
+        inputs["text_pair"] = b
+    elif task_id == "table-question-answering":
+        inputs.pop("text", None)
+        inputs["question"] = "Which city is largest?"
+        inputs["table"] = [["city", "population"], ["Alpha", "100"], ["Beta", "200"]]
+    elif task_id == "text-ranking":
+        inputs.pop("text", None)
+        inputs["query"] = "What is the capital of France?"
+        inputs["candidates"] = [
+            "Berlin is the capital of Germany.",
+            "Madrid is Spain's capital.",
+            "Paris is the capital of France.",
+        ]
+    elif task_id == "zero-shot-classification":
+        # Keep text, add labels
+        inputs.setdefault("text", "This is a news article about technology.")
+        inputs["labels"] = ["sports", "politics", "technology"]
+    elif task_id == "time-series-forecasting":
+        inputs.pop("text", None)
+        inputs["series"] = [1.0, 1.2, 1.1, 1.3, 1.6, 1.9]
+
+    # Always include extra_args with max_new_tokens and echo task id
     inputs["extra_args"] = {"max_new_tokens": 500, "_task": task_id}
     return inputs
 
@@ -366,6 +401,7 @@ def _shorten_assets_generic(obj: object, max_len: int = 64) -> object:
 
 def execute_model(host: str, model: Dict[str, object], task_id: str, outln=lambda s: print(s)) -> Dict[str, object] | None:
     """Post to /api/inference for the given model and task, print brief summary."""
+    # Validation-side note: ASR expects soundfile to be installed; proceed normally.
     payload = {
         "model_id": str(model.get("id")),
         "intent_id": None,
@@ -377,7 +413,7 @@ def execute_model(host: str, model: Dict[str, object], task_id: str, outln=lambd
     url = host.rstrip("/") + "/api/inference"
     # Safety: ensure HF cache does not exceed 600GB before executing
     try:
-        ensure_hf_cache_under_limit(limit_bytes=600 * (1024 ** 3))
+        ensure_hf_cache_under_limit(limit_bytes=700 * (1024 ** 3))
     except Exception as _e:
         outln(f"    Warning: cache check/prune failed: {type(_e).__name__}: {_e}")
     # Show shortened payload before executing

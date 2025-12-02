@@ -272,7 +272,11 @@ class ModelRegistry:
                 existing = self._models.get(key)
                 if existing and existing.status == "ready":
                     return existing
-                # Do not evict pre-emptively here; evict after the new model finishes loading
+                # Proactively evict to ensure memory headroom before loading
+                # Reserve 25% of limit as headroom for loading operations
+                if self._memory_limit_mb is not None:
+                    headroom_target = self._memory_limit_mb * 0.75
+                    self._evict_to_memory_target(headroom_target, exclude_keys={key})
                 runner_cls = get_runner_cls(task)
                 dtype_str = choose_dtype(param_count=None, task=task)
                 try:
@@ -386,7 +390,11 @@ class ModelRegistry:
             existing = self._models.get(key)
             if existing:
                 return existing
-            # Do not evict pre-emptively here; evict after the new model finishes loading
+            # Proactively evict to ensure memory headroom before loading
+            # Reserve 25% of limit as headroom for loading operations
+            if self._memory_limit_mb is not None:
+                headroom_target = self._memory_limit_mb * 0.75
+                self._evict_to_memory_target(headroom_target, exclude_keys={key})
             runner_cls = get_runner_cls(task)
             dtype_str = choose_dtype(param_count=None, task=task)
             try:
@@ -514,6 +522,67 @@ class ModelRegistry:
                         mid,
                         mtask,
                     )
+
+    def _evict_to_memory_target(
+        self,
+        target_mb: float,
+        exclude_keys: Optional[Iterable[Tuple[str, str]]] = None,
+    ) -> None:
+        """Evict models until memory usage is below target_mb."""
+        protected = set(exclude_keys or ())
+        while True:
+            with _LOCK:
+                now = time.time()
+                total_mem = sum(
+                    (e.mem_estimate_mb or 0.0) for e in self._models.values()
+                )
+                if total_mem <= target_mb:
+                    break
+                candidates = [
+                    (key, entry, self._compute_eviction_score(entry, now))
+                    for key, entry in self._models.items()
+                    if entry.status != "loading" and key not in protected
+                ]
+            if not candidates:
+                log.debug(
+                    "eviction to target skipped; no candidates (mem=%.2f target=%.2f)",
+                    total_mem,
+                    target_mb,
+                )
+                break
+            candidates.sort(
+                key=lambda item: (item[2], item[1].mem_estimate_mb or 0.0),
+                reverse=True,
+            )
+            best_key = candidates[0][0]
+            with _LOCK:
+                entry = self._models.get(best_key)
+                if entry is None:
+                    continue
+                mid, mtask = best_key
+                try:
+                    log.info(
+                        "evicting %s:%s for memory headroom (mem=%.2f target=%.2f)",
+                        mid,
+                        mtask,
+                        sum(
+                            (e.mem_estimate_mb or 0.0)
+                            for e in self._models.values()
+                        ),
+                        target_mb,
+                    )
+                    entry.runner.unload()
+                except Exception:
+                    log.exception("error unloading model %s:%s", mid, mtask)
+                finally:
+                    try:
+                        del self._models[best_key]
+                    except Exception:
+                        log.exception(
+                            "failed deleting model entry %s:%s from registry",
+                            mid,
+                            mtask,
+                        )
 
     def _evict_to_limit(
         self, exclude_keys: Optional[Iterable[Tuple[str, str]]] = None

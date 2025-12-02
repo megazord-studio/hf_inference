@@ -67,6 +67,7 @@ dependencies = [
   "speechbrain>=1.0.3",
   "addict>=2.4.0",
   "coqui-tts>=0.27.1",
+  "easydict>=1.13",
 ]
 
 [project.urls]
