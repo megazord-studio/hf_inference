@@ -12,6 +12,7 @@ from app.helpers import get_upload_file_image
 from app.types import RunnerSpec
 from app.utilities import _final_caption_fallback
 from app.utilities import _vlm_florence2
+from app.utilities import _vlm_hunyuan_ocr
 from app.utilities import _vlm_llava
 from app.utilities import _vlm_minicpm
 
@@ -52,6 +53,8 @@ def run_vlm_image_text_to_text(spec: RunnerSpec, dev: str) -> Dict[str, Any]:
         return _vlm_florence2(spec, img, prompt, dev)
     if "minicpm" in mid or "cpm" in mid:
         return _vlm_minicpm(spec, img, prompt, dev)
+    if "hunyuanocr" in mid or "hunyuan" in mid:
+        return _vlm_hunyuan_ocr(spec, img, prompt, dev)
 
     # Generic path 1: image-text-to-text
     try:

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Validation Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .textarea-error {
+            border-color: #ff6b6b;
+            background-color: rgba(255, 107, 107, 0.1);
+        }
+        .text-error {
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body class="p-8 bg-base-200">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">JSON Validation & Formatting Test</h1>
+        
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Extra Args (JSON)</h2>
+                
+                <div class="form-control w-full">
+                    <label class="label" for="extra_args">
+                        <span class="label-text">Extra args (JSON)</span>
+                    </label>
+                    <textarea class="textarea textarea-bordered w-full font-mono"
+                              id="extra_args" name="extra_args"
+                              rows="4" placeholder="{}"></textarea>
+                    
+                    <div id="extraArgsError" class="text-xs text-error mt-1" aria-live="polite"></div>
+                    
+                    <div class="text-xs opacity-70 mt-1">
+                        Optional advanced kwargs passed to the pipeline/runner.
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <h3 class="font-semibold mb-2">Test Cases:</h3>
+                    <div class="space-y-2">
+                        <button class="btn btn-sm btn-outline" onclick="testEmpty()">Test Empty</button>
+                        <button class="btn btn-sm btn-outline" onclick="testValid()">Test Valid JSON</button>
+                        <button class="btn btn-sm btn-outline" onclick="testInvalid()">Test Invalid JSON</button>
+                        <button class="btn btn-sm btn-outline" onclick="testArray()">Test Array (should fail)</button>
+                        <button class="btn btn-sm btn-outline" onclick="testUnformatted()">Test Unformatted (should format)</button>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <h3 class="font-semibold mb-2">Instructions:</h3>
+                    <ul class="list-disc list-inside text-sm opacity-70 space-y-1">
+                        <li>Type or paste JSON in the textarea above</li>
+                        <li>Click outside the textarea (blur event)</li>
+                        <li>Valid JSON will be auto-formatted with 2-space indentation</li>
+                        <li>Invalid JSON will show error message in red</li>
+                        <li>Arrays are not allowed (must be an object)</li>
+                        <li>Empty textarea will default to {}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const extraArgsTextarea = document.getElementById('extra_args');
+        const errorDiv = document.getElementById('extraArgsError');
+
+        if (extraArgsTextarea && errorDiv) {
+            let typingTimer;
+            const typingDelay = 500; // Format after 500ms of no typing
+
+            function validateAndFormat() {
+                const text = extraArgsTextarea.value.trim();
+                errorDiv.textContent = ''; // Clear previous error
+                extraArgsTextarea.classList.remove('textarea-error');
+
+                if (!text || text === '{}') { 
+                    // Allow empty or default empty object
+                    if (text === '') extraArgsTextarea.value = '{}';
+                    return; 
+                }
+
+                try {
+                    const parsedJson = JSON.parse(text);
+                    if (typeof parsedJson !== 'object' || parsedJson === null || Array.isArray(parsedJson)) {
+                        throw new Error('Input must be a JSON object (e.g., {"key": "value"}).');
+                    }
+                    // Save cursor position
+                    const cursorPos = extraArgsTextarea.selectionStart;
+                    // Format the valid JSON nicely
+                    const formatted = JSON.stringify(parsedJson, null, 2);
+                    extraArgsTextarea.value = formatted;
+                    // Restore cursor position (approximately)
+                    extraArgsTextarea.setSelectionRange(cursorPos, cursorPos);
+                } catch (e) {
+                    // Show error message and style textarea
+                    errorDiv.textContent = 'Invalid JSON: ' + e.message;
+                    extraArgsTextarea.classList.add('textarea-error');
+                }
+            }
+
+            // Auto-format while typing (with debounce)
+            extraArgsTextarea.addEventListener('input', function() {
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(validateAndFormat, typingDelay);
+            });
+
+            // Also validate on blur
+            extraArgsTextarea.addEventListener('blur', validateAndFormat);
+            
+            // Set initial value to {} if it's empty on load
+            if (!extraArgsTextarea.value.trim()) {
+                extraArgsTextarea.value = '{}';
+            }
+        }
+
+        // Test functions
+        function testEmpty() {
+            extraArgsTextarea.value = '';
+            extraArgsTextarea.focus();
+            document.body.focus(); // Trigger blur
+        }
+
+        function testValid() {
+            extraArgsTextarea.value = '{"max_tokens": 100, "temperature": 0.7}';
+            extraArgsTextarea.focus();
+            document.body.focus();
+        }
+
+        function testInvalid() {
+            extraArgsTextarea.value = '{invalid json';
+            extraArgsTextarea.focus();
+            document.body.focus();
+        }
+
+        function testArray() {
+            extraArgsTextarea.value = '[1, 2, 3]';
+            extraArgsTextarea.focus();
+            document.body.focus();
+        }
+
+        function testUnformatted() {
+            extraArgsTextarea.value = '{"a":1,"b":{"c":2,"d":3}}';
+            extraArgsTextarea.focus();
+            document.body.focus();
+        }
+    </script>
+</body>
+</html>

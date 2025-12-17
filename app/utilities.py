@@ -270,6 +270,139 @@ def _vlm_florence2(
         return _final_caption_fallback(img, dev)
 
 
+def _clean_repeated_substrings(text: str) -> str:
+    """Clean repeated substrings in text (HunyuanOCR can produce repetitive output)."""
+    n = len(text)
+    if n < 8000:
+        return text
+    for length in range(2, n // 10 + 1):
+        candidate = text[-length:]
+        count = 0
+        i = n - length
+        while i >= 0 and text[i : i + length] == candidate:
+            count += 1
+            i -= length
+        if count >= 10:
+            return text[: n - length * (count - 1)]
+    return text
+
+
+def _vlm_hunyuan_ocr(
+    spec: RunnerSpec, img: Image.Image, prompt: str, dev: str
+) -> Dict[str, Any]:
+    """
+    Handler for tencent/HunyuanOCR and similar HunyuanVL models.
+
+    HunyuanOCR requires:
+    - HunYuanVLForConditionalGeneration model class (loaded via trust_remote_code)
+    - AutoProcessor with use_fast=False
+    - Empty string for system content
+    - Specific message format with image in content
+    """
+    try:
+        from transformers import AutoProcessor as AP
+        from transformers import HunYuanVLForConditionalGeneration
+
+        extra_args: Dict[str, Any] = spec.get("extra_args", {}) or {}
+
+        # Load processor with use_fast=False as required by HunyuanOCR
+        processor = AP.from_pretrained(
+            spec["model_id"], trust_remote_code=True, use_fast=False
+        )
+
+        # Load model - use HunYuanVLForConditionalGeneration directly
+        model = HunYuanVLForConditionalGeneration.from_pretrained(
+            spec["model_id"],
+            trust_remote_code=True,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+            attn_implementation="eager",
+        )
+
+        # Default prompt for OCR if none provided
+        default_prompt = (
+            "Detect and recognize text in the image, "
+            "and output the text coordinates in a formatted manner."
+        )
+        text_prompt = prompt if prompt and prompt != "Describe the image briefly." else default_prompt
+
+        # HunyuanOCR message format - system content must be empty string
+        messages = [
+            {"role": "system", "content": ""},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": img},
+                    {"type": "text", "text": text_prompt},
+                ],
+            },
+        ]
+
+        # Apply chat template
+        texts = [
+            processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        ]
+
+        # Process inputs
+        inputs = processor(
+            text=texts,
+            images=img,
+            padding=True,
+            return_tensors="pt",
+        )
+
+        # Move to device
+        device = next(model.parameters()).device
+        inputs = {
+            k: (v.to(device) if torch.is_tensor(v) else v)
+            for k, v in inputs.items()
+        }
+
+        # Generate with appropriate max_new_tokens for OCR tasks
+        max_tokens = extra_args.get("max_new_tokens", 16384)
+        with torch.no_grad():
+            generated_ids = model.generate(
+                **inputs, max_new_tokens=max_tokens, do_sample=False
+            )
+
+        # Trim input tokens from output
+        if "input_ids" in inputs:
+            input_ids = inputs["input_ids"]
+        else:
+            input_ids = inputs.get("inputs", inputs.get("input_ids"))
+
+        if input_ids is not None:
+            generated_ids_trimmed = [
+                out_ids[len(in_ids) :]
+                for in_ids, out_ids in zip(input_ids, generated_ids)
+            ]
+        else:
+            generated_ids_trimmed = generated_ids
+
+        # Decode output
+        output_texts = processor.batch_decode(
+            generated_ids_trimmed,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        )
+
+        if output_texts:
+            result_text = _clean_repeated_substrings(output_texts[0])
+            return {"text": result_text}
+
+        return {"error": "HunyuanOCR produced no output"}
+
+    except Exception as e:
+        return {
+            "error": "HunyuanOCR inference failed",
+            "reason": str(e),
+            "hint": "Ensure you have the latest transformers installed: "
+            "pip install git+https://github.com/huggingface/transformers",
+        }
+
+
 # expose for runners
 __all__ = [
     "is_cuda_oom",
@@ -282,7 +415,9 @@ __all__ = [
     "_vlm_minicpm",
     "_vlm_llava",
     "_vlm_florence2",
+    "_vlm_hunyuan_ocr",
     "_proc_inputs",
     "_decode_generate",
     "_cast_inputs_to_model_dtype",
+    "_clean_repeated_substrings",
 ]
